@@ -7,8 +7,9 @@
 # context and risk a platform mismatch.
 node_modules
 
-# Tests never run in the production image.
-*.test.js
+# Tests never run in the production image. The `**/` prefix is required: a bare
+# `*.test.js` matches only the context root, but every test file lives under src/.
+**/*.test.js
 
 # Misc that has no place in the runtime image.
 .git
