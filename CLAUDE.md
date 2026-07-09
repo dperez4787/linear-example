@@ -16,12 +16,15 @@ A table-CRUD reference app built end-to-end by a team of Claude Code agents driv
 ```
 app/frontend/   React SPA
 app/backend/    Express API + MongoDB client
+infra/          Terraform for the GCP deploy environment (SAs, WIF, secret container, AR repo)
 docs/           architecture.md — API contract, schema, components
 .claude/agents/ product-owner, architect, developer, tester
 ```
 
 Frontend and backend are independent npm packages. There is no root workspace; run
-commands from inside `app/frontend` or `app/backend`.
+commands from inside `app/frontend` or `app/backend`. `infra/` is Terraform, not an npm
+package; it is a sibling of `app/`, never nested under it. See `docs/architecture.md`
+(Infrastructure as Code) for the tool choice, state backend, and what stays manual.
 
 ## MongoDB connection pattern
 
@@ -143,14 +146,22 @@ Commit subjects start with the ticket ID: `DAN-6: Add GET and POST /api/records`
 the change is shaped the way it is, not what the diff already shows. Work that belongs to
 no ticket (a design doc, a toolchain fix) goes on its own branch with no ticket prefix.
 
-Open the PR with `gh pr create --draft`, and put the Linear issue URL in the body so the
-issue and the PR cross-link. The PR body states what the ticket asked for and what was
-actually verified — including anything that could not be verified.
+Open a ticket PR with `gh pr create --draft`, and put the Linear issue URL in the body so
+the issue and the PR cross-link. The PR body states what the ticket asked for and what was
+actually verified — including anything that could not be verified. (Non-ticket PRs are
+opened non-draft — see the draft-gate exemption below.)
 
-**Every PR is opened as a draft, and only the tester takes it out of draft.** GitHub
+**Every ticket PR is opened as a draft, and only the tester takes it out of draft.** GitHub
 refuses to merge a draft, so this makes the review order structural rather than something
 the user has to remember at the moment the merge button is in front of them. The tester
 runs `gh pr ready` only after every acceptance criterion has passed.
+
+**Non-ticket PRs are exempt from the draft gate.** Work that belongs to no ticket — a design
+doc, a toolchain fix — has no acceptance criteria and no tester ever runs on it, so a draft
+would sit undrafted forever. The author opens these **non-draft** (`gh pr create`, no
+`--draft`), states in the body why it is exempt, and the user reviews and merges directly.
+The draft gate exists to force a tester between the developer and the merge; where there is
+no tester, there is no gate to lift.
 
 `app/backend/.env` is gitignored and holds a live Atlas credential. Never stage it, never
 echo it into a commit message, PR body, or Linear comment. Run `git check-ignore` if unsure.
