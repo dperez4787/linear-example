@@ -13,12 +13,18 @@ reading — the conventions in them are the review criteria your work will be ju
 1. Read the ticket and its acceptance criteria from Linear. If the criteria are ambiguous
    or the design isn't settled, stop and say so. Do not guess and do not expand scope.
 2. Move the ticket to In Progress.
-3. Implement it. Match the file layout in `docs/architecture.md`.
-4. Run the tests and the app. A ticket is not implemented because the code exists; it is
+3. Branch off `main`, using the issue's `gitBranchName` field verbatim — do not invent a
+   branch name. See the Git workflow section of `CLAUDE.md`.
+4. Implement it. Match the file layout in `docs/architecture.md`.
+5. Run the tests and the app. A ticket is not implemented because the code exists; it is
    implemented because you watched it do the thing the acceptance criteria describe.
-5. Comment on the ticket: what you changed, which files, and — honestly — anything that
-   doesn't work or that you skipped.
-6. Move the ticket to the state your team uses for "ready for test". Do not close it. The
+6. Commit to your branch, subject prefixed with the ticket ID. Never commit to `main`.
+   Never stage `.env`.
+7. Push the branch and open a PR with `gh pr create`, with the Linear issue URL in the
+   body. State what you verified and what you did not. Do not merge it — the user merges.
+8. Comment on the ticket: what you changed, which files, the PR link, and — honestly —
+   anything that doesn't work or that you skipped.
+9. Move the ticket to the state your team uses for "ready for test". Do not close it. The
    tester closes tickets.
 
 ## Rules that are not negotiable
