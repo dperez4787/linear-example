@@ -370,45 +370,197 @@ real Atlas connection string**. `--set-secrets` in ticket 9 binds to `MONGODB_UR
 which resolves at deploy time and fails the deploy if no version exists — an empty secret
 container is not enough.
 
-### Infrastructure state
+### Provisioning
 
-| Item | Status |
+The deploy identity — API enablement, the Artifact Registry repo, both service accounts and
+their IAM, the WIF pool/provider, and the `MONGODB_URI` secret container — is not stood up by
+console clicks or a manual runbook. It is declared as code and applied with Terraform; see
+[Infrastructure as Code](#infrastructure-as-code) below for the resource inventory, the
+bootstrap sequence, how it reconciles the partially-built account, and what stays irreducibly
+manual (the secret *value* and the Atlas cluster). The Atlas region remains the one thing that
+cannot be corrected after creation and must be confirmed `us-central1` before the backend
+scaffold (DAN-5) opens a connection — a blocker the user clears, since it needs Atlas org access
+no agent has.
+
+## Infrastructure as Code
+
+The deploy environment is declared as code and applied with Terraform. This replaces the
+manual, user-executed runbook that the deploy-prerequisites ticket (DAN-11) used to be. That
+runbook was not wrong; it was *unverifiable*. Console state is invisible from the repo, so its
+acceptance criteria were entirely user-attested — the only ticket in the project no tester could
+check. As code, the configuration is a reviewable diff, and `terraform fmt`/`validate` are
+assertions a tester can run with no cloud access; only live convergence stays user-attested.
+
+### Terraform, not a shell script
+
+This is ~8 resources in one project, created essentially once. A plain idempotent shell script
+(`gcloud … || true`) would deliver "no console clicking" without a state file, a lockfile, or
+drift tracking — a legitimate lighter option. We still choose **Terraform**, for one reason that
+outweighs the overhead: the account is **not greenfield** (see Reconciling, below). Reconciling
+a half-built environment is exactly what a declarative tool does well — `terraform plan` reports
+the delta between declared intent and reality as a diff, and `import` adopts a resource that
+already exists — whereas a shell script must hand-code an existence guard around every resource
+and can never answer "does reality still match intent?" That reconcile-and-detect-drift property
+is the value we are buying.
+
+Cost, stated plainly: a state file that must now be stored and protected, a provider lockfile to
+maintain, the bootstrap paradox (below), and one more tool the next reader must know. For 8
+resources that overhead is real; we accept it because a checkable, reconcilable deploy identity
+is the whole point of the ticket.
+
+**Terraform over OpenTofu / Pulumi.** OpenTofu is a drop-in fork and a fine substitute if an org
+has a policy against HashiCorp's BSL license; the BSL restricts offering Terraform as a competing
+hosted service, not internal use like this, and the `google` provider is MPL and unaffected — so
+the license does not bite us and Terraform stays the more widely recognized "boring" choice for a
+reference app. Pulumi would pull a general-purpose language and its own runtime into the repo;
+HCL is less for the next reader to learn. If this ever must become OpenTofu, the `.tf` files are
+unchanged.
+
+### Layout
+
+Terraform lives in a top-level **`infra/`** directory, a sibling of `app/` and `docs/` — not
+`app/infra`. `CLAUDE.md` defines everything under `app/` as an independent npm package
+(`app/frontend`, `app/backend`, each with its own `package.json`, no root workspace); Terraform
+is not an npm package, and nesting it there would break that invariant. `CLAUDE.md`'s Layout
+section is updated to match.
+
+### State backend and the bootstrap paradox
+
+State lives in a GCS bucket named `project-d60a83c1-2c60-4d51-ad0-tfstate` (us-central1, uniform
+bucket-level access, object versioning on). But the bucket must exist before Terraform can use it
+as a backend, and the first run needs a credential that predates the WIF it is about to create.
+Both are resolved by the same one-time local bootstrap:
+
+1. A human with Owner on the project runs `gcloud auth application-default login`. This ADC
+   credential — not the deploy SA — is what the first apply runs as. The deploy SA does not exist
+   yet, and even once it does it is deliberately not allowed to administer IAM.
+2. `cd infra && terraform init` with **local** state (no backend block yet).
+3. `terraform import` the pre-existing Artifact Registry repo (see Reconciling).
+4. `terraform apply` — creates the state bucket and every other resource.
+5. Add the GCS backend block and run `terraform init -migrate-state` to move the now-existing
+   local state into the bucket.
+
+After that, state is remote and the bootstrap login is needed only for future infra changes.
+
+### The secret value never enters state
+
+This is the load-bearing call. If Terraform created the `MONGODB_URI` secret **version**, the
+live Atlas connection string would be written to Terraform state in plaintext — strictly worse
+than today, where it lives only in a gitignored `.env` and in Secret Manager. So **Terraform
+creates the secret container and its resource-level IAM binding only; a human adds the version
+once, out of band**, with the value piped from stdin so it never lands on a command line:
+
+```
+printf %s "$MONGODB_URI" | gcloud secrets versions add MONGODB_URI --data-file=-
+```
+
+The value never touches a `.tf` file, a variable, a plan, or state. This reuses the mechanism the
+runbook already documented and keeps the connection string in exactly the two places it lives
+now.
+
+Terraform 1.11+ write-only arguments (`secret_data_wo` / `secret_data_wo_version` on
+`google_secret_manager_secret_version`) are a real alternative — *verified*: the `google`
+provider supports them (Terraform ≥ 1.11, provider ≥ 6.x) and the value is kept out of both plan
+and state. We still do not use them in v1: they would route the plaintext through the operator's
+`terraform apply` invocation (as a tfvar or env var), buy nothing for a single secret set once,
+and add a Terraform-version floor. If the version ever needs to be declaratively managed, this is
+the escape hatch — not persisting the value in state, and not letting the Atlas provider generate
+it into state.
+
+### Terraform manages GCP only — not Atlas
+
+Terraform does **not** manage the MongoDB Atlas cluster in v1. Doing so would pin the region
+declaratively, which is tempting because the region is a live landmine — it must be `us-central1`
+and a cluster cannot be moved after creation. But the Atlas provider requires an org
+**programmatic API key** with org privileges: a long-lived, standing credential with nowhere good
+to live — precisely the kind of key the rest of this architecture works to eliminate (WIF, no SA
+keys, secret value out of state). Spending a standing credential to guard a *one-time* region
+confirmation is disproportionate, and M0 is a constrained free tier (one per project, no CMEK)
+the provider handles awkwardly. So the cluster, its region, and the `0.0.0.0/0` allowlist stay a
+user-attested prerequisite; the region confirmation still gates the backend scaffold (DAN-5)
+exactly as before. Managing Atlas as code is a separate future decision that must first answer
+where its API key would live.
+
+### Reconciling the partially-built account
+
+The account is **not empty**. The first runbook step was already run with the user; Terraform
+must reconcile against this current state:
+
+| Item | Current state | Terraform's move |
+|---|---|---|
+| `run`, `iamcredentials`, `secretmanager`, `firebasehosting` APIs | **enabled** | declare (no-op) |
+| `artifactregistry.googleapis.com` | enabled | declare (no-op) |
+| `cloudbuild.googleapis.com` | **disabled, intentionally** | leave undeclared |
+| Artifact Registry repo `linear-example` (docker, us-central1) | **exists** | `import` |
+| Deploy SA, runtime SA, all IAM, WIF pool/provider, `MONGODB_URI` container | do not exist | create |
+
+- Declaring `google_project_service` for an already-enabled API is a benign no-op, so all five
+  are declared. Each sets `disable_on_destroy = false` so a `terraform destroy` never yanks an
+  API that predated Terraform.
+- `cloudbuild.googleapis.com` is intentionally disabled and intentionally **absent** from the
+  config — Terraform manages only what it declares, so leaving it out keeps it off without a
+  fight.
+- The Artifact Registry repo is the one item that is **not** benign: a plain apply would try to
+  create it and fail "already exists." It is brought under management with `terraform import`, so
+  the config stays complete (a fresh account gets the repo created) while the current account
+  adopts the existing one:
+
+  ```
+  terraform import google_artifact_registry_repository.linear_example \
+    projects/project-d60a83c1-2c60-4d51-ad0/locations/us-central1/repositories/linear-example
+  ```
+
+IAM bindings use the **additive** `google_project_iam_member`, never the authoritative
+`google_project_iam_binding` — the authoritative form strips every other member of a role from
+the project, which two developers choosing independently would get wrong. This is a boundary, not
+a preference.
+
+### Resource inventory
+
+Terraform owns exactly the following, reusing the IDs fixed in the Authentication and Secrets
+sections — **none are invented here**:
+
+| Resource | Identity |
 |---|---|
-| GCP project `project-d60a83c1-2c60-4d51-ad0` (number `756865700041`) | active, **billing enabled** |
-| Artifact Registry `linear-example`, docker, `us-central1` | created |
-| `artifactregistry.googleapis.com` | enabled |
-| `run.googleapis.com` | not enabled |
-| `iamcredentials.googleapis.com` (required for WIF) | not enabled |
-| `secretmanager.googleapis.com` | not enabled |
-| `firebasehosting.googleapis.com` | not enabled |
-| `cloudbuild.googleapis.com` | not enabled — and intentionally stays that way |
-| Deploy SA (`deploy@…`) + WIF pool/provider + repo binding | not created |
-| Runtime SA (`linear-example-run@…`) + `secretAccessor` on `MONGODB_URI` | not created |
-| `MONGODB_URI` secret **and initial version** | not created |
-| Atlas cluster region | **unconfirmed** — must be `us-central1` to match |
+| API enablement | `run`, `iamcredentials`, `secretmanager`, `firebasehosting`, `artifactregistry` (never `cloudbuild`) |
+| Artifact Registry repo (imported) | `linear-example`, docker, `us-central1` |
+| WIF pool / provider | `github-pool` / `github-provider`, issuer `https://token.actions.githubusercontent.com`, condition `assertion.repository == 'dperez4787/linear-example'` |
+| Deploy SA + IAM | `deploy@…`: `roles/artifactregistry.writer`, `roles/run.admin`, `roles/iam.serviceAccountUser`, `roles/firebasehosting.admin`; plus `roles/iam.workloadIdentityUser` on the repo principalSet |
+| Runtime SA + IAM | `linear-example-run@…`: `roles/secretmanager.secretAccessor` on the `MONGODB_URI` secret only (resource-level) |
+| Secret container | `MONGODB_URI` — version added by hand (see above) |
 
-Enabling the four disabled APIs, creating the WIF pool/provider and deploy service account,
-creating the dedicated runtime service account and granting it `secretAccessor` on the secret,
-and creating the `MONGODB_URI` secret with its first version are one-time account state rather
-than per-deploy code, so they are collected into one bootstrap ticket (below) instead of
-scattered across the tickets that consume them — that gives one place where the deploy identity
-is established and verified.
+The WIF attribute condition is a **security boundary, not a nicety**: without it, any GitHub
+repo's OIDC token can exchange for the deploy SA's credentials. Terraform must set it, and a
+tester should treat its absence as a failure.
 
-**Ticket 7 is user-executed.** Every step in it — enabling APIs, creating the WIF pool, binding
-service accounts, writing the real connection string into Secret Manager, confirming the Atlas
-region — requires GCP-console/owner and Atlas-org access that no developer or tester agent has,
-and none of it is observable from the repo. It therefore stays a Linear ticket for tracking and
-as the dependency that gates tickets 9 and 11, but is explicitly flagged **USER-EXECUTED**: no
-developer agent picks it up and no tester agent verifies it. Its acceptance criteria are
-**user-attested** — the user confirms each resource exists (e.g. `gcloud iam service-accounts
-list`, `gcloud secrets versions list MONGODB_URI` show what's expected). It is effectively a
-prerequisite runbook that happens to be filed as an issue.
+### What stays irreducibly manual
 
-The Atlas region is the only entry that cannot be corrected later, and it is a hard
-prerequisite: it must be confirmed — and the cluster recreated in `us-central1` if it is
-anywhere else — before the backend scaffold ticket, which is the first thing to open a
-connection. Confirming it needs Atlas org access, so it is a blocker the user must clear
-before that ticket starts, not something an agent can settle from the repo.
+Terraform removes the console clicking; it does not remove these, and nobody should read "IaC"
+as "fully automated":
+
+- GCP account creation and enabling billing — a human with a credit card.
+- The bootstrap `gcloud auth application-default login` — the identity the first apply runs as.
+- Adding the `MONGODB_URI` secret **version** with the real connection string (value out of
+  state, above).
+- Creating the Atlas cluster in `us-central1`, minting its first credential, and setting the
+  `0.0.0.0/0` allowlist.
+- Setting the `WIF_PROVIDER` and `DEPLOY_SA` GitHub Secrets — needs a GitHub PAT or an existing
+  `gh` auth (`gh secret set`).
+
+### Relationship to the deploy workflows
+
+The app deploy workflows (DAN-13, DAN-15) do **not** run `terraform apply`. An application push
+and an infrastructure change have different cadences and blast radii, and firing an infra apply
+from an app deploy would mean handing the deploy SA project-level IAM-admin rights — the opposite
+of the least-privilege deploy identity the CI/CD section builds. Infra apply stays a deliberate,
+human-run operation under the bootstrap ADC identity, outside CI, in v1.
+
+`infra/` also gets no cloud-touching CI in v1: there is no CI at all until DAN-13, and a
+`terraform plan` in CI would reintroduce the GCP-credential question this architecture spends
+effort avoiding. What a tester *can* run with zero cloud access is `terraform fmt -check` and
+`terraform init -backend=false && terraform validate` — those are the agent-checkable criteria
+for the infra ticket. A live `terraform plan`/`apply` against the account is user-attested, the
+same two-tier split the deploy tickets already use.
 
 ## Ticket slicing
 
@@ -430,31 +582,43 @@ string is wrong.
 These ship the pipeline described in the Deploy topology and CI/CD sections. Each leaves the
 repo working on its own. The relay in Remote execution is deliberately not among them.
 
-**Acceptance-criteria convention for deploy tickets (9, 10, 11).** A live deploy to Cloud Run
-or Firebase is not observable by an agent — no developer or tester agent holds cloud
-credentials, so "the site is live at the Cloud Run URL" is a criterion neither can honestly
-sign off. The product-owner must therefore split every deploy ticket's acceptance criteria into
-two labeled groups, and the tester verifies only the first:
+**Acceptance-criteria convention for deploy/infra tickets (7, 9, 10, 11).** A live deploy to
+Cloud Run or Firebase — and a live `terraform apply` — is not observable by an agent; no
+developer or tester agent holds cloud credentials, so "the site is live at the Cloud Run URL" or
+"the resources exist in GCP" is a criterion neither can honestly sign off. The product-owner must
+therefore split every such ticket's acceptance criteria into two labeled groups, and the tester
+verifies only the first:
 
 - **Agent-checkable** — everything provable in the repo with no cloud access: the Dockerfile
   builds and `docker run` serves `/healthz` locally; the workflow YAML parses and passes
   `actionlint`; `firebase.json` is schema-valid and the rewrite order is correct; the deploy
   command lines contain the required flags (`--service-account`, `--set-secrets`, SHA tag, no
-  `latest`, no Cloud Build).
-- **User-attested** — the live outcome only the user can confirm after a real push: the Cloud
-  Run revision is serving, `/api/records` responds through the Firebase rewrite, the container
-  read `MONGODB_URI` at startup. The tester records these as "pending user attestation," not as
-  pass or fail.
+  `latest`, no Cloud Build); for the infra ticket, `terraform fmt -check` and `terraform init
+  -backend=false && terraform validate` pass and the config declares the exact IDs and the WIF
+  attribute condition.
+- **User-attested** — the live outcome only the user can confirm after a real push or apply: the
+  Cloud Run revision is serving, `/api/records` responds through the Firebase rewrite, the
+  container read `MONGODB_URI` at startup; for the infra ticket, `terraform apply` converged and
+  the resources exist. The tester records these as "pending user attestation," not as pass or
+  fail.
 
-7. **Deploy prerequisites (GCP + Atlas) — USER-EXECUTED.** Enable `run`, `iamcredentials`,
-   `secretmanager`, and `firebasehosting` APIs; create the WIF pool `github-pool` and provider
-   `github-provider` with the attribute mapping and the `assertion.repository ==
-   'dperez4787/linear-example'` condition (see Authentication); create the deploy SA with
-   exactly the four roles and bind it to the repo principal; create the dedicated runtime SA
-   and grant it `secretmanager.secretAccessor` on the `MONGODB_URI` secret; create the
-   `MONGODB_URI` secret **and its first version** with the real Atlas string; set the Atlas
-   allowlist to `0.0.0.0/0`. No repo code; the user runs it and attests each resource exists.
-   Depends on the Atlas region being confirmed first. Prerequisite for tickets 9 and 11.
+7. **Deploy prerequisites as Terraform (GCP) + manual bootstrap.** Was a user-executed runbook;
+   is now Infrastructure as Code (see that section). This ticket should be **re-sliced** by the
+   product-owner into two parts, because they have different owners and different verifiability:
+   - *(7a) Author `infra/` Terraform* — agent work. Declare the five API enablements (never
+     `cloudbuild`), the imported Artifact Registry repo, the WIF pool `github-pool` / provider
+     `github-provider` with the attribute mapping and the **required** `assertion.repository ==
+     'dperez4787/linear-example'` condition, the deploy SA with exactly its four roles and the
+     repo-principal `workloadIdentityUser` binding, the dedicated runtime SA with
+     `secretmanager.secretAccessor` on the `MONGODB_URI` secret only, and the `MONGODB_URI` secret
+     **container** (not its version). Agent-checkable: `fmt -check` and `validate` pass; the exact
+     IDs and condition are present.
+   - *(7b) Bootstrap + manual items* — user-attested. `gcloud auth application-default login`,
+     `terraform import` the existing repo, `terraform apply`, `init -migrate-state`; then add the
+     `MONGODB_URI` secret **version** with the real Atlas string, set the Atlas allowlist to
+     `0.0.0.0/0`, confirm the cluster region, and set the `WIF_PROVIDER`/`DEPLOY_SA` GitHub
+     Secrets. Depends on the Atlas region being confirmed first. Prerequisite for tickets 9 and
+     11.
 
 8. **Backend Dockerfile.** `app/backend/Dockerfile` (plus `.dockerignore`) exactly as in the
    CI/CD section — `node:24-slim`, `npm ci --omit=dev`, listen on `process.env.PORT`. Verified
