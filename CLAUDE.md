@@ -127,6 +127,37 @@ Agents work one ticket at a time. A ticket is not done until the tester has comm
 `In Review` is the team's *ready for test* state. It means the ticket is waiting on the
 tester, not on the user. It is not a signal to merge.
 
+## Remote agents (GitHub Actions)
+
+Planning stays local; implementation and testing can run remotely on the user's API
+tokens. `.github/workflows/linear-agents.yml` polls Linear every 5 minutes and hands
+tickets to the same checked-in agents this repo uses locally:
+
+| Linear trigger | What runs |
+|---|---|
+| Status → `Ready for Dev` | developer agent: claims the ticket (moves it to In Progress), implements, opens a draft PR |
+| Status → `In Review`, no `agent-tested` label | tester agent: verifies acceptance criteria, comments the verdict on the issue and the PR, lifts the draft on pass |
+
+Pickup is not instant — the poll runs every 5 minutes and GitHub may delay scheduled
+runs further. The status change *is* the claim, so a ticket is never picked up twice.
+The `agent-tested` label marks a completed test run; the developer claim strips it, so
+re-testing a ticket means dragging it back through `Ready for Dev`, or removing the
+label and re-adding `In Review`.
+
+CI differences from local sessions (the workflow prompt tells agents this too):
+
+- No `~/.zshenv` — the runner installs Node from `.nvmrc` directly.
+- MongoDB is a throwaway `mongo:7` service container, not Atlas. `MONGODB_URI` and
+  `MONGODB_DB=linear_example_test` are preset; there is no `.env`.
+- Linear access is the hosted Linear MCP server authenticated with the `LINEAR_API_KEY`
+  repo secret, not the interactive OAuth session.
+- The tester posts its PR verdict as a comment only — CI's identity authors the PR and
+  GitHub forbids self-approval, so there is no formal review in the remote flow.
+- Secrets: `ANTHROPIC_API_KEY` (billing) and `LINEAR_API_KEY`. The workflow only runs
+  from `main`, so changes to it ship like any other PR.
+
+Everything else — draft-PR gate, tester-lifts-the-draft, user merges — is unchanged.
+
 ## Git workflow
 
 One ticket, one branch, one commit history, one pull request. `main` is protected by
