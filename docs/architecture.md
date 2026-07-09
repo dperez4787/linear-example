@@ -111,6 +111,58 @@ Atlas IP allowlist: Cloud Run has no static egress IP by default. Either allow `
 VPC connector with Cloud NAT. Decide this in Step 6 — it is the one piece of infra that
 routinely surprises people.
 
+## Remote execution
+
+Linear cannot trigger an agent. The Linear MCP server is *pull* — it lets a running agent
+read and write issues; it cannot wake one up. Every design here therefore needs a relay
+that receives Linear's webhook and calls something.
+
+```
+Linear webhook (issue state change)
+   │
+   v
+Cloud Run relay ── verify Linear signature ──> GitHub repository_dispatch
+                                                  │
+                                                  v
+                                          GitHub Actions runner
+                                            anthropics/claude-code-action@v1
+                                            google-github-actions/auth (OIDC)
+                                                  │
+                                                  v
+                                       gcloud run deploy + firebase deploy
+```
+
+Repo: `github.com/dperez4787/linear-example`.
+
+### Why GitHub Actions rather than Claude Code Routines
+
+Routines expose a documented `POST /v1/claude_code/routines/{id}/fire` endpoint, which is
+the more direct fit and was the original plan. Two things rule it out.
+
+**No secrets store.** Secrets in the Anthropic-managed cloud environment are plaintext
+environment variables readable by anyone who can edit the environment. Since Step 6 deploys
+to GCP, that means a long-lived service account key sitting in plaintext. GitHub Actions
+supports OIDC Workload Identity Federation, so no service account key needs to exist at all.
+This is the deciding factor.
+
+**Research preview.** `/fire` ships behind the `experimental-cc-routine-2026-04-01` beta
+header and is subject to breaking changes. The GitHub Action is GA.
+
+Also relevant, if the decision is ever revisited: the cloud environment cannot be given a
+`Dockerfile` or `devcontainer.json` — the base image is fixed, customizable only by a
+root setup script (cached ~7 days) and `SessionStart` hooks. It has Node and Python
+preinstalled but **not** `gcloud`.
+
+### What the workflow must do
+
+- Authenticate to GCP with `google-github-actions/auth` via Workload Identity Federation.
+  No `GOOGLE_APPLICATION_CREDENTIALS` key file.
+- Provide `MONGODB_URI` from GitHub Secrets, and Secret Manager for the deployed service.
+- Install nothing exotic: `actions/setup-node`, `google-github-actions/setup-gcloud`.
+
+The relay verifies Linear's webhook signature before dispatching. An unauthenticated relay
+lets anyone on the internet start an agent that can push code.
+
 ## Ticket slicing
 
 The `product-owner` agent should cut roughly:

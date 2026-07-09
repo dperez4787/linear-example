@@ -64,7 +64,9 @@ connection latency.
 | `MONGODB_DB`  | `linear_example` (app), `linear_example_test` (test runs only) |
 | `PORT`        | Cloud Run injects this; default `8080` locally |
 
-GCP project: `<GCP_PROJECT_ID>` — fill in before Step 6.
+GCP project: `project-d60a83c1-2c60-4d51-ad0` (unverified — confirm with
+`gcloud projects describe`). Atlas region: **TBD** — Cloud Run must be deployed to the same
+region, and an Atlas cluster cannot be moved after creation.
 
 ## Local toolchain
 
