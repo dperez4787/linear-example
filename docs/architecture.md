@@ -102,6 +102,13 @@ Firebase Hosting rewrites `/api/**` to the Cloud Run service, so the SPA and API
 same-origin and there is no CORS configuration to maintain. The backend still sets CORS
 headers for local development, where Vite serves on a different port.
 
+The Cloud Run service allows **unauthenticated** invocations: the deploy passes
+`--allow-unauthenticated`, granting `allUsers` → `roles/run.invoker`. This is required, not
+incidental — Firebase Hosting invokes the `/api/**` rewrite anonymously, with no
+service-agent identity to grant `run.invoker` to, so a private service would `403` both the
+rewrite and `/healthz`. It adds no exposure the design didn't already have: the SPA calls
+the API anonymously and there is no auth boundary in v1.
+
 The Cloud Run service is named `linear-example-backend`. `firebase.json` lives at the repo
 root and is the single source of that routing:
 
