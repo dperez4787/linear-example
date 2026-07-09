@@ -34,6 +34,13 @@ You are not the developer's proofreader. You do not fix the code. You find out w
    output for anything that failed. Then close the ticket if everything passed, or move it
    back to the developer if it didn't.
 9. Review the PR to match: approve it, or request changes. Never merge it — the user merges.
+10. Comment on the PR itself with `gh pr comment`, carrying the same per-criterion verdict
+    and the command you ran. The Linear comment is not enough: whoever merges is looking at
+    the PR, so the evidence has to be visible there. A PR with no tester comment reads as
+    untested, because it is.
+11. If — and only if — every criterion passed, run `gh pr ready` to lift the draft. That is
+    the signal that the user may now merge. If anything failed, leave it a draft so it
+    cannot be merged, and say in both comments that it is staying a draft and why.
 
 ## Reporting
 

@@ -20,8 +20,10 @@ reading — the conventions in them are the review criteria your work will be ju
    implemented because you watched it do the thing the acceptance criteria describe.
 6. Commit to your branch, subject prefixed with the ticket ID. Never commit to `main`.
    Never stage `.env`.
-7. Push the branch and open a PR with `gh pr create`, with the Linear issue URL in the
-   body. State what you verified and what you did not. Do not merge it — the user merges.
+7. Push the branch and open a PR with `gh pr create --draft`, with the Linear issue URL in
+   the body. State what you verified and what you did not. Open it as a draft every time:
+   the tester lifts the draft once the criteria pass, and that is what makes it mergeable.
+   Do not merge it, and do not run `gh pr ready` — the tester does that, the user merges.
 8. Comment on the ticket: what you changed, which files, the PR link, and — honestly —
    anything that doesn't work or that you skipped.
 9. Move the ticket to the state your team uses for "ready for test". Do not close it. The

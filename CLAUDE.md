@@ -121,6 +121,9 @@ the ticket's acceptance criteria and comments pass/fail on the issue.
 
 Agents work one ticket at a time. A ticket is not done until the tester has commented on it.
 
+`In Review` is the team's *ready for test* state. It means the ticket is waiting on the
+tester, not on the user. It is not a signal to merge.
+
 ## Git workflow
 
 One ticket, one branch, one commit history, one pull request. `main` is protected by
@@ -140,19 +143,34 @@ Commit subjects start with the ticket ID: `DAN-6: Add GET and POST /api/records`
 the change is shaped the way it is, not what the diff already shows. Work that belongs to
 no ticket (a design doc, a toolchain fix) goes on its own branch with no ticket prefix.
 
-Open the PR with `gh pr create`, and put the Linear issue URL in the body so the issue and
-the PR cross-link. The PR body states what the ticket asked for and what was actually
-verified — including anything that could not be verified.
+Open the PR with `gh pr create --draft`, and put the Linear issue URL in the body so the
+issue and the PR cross-link. The PR body states what the ticket asked for and what was
+actually verified — including anything that could not be verified.
+
+**Every PR is opened as a draft, and only the tester takes it out of draft.** GitHub
+refuses to merge a draft, so this makes the review order structural rather than something
+the user has to remember at the moment the merge button is in front of them. The tester
+runs `gh pr ready` only after every acceptance criterion has passed.
 
 `app/backend/.env` is gitignored and holds a live Atlas credential. Never stage it, never
 echo it into a commit message, PR body, or Linear comment. Run `git check-ignore` if unsure.
 
 ### Who touches the branch
 
-The developer creates the branch, implements the ticket, and opens the PR. The tester
-checks out that same branch, adds its tests as a separate commit, and reviews the PR —
-approving it or requesting changes — alongside its pass/fail comment on the Linear issue.
-The tester does not open a second PR and does not fix the developer's code.
+The developer creates the branch, implements the ticket, and opens the PR **as a draft**.
+The tester checks out that same branch, adds its tests as a separate commit, and reviews
+the PR — approving it or requesting changes — alongside its pass/fail comment on the Linear
+issue. The tester does not open a second PR and does not fix the developer's code.
+
+The tester also posts its verdict as a comment on the PR itself, not only on the Linear
+issue. The person merging is looking at the PR, so that is where the evidence has to be.
+A PR with no tester comment has not been tested.
+
+Only when every criterion passes does the tester run `gh pr ready` to lift the draft. If a
+criterion fails, the PR stays a draft and goes back to the developer. Agents still never
+merge — lifting the draft is what hands the merge decision to the user.
 
 A ticket is done when the tester has commented on the issue and reviewed the PR. It is
-shipped when the user merges. Those are different events; do not conflate them.
+shipped when the user merges. Those are different events; do not conflate them. If you are
+about to merge a PR that is still a draft or carries no tester comment, stop: the ticket is
+not done, whatever its Linear state says.
