@@ -1,0 +1,273 @@
+# Remote developer/tester agents driven by Linear ticket status.
+#
+# Every 5 minutes the scan job polls Linear (a single GraphQL request — no Claude
+# tokens are spent unless a ticket is actually waiting):
+#
+#   status "Ready for Dev"                      → develop job: implements the ticket,
+#                                                 opens a draft PR, moves it to In Review
+#   status "In Review" without `agent-tested`   → test job: verifies acceptance criteria,
+#                                                 comments the verdict, lifts the draft on pass
+#
+# The claim is the status change: develop moves the ticket to In Progress before Claude
+# starts, so a ticket is never picked up twice. To re-run either leg, drag the ticket
+# back to the trigger status (the develop claim also strips `agent-tested`).
+#
+# Secrets required: ANTHROPIC_API_KEY (Claude API billing), LINEAR_API_KEY.
+# Subscription billing instead: replace `anthropic_api_key` with
+# `claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}` (from `claude setup-token`).
+
+name: Linear agents
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  LINEAR_TEAM_KEY: DAN
+  STATE_READY_FOR_DEV: 8d578131-713b-41ea-b940-135b55b7b86b
+  STATE_IN_PROGRESS: 561a64fd-33e0-43ad-8ce3-12d4e07d6624
+  STATE_IN_REVIEW: 4ce22db3-e24c-4a43-b2ee-d8ec4b0c64b6
+  STATE_TODO: 7e52dca3-ae1c-4558-a17f-109eb9622f90
+  LABEL_AGENT_TESTED: 807df70e-ece2-48f9-b882-d5f466c46a30
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      develop: ${{ steps.scan.outputs.develop }}
+      test: ${{ steps.scan.outputs.test }}
+    steps:
+      - name: Find tickets waiting on an agent
+        id: scan
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          set -euo pipefail
+          GQL='query($dev: ID, $test: ID) {
+            dev: issues(filter: { state: { id: { eq: $dev } } }, first: 10) {
+              nodes { id identifier title branchName }
+            }
+            test: issues(filter: { state: { id: { eq: $test } } }, first: 10) {
+              nodes { id identifier title branchName labels { nodes { name } } }
+            }
+          }'
+          QUERY=$(jq -n --arg q "$GQL" --arg dev "$STATE_READY_FOR_DEV" --arg test "$STATE_IN_REVIEW" \
+            '{query: $q, variables: {dev: $dev, test: $test}}')
+          RESP=$(curl -sS --fail https://api.linear.app/graphql \
+            -H "Authorization: $LINEAR_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$QUERY")
+          echo "$RESP" | jq -e '.data' > /dev/null  # fail loudly on GraphQL errors
+          DEV=$(echo "$RESP" | jq -c '[.data.dev.nodes[] | {id, identifier, title, branchName}]')
+          TEST=$(echo "$RESP" | jq -c '[.data.test.nodes[]
+            | select(([.labels.nodes[].name] | index("agent-tested")) | not)
+            | {id, identifier, title, branchName}]')
+          echo "develop=$DEV" >> "$GITHUB_OUTPUT"
+          echo "test=$TEST" >> "$GITHUB_OUTPUT"
+          echo "Ready for Dev: $(echo "$DEV" | jq -r 'if length == 0 then "none" else [.[].identifier] | join(", ") end')"
+          echo "Ready for test: $(echo "$TEST" | jq -r 'if length == 0 then "none" else [.[].identifier] | join(", ") end')"
+
+  develop:
+    needs: scan
+    if: needs.scan.outputs.develop != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1   # agents work one ticket at a time (CLAUDE.md)
+      matrix:
+        issue: ${{ fromJSON(needs.scan.outputs.develop) }}
+    concurrency:
+      group: linear-develop-${{ matrix.issue.identifier }}
+      cancel-in-progress: false
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    env:
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      MONGODB_URI: mongodb://localhost:27017
+      MONGODB_DB: linear_example_test
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Claim ticket (move to In Progress)
+        id: claim
+        run: |
+          set -euo pipefail
+          gql() {
+            curl -sS --fail https://api.linear.app/graphql \
+              -H "Authorization: $LINEAR_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "$1"
+          }
+          STATE=$(gql "$(jq -n --arg id "${{ matrix.issue.id }}" \
+            '{query: "query($id: String!) { issue(id: $id) { state { id } } }", variables: {id: $id}}')" \
+            | jq -r '.data.issue.state.id')
+          if [ "$STATE" != "$STATE_READY_FOR_DEV" ]; then
+            echo "Ticket already claimed or moved (state $STATE); skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gql "$(jq -n --arg id "${{ matrix.issue.id }}" --arg state "$STATE_IN_PROGRESS" \
+            '{query: "mutation($id: String!, $state: String!) { issueUpdate(id: $id, input: { stateId: $state }) { success } }", variables: {id: $id, state: $state}}')" \
+            | jq -e '.data.issueUpdate.success' > /dev/null
+          # A re-run of a previously tested ticket starts a fresh test cycle
+          gql "$(jq -n --arg id "${{ matrix.issue.id }}" --arg label "$LABEL_AGENT_TESTED" \
+            '{query: "mutation($id: String!, $label: String!) { issueRemoveLabel(id: $id, labelId: $label) { success } }", variables: {id: $id, label: $label}}')" \
+            > /dev/null || true
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Implement ticket
+        if: steps.claim.outputs.skip != 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          claude_args: |
+            --dangerously-skip-permissions
+            --mcp-config '{"mcpServers":{"linear-server":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer ${{ secrets.LINEAR_API_KEY }}"}}}}'
+          prompt: |
+            You are running unattended in GitHub Actions on a fresh checkout of
+            ${{ github.repository }} (branch main, run ${{ github.run_id }}).
+
+            Ticket: ${{ matrix.issue.identifier }} — ${{ matrix.issue.title }}
+            Git branch from Linear (use verbatim): ${{ matrix.issue.branchName }}
+
+            Launch the `developer` agent (Agent tool, subagent_type "developer") to
+            implement this ticket end to end per CLAUDE.md. Tell it to:
+            - Fetch the ticket and its acceptance criteria with the Linear MCP
+              get_issue tool. The criteria on the issue are the spec.
+            - Create the branch off main, implement, commit (subjects start with the
+              ticket ID), push with `git push -u origin <branch>`, and open a DRAFT PR
+              (`gh pr create --draft`) whose body links the Linear issue and states
+              what was verified.
+            - The ticket is already in "In Progress"; leave the Linear status alone —
+              the workflow moved it and the human moves it to "In Review" after
+              reviewing the draft PR, which hands it to the tester agent.
+
+            CI environment notes — these OVERRIDE the corresponding CLAUDE.md sections:
+            - Do NOT run `source ~/.zshenv`; node, npm, git, and gh are already on PATH.
+            - MongoDB is a local service container; MONGODB_URI and MONGODB_DB are
+              already exported. There is no Atlas access and no .env file to read.
+            - `gh` is authenticated via GH_TOKEN. Never push to main.
+
+            When the developer agent finishes, verify the draft PR exists with
+            `gh pr view ${{ matrix.issue.branchName }}` and state its URL. If the
+            ticket cannot be implemented (unclear criteria, unsettled design), comment
+            the blocker on the Linear issue, move the issue back to "Todo", and stop
+            without opening a PR.
+
+  test:
+    needs: scan
+    if: needs.scan.outputs.test != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        issue: ${{ fromJSON(needs.scan.outputs.test) }}
+    concurrency:
+      group: linear-test-${{ matrix.issue.identifier }}
+      cancel-in-progress: false
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    env:
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      MONGODB_URI: mongodb://localhost:27017
+      MONGODB_DB: linear_example_test
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Confirm ticket still needs testing
+        id: guard
+        run: |
+          set -euo pipefail
+          RESP=$(curl -sS --fail https://api.linear.app/graphql \
+            -H "Authorization: $LINEAR_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg id "${{ matrix.issue.id }}" \
+              '{query: "query($id: String!) { issue(id: $id) { state { id } labels { nodes { name } } } }", variables: {id: $id}}')")
+          STATE=$(echo "$RESP" | jq -r '.data.issue.state.id')
+          TESTED=$(echo "$RESP" | jq -r '[.data.issue.labels.nodes[].name] | index("agent-tested") != null')
+          if [ "$STATE" != "$STATE_IN_REVIEW" ] || [ "$TESTED" = "true" ]; then
+            echo "Ticket no longer awaiting test; skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify ticket
+        if: steps.guard.outputs.skip != 'true'
+        id: verify
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          claude_args: |
+            --dangerously-skip-permissions
+            --mcp-config '{"mcpServers":{"linear-server":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer ${{ secrets.LINEAR_API_KEY }}"}}}}'
+          prompt: |
+            You are running unattended in GitHub Actions on ${{ github.repository }}
+            (run ${{ github.run_id }}).
+
+            Ticket to verify: ${{ matrix.issue.identifier }} — ${{ matrix.issue.title }}
+            PR branch (from Linear): ${{ matrix.issue.branchName }}
+
+            Check out the PR branch (`gh pr checkout ${{ matrix.issue.branchName }}`),
+            then launch the `tester` agent (Agent tool, subagent_type "tester") to
+            verify this ticket per CLAUDE.md. Tell it to:
+            - Fetch the acceptance criteria with the Linear MCP get_issue tool and
+              verify against THEM, by running the code — not against what the
+              developer says it built.
+            - Add its tests as a separate commit on the same branch and push.
+            - Post the pass/fail verdict with evidence as a comment on BOTH the Linear
+              issue and the PR (`gh pr comment`). Do not submit a formal GitHub review:
+              CI's identity authored the PR and GitHub forbids self-approval — the PR
+              comment is the verdict.
+            - If every criterion passes: run `gh pr ready ${{ matrix.issue.branchName }}`
+              and leave the Linear status at "In Review" (the human merges).
+            - If any criterion fails: leave the PR a draft and move the Linear issue
+              back to "In Progress" so the failure is visible on the board.
+
+            CI environment notes — these OVERRIDE the corresponding CLAUDE.md sections:
+            - Do NOT run `source ~/.zshenv`; node, npm, git, and gh are already on PATH.
+            - MongoDB is a local service container; MONGODB_URI and MONGODB_DB are
+              already exported. There is no Atlas access and no .env file to read.
+            - `gh` is authenticated via GH_TOKEN. Never push to main, never merge.
+
+      - name: Mark ticket agent-tested
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          curl -sS --fail https://api.linear.app/graphql \
+            -H "Authorization: $LINEAR_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg id "${{ matrix.issue.id }}" --arg label "$LABEL_AGENT_TESTED" \
+              '{query: "mutation($id: String!, $label: String!) { issueAddLabel(id: $id, labelId: $label) { success } }", variables: {id: $id, label: $label}}')" \
+            | jq -e '.data.issueAddLabel.success' > /dev/null
