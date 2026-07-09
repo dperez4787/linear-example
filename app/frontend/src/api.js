@@ -2,6 +2,13 @@
 // these functions and never call fetch() themselves (see CLAUDE.md). Requests
 // use relative paths so the client is same-origin in production (Firebase
 // rewrites /api/** to Cloud Run) and works through the Vite dev proxy locally.
+//
+// Auth lives here too, for the same reason fetch() does: a component must not
+// touch getIdToken() or the Authorization header. Every request goes through
+// authedFetch(), which attaches the signed-in user's Firebase ID token and maps
+// a 401 to signed-out — the token is refreshed and the sign-out is triggered in
+// exactly one place.
+import { getIdToken, signOutUser } from './auth.js'
 
 const BASE = '/api/records'
 
@@ -26,11 +33,35 @@ async function toError(res) {
   return err
 }
 
+// fetch() with the ID token attached and 401 mapped to signed-out. When a user
+// is signed in, the current token goes on as `Authorization: Bearer <token>`;
+// when nobody is signed in the request goes out unauthenticated (the backend is
+// still permissive until DAN-22), and — to keep requests byte-for-byte what they
+// were before auth — no second fetch() argument is added when there is neither a
+// token nor an existing init. A 401 means the token was missing/expired/rejected,
+// so we sign the user out (which flips the app to the sign-in affordance via the
+// auth context) and still throw, so the caller's own error handling unwinds.
+async function authedFetch(url, init) {
+  const token = await getIdToken()
+  if (token) {
+    init = {
+      ...init,
+      headers: { ...(init?.headers), Authorization: `Bearer ${token}` },
+    }
+  }
+  const res = init === undefined ? await fetch(url) : await fetch(url, init)
+  if (res.status === 401) {
+    await signOutUser().catch(() => {})
+    throw await toError(res)
+  }
+  return res
+}
+
 // GET /api/records -> Record[]. The API wraps the list as { records: [...] }
 // (never a bare array, to leave room for pagination metadata); unwrap it here
 // so callers get a plain array.
 export async function listRecords() {
-  const res = await fetch(BASE)
+  const res = await authedFetch(BASE)
   if (!res.ok) throw await toError(res)
   const body = await res.json()
   return body.records ?? []
@@ -42,7 +73,7 @@ export async function listRecords() {
 // re-fetch. A 400 throws an Error carrying `field` (see toError) so the form can
 // point at the rejected input; the record is not added.
 export async function createRecord(record) {
-  const res = await fetch(BASE, {
+  const res = await authedFetch(BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(record),
@@ -57,7 +88,7 @@ export async function createRecord(record) {
 // backend re-validates every field it receives, so a rejected PATCH surfaces as
 // a thrown Error the optimistic caller uses to roll back.
 export async function updateRecord(id, patch) {
-  const res = await fetch(`${BASE}/${id}`, {
+  const res = await authedFetch(`${BASE}/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
@@ -71,6 +102,6 @@ export async function updateRecord(id, patch) {
 // body to parse or return; a non-2xx (e.g. 404) throws so the caller can restore
 // the row it optimistically removed.
 export async function deleteRecord(id) {
-  const res = await fetch(`${BASE}/${id}`, { method: 'DELETE' })
+  const res = await authedFetch(`${BASE}/${id}`, { method: 'DELETE' })
   if (!res.ok) throw await toError(res)
 }
