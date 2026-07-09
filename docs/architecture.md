@@ -604,11 +604,12 @@ must reconcile against this current state:
 | `run`, `iamcredentials`, `secretmanager`, `firebasehosting` APIs | **enabled** | declare (no-op) |
 | `artifactregistry.googleapis.com` | enabled | declare (no-op) |
 | `cloudresourcemanager.googleapis.com` | **enabled** (by hand, DAN-19) | declare (no-op) |
+| `identitytoolkit.googleapis.com`, `securetoken.googleapis.com` | **enabled** (via `addFirebase`, DAN-19) | declare (no-op) |
 | `cloudbuild.googleapis.com` | **disabled, intentionally** | leave undeclared |
 | Artifact Registry repo `linear-example` (docker, us-central1) | **exists** | `import` |
 | Deploy SA, runtime SA, all IAM, WIF pool/provider, `MONGODB_URI` container | do not exist | create |
 
-- Declaring `google_project_service` for an already-enabled API is a benign no-op, so all six
+- Declaring `google_project_service` for an already-enabled API is a benign no-op, so all eight
   are declared. Each sets `disable_on_destroy = false` so a `terraform destroy` never yanks an
   API that predated Terraform.
 - `cloudresourcemanager.googleapis.com` is a prerequisite of the Firebase Management API. It was
@@ -617,6 +618,16 @@ must reconcile against this current state:
   so the config once again describes the live state; like the other already-enabled APIs its apply
   is a create-in-state no-op, not an `import` (a `google_project_service` reconciles by re-asserting
   enablement, not by adopting a pre-existing object, so no import address is needed).
+- `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` back **Firebase
+  Authentication**: `identitytoolkit` is the Identity Toolkit / Firebase Auth API, and
+  `securetoken` mints and refreshes the ID tokens the backend verifies (DAN-22). Unlike
+  `cloudresourcemanager`, which was enabled by a deliberate `gcloud services enable`, these two
+  were turned on as a **side effect of `addFirebase`** when the project was registered with
+  Firebase during DAN-19 — a console action, not a hand-run enable. Either way the result is the
+  same gap: enabled in the project, described nowhere in the repo. They are declared here so the
+  config again describes the live state; like every other already-enabled API their apply is a
+  create-in-state no-op, not an `import` (same identity-and-idempotence reasoning as above — no
+  import address is needed).
 - `cloudbuild.googleapis.com` is intentionally disabled and intentionally **absent** from the
   config — Terraform manages only what it declares, so leaving it out keeps it off without a
   fight.
@@ -642,7 +653,7 @@ sections — **none are invented here**:
 
 | Resource | Identity |
 |---|---|
-| API enablement | `run`, `iamcredentials`, `secretmanager`, `firebasehosting`, `artifactregistry`, `cloudresourcemanager` (never `cloudbuild`) |
+| API enablement | `run`, `iamcredentials`, `secretmanager`, `firebasehosting`, `artifactregistry`, `cloudresourcemanager`, `identitytoolkit`, `securetoken` (never `cloudbuild`) |
 | Artifact Registry repo (imported) | `linear-example`, docker, `us-central1` |
 | WIF pool / provider | `github-pool` / `github-provider`, issuer `https://token.actions.githubusercontent.com`, condition `assertion.repository == 'dperez4787/linear-example'` |
 | Deploy SA + IAM | `deploy@…`: `roles/artifactregistry.writer`, `roles/run.admin`, `roles/iam.serviceAccountUser`, `roles/firebasehosting.admin`; plus `roles/iam.workloadIdentityUser` on the repo principalSet |

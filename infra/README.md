@@ -14,7 +14,7 @@ there, not re-derived here.
 
 | Owned by Terraform | Deliberately NOT owned |
 |---|---|
-| 6 API enablements (`run`, `iamcredentials`, `secretmanager`, `firebasehosting`, `artifactregistry`, `cloudresourcemanager`) | `cloudbuild.googleapis.com` — left undeclared so it stays disabled |
+| 8 API enablements (`run`, `iamcredentials`, `secretmanager`, `firebasehosting`, `artifactregistry`, `cloudresourcemanager`, `identitytoolkit`, `securetoken`) | `cloudbuild.googleapis.com` — left undeclared so it stays disabled |
 | Artifact Registry repo `linear-example` (imported) | The `MONGODB_URI` secret **version** (the value — added by hand, out of state) |
 | WIF pool `github-pool` + provider `github-provider` | The MongoDB Atlas cluster, its region, its `0.0.0.0/0` allowlist |
 | Deploy SA + its 4 project roles + `workloadIdentityUser` binding | The `WIF_PROVIDER` / `DEPLOY_SA` GitHub Secrets |
