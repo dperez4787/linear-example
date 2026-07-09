@@ -27,9 +27,23 @@ test('GET /healthz is no longer registered (404 from Express)', async () => {
 // middleware end to end without needing a Mongo connection: createRecord()
 // validates before touching the driver, so an invalid POST throws a
 // ValidationError that the middleware maps to a shaped 400.
+//
+// DAN-22: /api/records now sits behind the auth gate, so the request must carry a
+// valid bearer token to reach the router at all. A stub verifier (resolves for the
+// known token, rejects otherwise) is injected through createApp — no firebase-admin,
+// no network — exactly the seam the design mandates.
+const VALID_TOKEN = 'stub-valid-token'
+const stubVerify = async (token) => {
+  if (token === VALID_TOKEN) return { uid: 'test-uid' }
+  throw new Error('invalid token')
+}
+
 test('the error middleware maps a validation error to a shaped 400 (no Mongo needed)', async () => {
-  const app = createApp()
-  const res = await request(app).post('/api/records').send({ amount: 1, status: 'active' })
+  const app = createApp({ verifyToken: stubVerify })
+  const res = await request(app)
+    .post('/api/records')
+    .set('Authorization', `Bearer ${VALID_TOKEN}`)
+    .send({ amount: 1, status: 'active' })
   assert.equal(res.status, 400)
   assert.equal(res.body.error.field, 'name')
   assert.equal(typeof res.body.error.message, 'string')

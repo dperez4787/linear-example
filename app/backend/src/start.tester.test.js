@@ -91,7 +91,7 @@ test('start script uses --env-file-if-exists=.env and never bare --env-file', ()
   assert.match(pkg.scripts.start, /src\/index\.js/)
 })
 
-test('.env present: start script loads MONGODB_URI, connects, and GET /api/records is 200 { records }', async (t) => {
+test('.env present: start script loads MONGODB_URI, connects, and /api/records is gated (401 anonymous)', async (t) => {
   if (!haveMongoUri()) {
     t.skip('no MONGODB_URI in app/backend/.env or environment — cannot reach Mongo')
     return
@@ -114,10 +114,19 @@ test('.env present: start script loads MONGODB_URI, connects, and GET /api/recor
   assert.equal(health.status, 200)
   assert.deepEqual(await health.json(), { status: 'ok' })
 
+  // DAN-22 changed this assertion (see the developer's report). /api/records is now
+  // behind the Firebase ID-token gate. Against the REAL spawned server (default
+  // firebase-admin verifier), an anonymous request is rejected at the gate with 401
+  // before the data layer — and the missing-header path never calls firebase-admin,
+  // so this stays network-free and deterministic. The DAN-17 criterion this test
+  // owns — start script loads .env, MONGODB_URI defined, Mongo connected — is fully
+  // proven by the "connected to MongoDB" log assertion above; the old anonymous 200
+  // on /api/records cannot hold once the gate exists, and asserting the 401 here is a
+  // bonus real-server proof that the gate is wired into the production boot path.
   const res = await fetch(`http://127.0.0.1:${port}/api/records`)
-  assert.equal(res.status, 200, 'data route must be 200, not 500 — .env was loaded')
+  assert.equal(res.status, 401, 'anonymous /api/records is gated (DAN-22); Mongo connectivity is proven by the log above')
   const body = await res.json()
-  assert.ok(Array.isArray(body.records), `expected { records: [...] }, got ${JSON.stringify(body)}`)
+  assert.equal(typeof body.error.message, 'string', 'shape is { error: { message } }')
 })
 
 test('Cloud Run parity: start-script flags no-op with .env absent and no MONGODB_URI; server listens, /health 200', async (t) => {
