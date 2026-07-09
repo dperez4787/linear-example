@@ -21,7 +21,12 @@ if (!process.env.MONGODB_URI) {
 process.env.MONGODB_DB = 'linear_example_test'
 
 const { connect, getDb } = await import('./db.js')
-const { listRecords, createRecord } = await import('./records.js')
+const { listRecords, createRecord, updateRecord, deleteRecord, NotFoundError } = await import(
+  './records.js'
+)
+
+// A well-formed ObjectId (24 hex chars) that nothing was inserted under.
+const MISSING_ID = '0123456789abcdef01234567'
 
 before(async () => {
   assert.ok(process.env.MONGODB_URI, 'MONGODB_URI must be set for these tests')
@@ -77,4 +82,81 @@ test('createRecord ignores a client-supplied id/_id — the stored doc gets a Mo
 test('createRecord throws (does not insert) on an invalid payload', async () => {
   await assert.rejects(() => createRecord({ status: 'active', amount: 1 }), /name/)
   assert.equal((await listRecords()).length, 0, 'nothing was inserted')
+})
+
+// --- updateRecord ---
+
+test('updateRecord applies a partial change, bumps updatedAt, leaves createdAt', async () => {
+  const created = await createRecord({ name: 'Before', status: 'active', amount: 1 })
+  // Ensure a measurable gap so updatedAt is strictly greater.
+  await new Promise((r) => setTimeout(r, 5))
+
+  const updated = await updateRecord(created.id, { name: 'After', amount: 99 })
+
+  assert.equal(updated.id, created.id)
+  assert.equal(updated.name, 'After')
+  assert.equal(updated.amount, 99)
+  assert.equal(updated.status, 'active', 'unspecified field is left unchanged')
+  assert.equal(
+    updated.createdAt.getTime(),
+    created.createdAt.getTime(),
+    'createdAt is unchanged',
+  )
+  assert.ok(updated.updatedAt.getTime() > created.updatedAt.getTime(), 'updatedAt is bumped')
+
+  // Persisted, not just returned.
+  const [stored] = await listRecords()
+  assert.equal(stored.name, 'After')
+  assert.equal(stored.amount, 99)
+})
+
+test('updateRecord validates the body with create rules (throws 400)', async () => {
+  const created = await createRecord({ name: 'X', status: 'active', amount: 1 })
+  await assert.rejects(() => updateRecord(created.id, { amount: -5 }), (err) => {
+    assert.equal(err.status, 400)
+    assert.equal(err.field, 'amount')
+    return true
+  })
+  // The invalid update did not persist.
+  const [stored] = await listRecords()
+  assert.equal(stored.amount, 1)
+})
+
+test('updateRecord throws 404 (NotFoundError) for a well-formed but missing id', async () => {
+  await assert.rejects(() => updateRecord(MISSING_ID, { name: 'nope' }), (err) => {
+    assert.ok(err instanceof NotFoundError)
+    assert.equal(err.status, 404)
+    return true
+  })
+})
+
+test('updateRecord throws 404 for a malformed id (before any DB write)', async () => {
+  await assert.rejects(() => updateRecord('not-an-object-id', { name: 'nope' }), (err) => {
+    assert.equal(err.status, 404)
+    return true
+  })
+})
+
+// --- deleteRecord ---
+
+test('deleteRecord removes an existing record and returns nothing', async () => {
+  const created = await createRecord({ name: 'ToDelete', status: 'pending', amount: 3 })
+  const result = await deleteRecord(created.id)
+  assert.equal(result, undefined, 'no body to return')
+  assert.equal((await listRecords()).length, 0, 'record is gone')
+})
+
+test('deleteRecord throws 404 for a well-formed but missing id', async () => {
+  await assert.rejects(() => deleteRecord(MISSING_ID), (err) => {
+    assert.ok(err instanceof NotFoundError)
+    assert.equal(err.status, 404)
+    return true
+  })
+})
+
+test('deleteRecord throws 404 for a malformed id', async () => {
+  await assert.rejects(() => deleteRecord('not-an-object-id'), (err) => {
+    assert.equal(err.status, 404)
+    return true
+  })
 })

@@ -72,6 +72,78 @@ test('POST ignores a client-supplied id/_id', async () => {
   assert.notEqual(res.body.record.id, 'evil')
 })
 
+// --- PATCH /api/records/:id ---
+
+// A well-formed ObjectId (24 hex chars) that nothing was inserted under.
+const MISSING_ID = '0123456789abcdef01234567'
+
+async function seed() {
+  const res = await request(app)
+    .post('/api/records')
+    .send({ name: 'Seed', status: 'active', amount: 1, notes: 'orig' })
+  return res.body.record
+}
+
+test('PATCH with a partial valid body returns 200, reflects the change, bumps updatedAt', async () => {
+  const record = await seed()
+  await new Promise((r) => setTimeout(r, 5))
+
+  const res = await request(app).patch(`/api/records/${record.id}`).send({ name: 'Edited' })
+
+  assert.equal(res.status, 200)
+  const updated = res.body.record
+  assert.equal(updated.id, record.id)
+  assert.equal(updated.name, 'Edited')
+  assert.equal(updated.status, 'active', 'unspecified field unchanged')
+  assert.equal(updated.createdAt, record.createdAt, 'createdAt unchanged')
+  assert.ok(
+    new Date(updated.updatedAt).getTime() > new Date(record.updatedAt).getTime(),
+    'updatedAt bumped',
+  )
+})
+
+test('PATCH with an invalid field returns 400 with { error: { message, field } }', async () => {
+  const record = await seed()
+  const res = await request(app).patch(`/api/records/${record.id}`).send({ amount: -1 })
+  assert.equal(res.status, 400)
+  assert.equal(res.body.error.field, 'amount')
+  assert.equal(typeof res.body.error.message, 'string')
+})
+
+test('PATCH to a well-formed but non-existent id returns 404', async () => {
+  const res = await request(app).patch(`/api/records/${MISSING_ID}`).send({ name: 'x' })
+  assert.equal(res.status, 404)
+  assert.equal(typeof res.body.error.message, 'string')
+})
+
+test('PATCH to a malformed id returns 404, not 400', async () => {
+  const res = await request(app).patch('/api/records/not-an-object-id').send({ name: 'x' })
+  assert.equal(res.status, 404)
+})
+
+// --- DELETE /api/records/:id ---
+
+test('DELETE of an existing record returns 204 with no body', async () => {
+  const record = await seed()
+  const res = await request(app).delete(`/api/records/${record.id}`)
+  assert.equal(res.status, 204)
+  assert.deepEqual(res.body, {}, 'no body')
+
+  // It is actually gone.
+  const list = await request(app).get('/api/records')
+  assert.equal(list.body.records.length, 0)
+})
+
+test('DELETE of a well-formed but non-existent id returns 404', async () => {
+  const res = await request(app).delete(`/api/records/${MISSING_ID}`)
+  assert.equal(res.status, 404)
+})
+
+test('DELETE of a malformed id returns 404, not 400', async () => {
+  const res = await request(app).delete('/api/records/not-an-object-id')
+  assert.equal(res.status, 404)
+})
+
 // --- Validation: 400 with { error: { message, field } }, no DB needed ---
 
 const cases = [

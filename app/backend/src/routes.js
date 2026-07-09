@@ -4,7 +4,7 @@
 // next(err) rather than handled inline.
 import { Router } from 'express'
 
-import { listRecords, createRecord } from './records.js'
+import { listRecords, createRecord, updateRecord, deleteRecord } from './records.js'
 
 export function recordsRouter() {
   const router = Router()
@@ -24,6 +24,28 @@ export function recordsRouter() {
     try {
       const record = await createRecord(req.body)
       res.status(201).json({ record })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // Partial update. A malformed id (404) and an invalid field (400) are both
+  // decided in the data layer and surfaced through the error middleware.
+  router.patch('/:id', async (req, res, next) => {
+    try {
+      const record = await updateRecord(req.params.id, req.body)
+      res.status(200).json({ record })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // Delete. 204 with no body on success; the data layer throws 404 for a
+  // malformed or unmatched id.
+  router.delete('/:id', async (req, res, next) => {
+    try {
+      await deleteRecord(req.params.id)
+      res.status(204).end()
     } catch (err) {
       next(err)
     }
