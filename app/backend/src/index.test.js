@@ -14,8 +14,20 @@ test('GET /healthz returns 200 and does not touch Mongo (createApp never connect
   assert.deepEqual(res.body, { status: 'ok' })
 })
 
-test('no /api/records routes exist yet (404)', async () => {
+// DAN-6 mounted /api/records. A validation failure exercises the single error
+// middleware end to end without needing a Mongo connection: createRecord()
+// validates before touching the driver, so an invalid POST throws a
+// ValidationError that the middleware maps to a shaped 400.
+test('the error middleware maps a validation error to a shaped 400 (no Mongo needed)', async () => {
   const app = createApp()
-  const res = await request(app).get('/api/records')
+  const res = await request(app).post('/api/records').send({ amount: 1, status: 'active' })
+  assert.equal(res.status, 400)
+  assert.equal(res.body.error.field, 'name')
+  assert.equal(typeof res.body.error.message, 'string')
+})
+
+test('unknown routes still 404', async () => {
+  const app = createApp()
+  const res = await request(app).get('/api/nope')
   assert.equal(res.status, 404)
 })
