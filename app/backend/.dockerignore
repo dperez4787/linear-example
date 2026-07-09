@@ -1,0 +1,18 @@
+# Keep the build context small and, above all, keep the live Atlas credential
+# out of the image. .env holds a real MONGODB_URI and must never enter a layer.
+.env
+.env.*
+
+# Installed inside the image by `npm ci`; copying the host copy would bloat the
+# context and risk a platform mismatch.
+node_modules
+
+# Tests never run in the production image.
+*.test.js
+
+# Misc that has no place in the runtime image.
+.git
+.gitignore
+Dockerfile
+.dockerignore
+npm-debug.log
