@@ -64,9 +64,22 @@ connection latency.
 | `MONGODB_DB`  | `linear_example` (app), `linear_example_test` (test runs only) |
 | `PORT`        | Cloud Run injects this; default `8080` locally |
 
-GCP project: `project-d60a83c1-2c60-4d51-ad0` (unverified — confirm with
-`gcloud projects describe`). Atlas region: **TBD** — Cloud Run must be deployed to the same
-region, and an Atlas cluster cannot be moved after creation.
+## GCP
+
+| | |
+|---|---|
+| Project ID | `project-d60a83c1-2c60-4d51-ad0` |
+| Project number | `756865700041` (needed for Workload Identity Federation) |
+| Billing | enabled |
+| Region | `us-central1` — Artifact Registry, Cloud Run, and Atlas all live here |
+| Image repo | `us-central1-docker.pkg.dev/project-d60a83c1-2c60-4d51-ad0/linear-example` |
+
+`gcloud` requires `CLOUDSDK_PYTHON` (see Local toolchain). The Atlas cluster's region is
+still unconfirmed and must match `us-central1`; a cluster cannot be moved after creation.
+
+Only the backend is containerized. See `docs/architecture.md` for the CI/CD pipeline —
+in particular, the backend image is built from `app/backend/Dockerfile` on the GitHub
+runner, not by Cloud Build, and no service account key is ever created.
 
 ## Local toolchain
 

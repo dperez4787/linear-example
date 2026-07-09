@@ -153,15 +153,123 @@ Also relevant, if the decision is ever revisited: the cloud environment cannot b
 root setup script (cached ~7 days) and `SessionStart` hooks. It has Node and Python
 preinstalled but **not** `gcloud`.
 
-### What the workflow must do
-
-- Authenticate to GCP with `google-github-actions/auth` via Workload Identity Federation.
-  No `GOOGLE_APPLICATION_CREDENTIALS` key file.
-- Provide `MONGODB_URI` from GitHub Secrets, and Secret Manager for the deployed service.
-- Install nothing exotic: `actions/setup-node`, `google-github-actions/setup-gcloud`.
-
 The relay verifies Linear's webhook signature before dispatching. An unauthenticated relay
 lets anyone on the internet start an agent that can push code.
+
+## CI/CD
+
+GitHub Actions is a runner, not a build system. It provides an Ubuntu VM with `docker`
+preinstalled and executes shell steps. Nothing about containerization is automatic — the
+workflow does it explicitly.
+
+### Only the backend is containerized
+
+The two halves deploy by different mechanisms, and conflating them causes confusion:
+
+| | Artifact | Mechanism |
+|---|---|---|
+| `app/frontend` | static files from `npm run build` | uploaded to Firebase Hosting CDN |
+| `app/backend`  | OCI container image | pushed to Artifact Registry, run by Cloud Run |
+
+The SPA is never containerized. Cloud Run runs *only* container images, so the Express
+service is the sole container in the system.
+
+### Build with a Dockerfile on the runner, not Cloud Build
+
+`gcloud run deploy --source .` would hand the source to **Cloud Build**, which containerizes
+it with Google Cloud Buildpacks and no Dockerfile. We deliberately do not do this.
+
+An explicit `app/backend/Dockerfile`, built with `docker build` on the runner:
+
+- **Pins the Node version** to match `.nvmrc`. Buildpacks infer it, and the inference is a
+  thing you debug in someone else's builder when it's wrong.
+- **Needs no Cloud Build API and no Cloud Build IAM roles.** `cloudbuild.googleapis.com`
+  stays disabled. Fewer permissions attached to the deploy identity is the whole point of
+  choosing OIDC in the first place.
+- **Is inspectable.** Twelve lines you can read beats an image you can only introspect after
+  it's built.
+- Builds on the runner in seconds, with layer caching, instead of round-tripping to GCP.
+
+Revisit this only if the backend grows a native-dependency build chain messy enough that
+maintaining the Dockerfile costs more than the opacity of buildpacks.
+
+```dockerfile
+# app/backend/Dockerfile
+FROM node:24-slim
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY src ./src
+USER node
+CMD ["node", "src/index.js"]
+```
+
+`npm ci` runs before `COPY src` so the dependency layer is cached and only reinstalls when
+`package-lock.json` changes. The process must listen on `process.env.PORT`; Cloud Run injects
+it and health-checks that port. `/healthz` must not touch Mongo — a database blip would
+otherwise tear down the revision.
+
+### Pipeline
+
+```
+push to main  ──┬── backend job
+                │     setup-gcloud + auth (OIDC)
+                │     docker build -t $IMAGE app/backend
+                │     docker push $IMAGE
+                │     deploy-cloudrun --image $IMAGE
+                │
+                └── frontend job
+                      npm ci && npm run build
+                      firebase deploy --only hosting
+```
+
+Image reference:
+
+```
+us-central1-docker.pkg.dev/project-d60a83c1-2c60-4d51-ad0/linear-example/backend:<git-sha>
+```
+
+Tag by commit SHA, never `latest`. Cloud Run resolves the tag to a digest at deploy time;
+a mutable tag means a rollback can silently land on different bytes than it did originally.
+
+### Authentication: no service account keys
+
+`google-github-actions/auth@v2` exchanges the workflow's OIDC token for short-lived GCP
+credentials via Workload Identity Federation. No `GOOGLE_APPLICATION_CREDENTIALS` file
+exists anywhere — not on the runner, not in GitHub Secrets.
+
+GCP project number for the WIF provider binding: **756865700041**.
+
+The deploy service account needs exactly: `roles/artifactregistry.writer`,
+`roles/run.admin`, `roles/iam.serviceAccountUser`, and `roles/firebasehosting.admin`.
+
+### Secrets
+
+| Secret | Lives in | Consumed by |
+|---|---|---|
+| `MONGODB_URI` | GCP Secret Manager | Cloud Run, via `--set-secrets` |
+| `WIF_PROVIDER`, `DEPLOY_SA` | GitHub Secrets | the workflow's auth step |
+| Linear webhook signing secret | Cloud Run relay env | the relay |
+
+`MONGODB_URI` is never a GitHub Secret. The runner has no reason to hold a database
+credential — it builds an image and asks Cloud Run to run it. Only the running service needs
+to reach Mongo.
+
+### Infrastructure state
+
+| Item | Status |
+|---|---|
+| GCP project `project-d60a83c1-2c60-4d51-ad0` (number `756865700041`) | active, **billing enabled** |
+| Artifact Registry `linear-example`, docker, `us-central1` | created |
+| `artifactregistry.googleapis.com` | enabled |
+| `run.googleapis.com` | not enabled |
+| `iamcredentials.googleapis.com` (required for WIF) | not enabled |
+| `secretmanager.googleapis.com` | not enabled |
+| `firebasehosting.googleapis.com` | not enabled |
+| `cloudbuild.googleapis.com` | not enabled — and intentionally stays that way |
+| Atlas cluster region | **unconfirmed** — must be `us-central1` to match |
+
+The Atlas region is the only entry that cannot be corrected later.
 
 ## Ticket slicing
 
