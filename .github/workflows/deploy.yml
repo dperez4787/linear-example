@@ -73,3 +73,59 @@ jobs:
             --service-account="$RUNTIME_SA" \
             --set-secrets=MONGODB_URI=MONGODB_URI:latest \
             --allow-unauthenticated
+
+  frontend:
+    name: Build and deploy frontend to Firebase Hosting
+    runs-on: ubuntu-latest
+
+    # Permissions are per-job, not inherited from the backend job above. id-token: write
+    # is mandatory — without it the GitHub OIDC token is never minted and the WIF
+    # exchange in google-github-actions/auth fails at runtime. actionlint does NOT catch
+    # a missing id-token permission, so it is spelled out here deliberately.
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      # Pinned to an exact firebase-tools version — never a floating tag or @latest — so a
+      # CLI release can't silently change deploy behavior between runs. 11.30 is the floor
+      # that added ADC support for Hosting; 13.29.2 is a published release at or above it.
+      FIREBASE_TOOLS_VERSION: 13.29.2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Matches the repo's Node pin (.nvmrc = 24), the same LTS the app is built on.
+          node-version-file: .nvmrc
+
+      - name: Install frontend dependencies
+        working-directory: app/frontend
+        run: npm ci
+
+      - name: Build the SPA
+        working-directory: app/frontend
+        run: npm run build
+
+      - name: Authenticate to Google Cloud (OIDC / Workload Identity Federation)
+        # Exports a short-lived ADC credential-config file and sets
+        # GOOGLE_APPLICATION_CREDENTIALS to point at it. The firebase CLI reads ADC from
+        # that env var — no FIREBASE_TOKEN (a long-lived refresh credential) is used or
+        # needed, and no service-account key file exists anywhere.
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.DEPLOY_SA }}
+
+      - name: Install firebase-tools (exact pin)
+        run: npm install -g firebase-tools@"$FIREBASE_TOOLS_VERSION"
+
+      - name: Deploy to Firebase Hosting
+        # Run from the repo ROOT — this is where firebase.json lives (added by DAN-14) and
+        # where its `public: app/frontend/dist` path resolves. Running from app/frontend
+        # would find no config and resolve `public` wrong. Auth is ADC, picked up from
+        # GOOGLE_APPLICATION_CREDENTIALS exported by the auth step above.
+        run: firebase deploy --only hosting --project project-d60a83c1-2c60-4d51-ad0 --non-interactive
