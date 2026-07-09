@@ -7,8 +7,10 @@ anything here that doesn't survive contact with a real ticket.
 ## Scope
 
 One resource — `Record` — rendered as a table. Users can list, create, edit, and delete
-rows. No auth, no pagination, no search in v1. Those are deliberate omissions, not
-oversights; adding them is a follow-up ticket, not scope creep into the first four.
+rows. Access is gated by Google sign-in (see [Authentication](#authentication)): a signed-in
+user may read and write every record, and there is no per-user data. No pagination, no search
+in v1. Those are deliberate omissions, not oversights; adding them is a follow-up ticket, not
+scope creep into the first four.
 
 ## Data model
 
@@ -61,6 +63,97 @@ container served it correctly (verified against the live service: same host, sam
 specified as `/healthz` in DAN-5 — that criterion is superseded by this one. Do not rename
 it back to `/healthz`; the platform will swallow it again.
 
+## Authentication
+
+Every `/api/records` request must carry a valid Firebase ID token; anonymous or invalid
+requests get `401`. This is a **gate, not a data-model change** — any signed-in user reads
+and writes every record. There is no `owner`/`uid` field, no migration, and no per-record
+ownership check; adding per-user data is a separate decision, not this one. Sign-in is
+Google-only (`signInWithPopup(GoogleAuthProvider)`); the frontend attaches the token as
+`Authorization: Bearer <idToken>` and the backend verifies it with `firebase-admin`
+(exact-pinned dependency).
+
+### The verifier is injectable; `firebase-admin` is the default
+
+`createApp()` takes an optional token verifier — `createApp({ verifyToken } = {})` —
+defaulting to a wrapper over `firebase-admin`'s `getAuth().verifyIdToken(idToken)`. The auth
+middleware calls `verifyToken(token)` and gates on whether it resolves. Tests inject a stub
+that resolves for a known fake token and rejects otherwise: no emulator, no network, no extra
+process in the suite. The existing `node:test` + `supertest` tests keep constructing the app
+in-process; they simply build it with a stub verifier and send a bearer token.
+
+**The trade-off, stated honestly.** The stub is not `firebase-admin`, so the suite never
+exercises real signature verification, token expiry, or the `aud`/`iss` checks against the
+project ID — the production `verifyIdToken` path is exercised only live, and "a real
+Google-issued token is accepted by the deployed service" stays a **user-attested** criterion
+(DAN-22 already lists it as one). We accept that gap. The alternative — the Firebase Auth
+emulator (`firebase-tools` v15.22.4 is installed) — would drive the real `firebase-admin`
+path but make a running emulator a **required** dependency of every `npm test` and of CI,
+including the many tests that touch neither Mongo nor auth. For a reference app whose entire
+test story is "runs in-process against a scratch DB," a mandatory external Auth process costs
+more than it buys. The injectable seam is the boring choice and reuses the `createApp` factory
+the codebase already has; the emulator is the escape hatch if the verification path itself
+ever needs an automated regression test. The seam is a design boundary, not a per-developer
+choice — the verifier is injected through `createApp`, never reached for as a module global
+inside the middleware, so a test substitutes it without monkey-patching `firebase-admin`.
+
+### Config surface: the project ID is a constant, not a new env var
+
+Verifying an ID token needs only the **project ID** (`project-d60a83c1-2c60-4d51-ad0`), to
+check the token's `aud`/`iss`. It needs **no** service-account key and **no** secret: on Cloud
+Run `firebase-admin` picks up ADC from the runtime SA
+(`linear-example-run@project-d60a83c1-2c60-4d51-ad0.iam.gserviceaccount.com`), and the public
+keys it checks signatures against come from a public Google endpoint that needs no credential.
+Do not introduce a key, a Secret Manager secret, or a GitHub Secret.
+
+The project ID is a **constant in the backend, not a new env var**. It is a public, stable
+identifier already hardcoded throughout the repo (`firebase.json`, `CLAUDE.md`, the image
+path). A required env var would have to be plumbed into both the local `.env` and the Cloud
+Run deploy, while the **no-`.env` boot path (DAN-17) must still work** — more surface for two
+developers to set inconsistently, in exchange for a flexibility (repointing at another Firebase
+project) this single-project app will never use. So: no new env var, **no new row in the
+Environment table**, and nothing for the verifier to read at boot. `firebase-admin` is
+initialized **lazily** — on the first verification, never at process start — so the server
+boots and `/health` returns `200` with no `.env`, no ADC, and no network, exactly as DAN-17
+and DAN-5 require. Boot must not import-and-initialize in a way that reaches the network, and
+`/health` must stay both Mongo-free and auth-free.
+
+### Where the gate mounts, and the 401 contract
+
+The gate mounts **on `/api/records`, after `/health`, before the records router**:
+
+```js
+app.get('/health', …)                        // unauthenticated — the gate never covers it
+app.use('/api/records', authGate, recordsRouter())
+```
+
+`/health` stays unauthenticated and Mongo-free: it is what Cloud Run health-checks, and it was
+moved off `/healthz` in DAN-18 because the platform swallows that exact path. The gate must not
+cover it.
+
+`authGate` reads `Authorization: Bearer <token>`. A missing or non-`Bearer` header
+short-circuits to `401` **without calling the verifier or the data layer**. Otherwise it awaits
+`verifyToken(token)`; on success it continues to the router, and on **any** rejection it fails
+the request. Errors never use `res.status(...)` inline — the middleware calls `next(err)` with
+an error carrying `status: 401`, and the single existing error middleware maps it: its non-5xx
+branch already emits exactly `{ error: { message } }`, the shape DAN-22 requires. This is also
+how a **malformed token yields `401`, not `500`**: the auth middleware converts every
+verification rejection into a `401` error before it can hit the `status ?? 500` default, so a
+bad token can never fall through to the generic 500 branch. A request that fails the gate never
+reaches `records.js`.
+
+Treating *every* verification rejection as `401` means a transient failure to fetch Google's
+public certs also surfaces as `401` rather than `503`. That is a deliberate simplification: the
+rule "no verified token ⇒ unauthorized" is one line and cannot leak a `500` for a bad token —
+which is exactly what the contract pins down — and distinguishing "your token is bad" from "our
+cert fetch blipped" is not worth a second error path in a reference app.
+
+A design consequence for the existing tests (not a mandate on their structure): the HTTP-level
+tests in `routes.test.js` and `index.test.js` currently call `/api/records` with no token and
+will now `401`. They must build the app with a stub verifier and send a bearer token to reach
+the routes. The data-layer tests in `records.test.js` are unaffected — they call `records.js`
+directly, below the gate.
+
 ## Backend structure
 
 ```
@@ -69,6 +162,7 @@ app/backend/src/
 ├── db.js         connect() / getDb(), module-level client
 ├── records.js    data layer — all Mongo calls live here
 ├── schema.js     validation for create + update
+├── auth.js       the /api/records gate + default firebase-admin verifier (see Authentication)
 └── routes.js     express router, thin handlers
 ```
 
@@ -115,8 +209,11 @@ The Cloud Run service allows **unauthenticated** invocations: the deploy passes
 `--allow-unauthenticated`, granting `allUsers` → `roles/run.invoker`. This is required, not
 incidental — Firebase Hosting invokes the `/api/**` rewrite anonymously, with no
 service-agent identity to grant `run.invoker` to, so a private service would `403` both the
-rewrite and `/health`. It adds no exposure the design didn't already have: the SPA calls
-the API anonymously and there is no auth boundary in v1.
+rewrite and `/health`. `--allow-unauthenticated` only lets the request *reach* Express; the
+Firebase ID-token gate (see [Authentication](#authentication)) is the actual auth boundary.
+Authentication is enforced in application code, **never by Cloud Run IAM** — flipping the
+service to `--no-allow-unauthenticated` would break the anonymous Hosting rewrite and `/health`
+alike, not secure the API.
 
 The Cloud Run service is named `linear-example-backend`. `firebase.json` lives at the repo
 root and is the single source of that routing:
