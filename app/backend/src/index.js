@@ -1,6 +1,7 @@
 import express from 'express'
 
 import { connect } from './db.js'
+import { recordsRouter } from './routes.js'
 
 const PORT = process.env.PORT ?? 8080
 
@@ -15,7 +16,26 @@ export function createApp() {
     res.status(200).json({ status: 'ok' })
   })
 
-  // No /api/records routes yet — added in a later ticket.
+  app.use('/api/records', recordsRouter())
+
+  // One error middleware maps thrown errors to status codes. Validation errors
+  // from the schema/data layer carry `status` (400) and `field`; anything else
+  // is an unexpected 500. Route handlers never call res.status(500) inline.
+  // The 4-arg signature is what marks this as Express error-handling middleware,
+  // so `next` must stay in the list even though it is unused.
+  // eslint-disable-next-line no-unused-vars
+  app.use((err, req, res, next) => {
+    const status = err.status ?? 500
+    if (status >= 500) {
+      // Log the real error server-side but don't leak internals to the client.
+      console.error(err)
+      res.status(status).json({ error: { message: 'Internal Server Error' } })
+      return
+    }
+    const error = { message: err.message }
+    if (err.field) error.field = err.field
+    res.status(status).json({ error })
+  })
 
   return app
 }
