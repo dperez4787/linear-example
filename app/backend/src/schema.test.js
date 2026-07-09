@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { validateCreate, ValidationError, STATUSES } from './schema.js'
+import { validateCreate, validateUpdate, ValidationError, STATUSES } from './schema.js'
 
 const valid = { name: 'Widget', status: 'active', amount: 10, notes: 'a note' }
 
@@ -85,3 +85,58 @@ test('notes longer than 1000 chars is rejected on field notes', () => {
 test('notes at exactly 1000 chars is accepted', () => {
   assert.equal(validateCreate({ ...valid, notes: 'x'.repeat(1000) }).notes.length, 1000)
 })
+
+// --- validateUpdate: partial payloads, same per-field rules as create ---
+
+test('validateUpdate returns only the fields that are present', () => {
+  assert.deepEqual(validateUpdate({ amount: 5 }), { amount: 5 })
+  assert.deepEqual(validateUpdate({ name: 'Renamed', status: 'archived' }), {
+    name: 'Renamed',
+    status: 'archived',
+  })
+})
+
+test('validateUpdate on an empty payload returns an empty object', () => {
+  assert.deepEqual(validateUpdate({}), {})
+  assert.deepEqual(validateUpdate(undefined), {})
+})
+
+test('validateUpdate normalizes present fields the same way create does', () => {
+  assert.equal(validateUpdate({ name: '  spaced  ' }).name, 'spaced')
+  assert.equal(validateUpdate({ amount: 0 }).amount, 0)
+})
+
+test('validateUpdate strips unknown fields, including id/_id', () => {
+  assert.deepEqual(validateUpdate({ id: 'abc', _id: 'def', extra: 'nope', amount: 1 }), {
+    amount: 1,
+  })
+})
+
+test('validateUpdate re-validates each present field on its own field', () => {
+  assertUpdateRejects({ name: '   ' }, 'name')
+  assertUpdateRejects({ name: 'x'.repeat(121) }, 'name')
+  assertUpdateRejects({ amount: -1 }, 'amount')
+  assertUpdateRejects({ amount: 'nope' }, 'amount')
+  assertUpdateRejects({ status: 'deleted' }, 'status')
+  assertUpdateRejects({ notes: 'x'.repeat(1001) }, 'notes')
+})
+
+// A present notes of null/undefined is treated as "not provided", not a clear.
+test('validateUpdate treats a null/undefined notes as absent', () => {
+  assert.deepEqual(validateUpdate({ notes: null }), {})
+  assert.deepEqual(validateUpdate({ notes: undefined }), {})
+})
+
+// Same rejection assertion as create, but driving validateUpdate.
+function assertUpdateRejects(input, field) {
+  assert.throws(
+    () => validateUpdate(input),
+    (err) => {
+      assert.ok(err instanceof ValidationError, 'is a ValidationError')
+      assert.equal(err.status, 400)
+      assert.equal(err.field, field)
+      assert.equal(typeof err.message, 'string')
+      return true
+    },
+  )
+}
