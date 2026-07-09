@@ -102,16 +102,45 @@ Firebase Hosting rewrites `/api/**` to the Cloud Run service, so the SPA and API
 same-origin and there is no CORS configuration to maintain. The backend still sets CORS
 headers for local development, where Vite serves on a different port.
 
+The Cloud Run service is named `linear-example-backend`. `firebase.json` lives at the repo
+root and is the single source of that routing:
+
+```jsonc
+// firebase.json
+{
+  "hosting": {
+    "public": "app/frontend/dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      { "source": "/api/**", "run": { "serviceId": "linear-example-backend", "region": "us-central1" } },
+      { "source": "**",       "destination": "/index.html" }
+    ]
+  }
+}
+```
+
+The `/api/**` run rewrite must come before the `**` SPA fallback: rewrites match top-down,
+and if the catch-all is first every API request is served `index.html` instead of reaching
+Cloud Run. `public` is the Vite build output (`dist`), never the source tree.
+
 Atlas must be in the same GCP region as Cloud Run. Cross-region adds tens of milliseconds
 to every query, and on a table view that issues one query per page load it's the difference
 between snappy and sluggish.
 
-Atlas IP allowlist: Cloud Run has no static egress IP by default. Either allow `0.0.0.0/0`
-(acceptable for M0 with a strong DB password, and what the free tier expects) or attach a
-VPC connector with Cloud NAT. Decide this in Step 6 — it is the one piece of infra that
-routinely surprises people.
+Atlas IP allowlist: set to `0.0.0.0/0`. Cloud Run has no static egress IP by default, and
+the access control that matters is the database password (stored in Secret Manager) plus
+TLS, not network origin — a VPC connector with Cloud NAT to obtain a static egress IP is
+infrastructure an M0 reference app does not justify, and an open allowlist is what the free
+tier expects.
 
 ## Remote execution
+
+**Scope:** this relay is how a Linear ticket *wakes an agent* — it is agent-orchestration
+infrastructure, not part of deploying the application. The deploy pipeline in the CI/CD
+section triggers on `push to main`, which GitHub runs natively with no relay in the path.
+The relay is therefore out of scope for this project's deploy tickets and is not sliced
+below; it is documented here so the team-automation layer has a design, not because
+shipping the CRUD app depends on it.
 
 Linear cannot trigger an agent. The Linear MCP server is *pull* — it lets a running agent
 read and write issues; it cannot wake one up. Every design here therefore needs a relay
@@ -217,11 +246,19 @@ push to main  ──┬── backend job
                 │     docker build -t $IMAGE app/backend
                 │     docker push $IMAGE
                 │     deploy-cloudrun --image $IMAGE
+                │       --service-account=linear-example-run@…
+                │       --set-secrets=MONGODB_URI=MONGODB_URI:latest
                 │
                 └── frontend job
-                      npm ci && npm run build
-                      firebase deploy --only hosting
+                      (working-dir app/frontend) npm ci && npm run build
+                      (working-dir repo root)    firebase deploy --only hosting
 ```
+
+The frontend job spans two working directories because there is no root workspace:
+`npm ci && npm run build` run in `app/frontend` (that is where the frontend package and its
+`package.json` live), then `firebase deploy` runs from the **repo root**, where `firebase.json`
+lives and where `public: app/frontend/dist` resolves. Do not run `firebase deploy` from
+`app/frontend` — the config isn't there and the `public` path would resolve wrong.
 
 Image reference:
 
@@ -235,25 +272,103 @@ a mutable tag means a rollback can silently land on different bytes than it did 
 ### Authentication: no service account keys
 
 `google-github-actions/auth@v2` exchanges the workflow's OIDC token for short-lived GCP
-credentials via Workload Identity Federation. No `GOOGLE_APPLICATION_CREDENTIALS` file
-exists anywhere — not on the runner, not in GitHub Secrets.
+credentials via Workload Identity Federation. No long-lived service-account **key** exists
+anywhere — not on the runner, not in GitHub Secrets. The auth step does write a short-lived,
+auto-expiring credential-config file to the runner and exports `GOOGLE_APPLICATION_CREDENTIALS`
+pointing at it, so Application Default Credentials work for tools that only speak ADC (the
+Firebase CLI, below); that file is a federated token config, not a downloadable key, and dies
+with the job.
 
-GCP project number for the WIF provider binding: **756865700041**.
+**Two service accounts, distinct jobs.** The deploy SA is who the *workflow* acts as; the
+runtime SA is who the *Cloud Run container* acts as. Conflating them is the "deploy is green,
+container is dead" trap — deploy permissions don't include reading the secret the container
+needs at startup.
 
-The deploy service account needs exactly: `roles/artifactregistry.writer`,
-`roles/run.admin`, `roles/iam.serviceAccountUser`, and `roles/firebasehosting.admin`.
+*Deploy service account* — `deploy@project-d60a83c1-2c60-4d51-ad0.iam.gserviceaccount.com`.
+Impersonated by the workflow via WIF. Needs exactly: `roles/artifactregistry.writer`,
+`roles/run.admin`, `roles/iam.serviceAccountUser`, and `roles/firebasehosting.admin`. The
+`serviceAccountUser` role is what lets it deploy a revision that *runs as* the runtime SA.
+
+*Runtime service account* — `linear-example-run@project-d60a83c1-2c60-4d51-ad0.iam.gserviceaccount.com`,
+a **dedicated** SA, not the default compute SA. It needs exactly `roles/secretmanager.secretAccessor`,
+granted **on the `MONGODB_URI` secret only** (resource-level, not project-wide). Dedicated
+rather than default compute because the default SA carries broad `Editor` and Google is phasing
+off auto-granting it — a purpose-made SA holding one role is the least-privilege story the rest
+of this doc already commits to. The Cloud Run deploy in ticket 9 must pass
+`--service-account=linear-example-run@…` or the revision runs as the default SA and the
+resource-scoped grant won't apply.
+
+#### Workload Identity Federation — exact values
+
+The developer pastes `WIF_PROVIDER` and `DEPLOY_SA` (GitHub Secrets) into
+`google-github-actions/auth@v2`. Ticket 7 creates the pool, provider, and bindings with these
+exact IDs:
+
+| Thing | Value |
+|---|---|
+| Pool ID | `github-pool` |
+| Provider ID | `github-provider` |
+| Issuer URI | `https://token.actions.githubusercontent.com` |
+| `WIF_PROVIDER` (full resource) | `projects/756865700041/locations/global/workloadIdentityPools/github-pool/providers/github-provider` |
+| `DEPLOY_SA` | `deploy@project-d60a83c1-2c60-4d51-ad0.iam.gserviceaccount.com` |
+
+Attribute mapping:
+
+```
+google.subject=assertion.sub
+attribute.repository=assertion.repository
+attribute.repository_owner=assertion.repository_owner
+```
+
+Attribute condition — **required, not optional**. Without it, any GitHub repo's OIDC token can
+exchange for the deploy SA's credentials:
+
+```
+assertion.repository == 'dperez4787/linear-example'
+```
+
+The deploy SA is bound to the pool by a `roles/iam.workloadIdentityUser` grant scoped to the
+repository principal, so only workflows from this repo can impersonate it:
+
+```
+principalSet://iam.googleapis.com/projects/756865700041/locations/global/workloadIdentityPools/github-pool/attribute.repository/dperez4787/linear-example
+```
+
+#### Firebase Hosting deploy auth
+
+`firebase deploy` authenticates via ADC — it reads the `GOOGLE_APPLICATION_CREDENTIALS` the
+auth step exported. This works cleanly on `firebase-tools >= 11.30` (which added ADC support
+for hosting); pin an **exact** version in the workflow (`npm i -g firebase-tools@13.29.2` — any
+exact pin at or above that floor is fine, the point is a pinned version, never a floating tag,
+so a CLI release can't change deploy behavior under us). Exact invocation, run from the repo
+root:
+
+```
+firebase deploy --only hosting --project project-d60a83c1-2c60-4d51-ad0 --non-interactive
+```
+
+Do **not** set `FIREBASE_TOKEN` and do **not** fall back to it: `FIREBASE_TOKEN` is a
+long-lived refresh credential that reintroduces exactly the standing secret OIDC exists to
+eliminate. If a specific `firebase-tools` release regresses ADC, the fallback is to pin down to
+a known-good version — cost is bounded to editing one version string — not to switch auth
+mechanisms.
 
 ### Secrets
 
 | Secret | Lives in | Consumed by |
 |---|---|---|
-| `MONGODB_URI` | GCP Secret Manager | Cloud Run, via `--set-secrets` |
+| `MONGODB_URI` | GCP Secret Manager | Cloud Run container, as the runtime SA, via `--set-secrets` |
 | `WIF_PROVIDER`, `DEPLOY_SA` | GitHub Secrets | the workflow's auth step |
 | Linear webhook signing secret | Cloud Run relay env | the relay |
 
 `MONGODB_URI` is never a GitHub Secret. The runner has no reason to hold a database
 credential — it builds an image and asks Cloud Run to run it. Only the running service needs
-to reach Mongo.
+to reach Mongo, and it reads the secret as the runtime SA (see Authentication).
+
+Ticket 7 must create both the `MONGODB_URI` secret **and an initial secret version holding the
+real Atlas connection string**. `--set-secrets` in ticket 9 binds to `MONGODB_URI:latest`,
+which resolves at deploy time and fails the deploy if no version exists — an empty secret
+container is not enough.
 
 ### Infrastructure state
 
@@ -267,9 +382,33 @@ to reach Mongo.
 | `secretmanager.googleapis.com` | not enabled |
 | `firebasehosting.googleapis.com` | not enabled |
 | `cloudbuild.googleapis.com` | not enabled — and intentionally stays that way |
+| Deploy SA (`deploy@…`) + WIF pool/provider + repo binding | not created |
+| Runtime SA (`linear-example-run@…`) + `secretAccessor` on `MONGODB_URI` | not created |
+| `MONGODB_URI` secret **and initial version** | not created |
 | Atlas cluster region | **unconfirmed** — must be `us-central1` to match |
 
-The Atlas region is the only entry that cannot be corrected later.
+Enabling the four disabled APIs, creating the WIF pool/provider and deploy service account,
+creating the dedicated runtime service account and granting it `secretAccessor` on the secret,
+and creating the `MONGODB_URI` secret with its first version are one-time account state rather
+than per-deploy code, so they are collected into one bootstrap ticket (below) instead of
+scattered across the tickets that consume them — that gives one place where the deploy identity
+is established and verified.
+
+**Ticket 7 is user-executed.** Every step in it — enabling APIs, creating the WIF pool, binding
+service accounts, writing the real connection string into Secret Manager, confirming the Atlas
+region — requires GCP-console/owner and Atlas-org access that no developer or tester agent has,
+and none of it is observable from the repo. It therefore stays a Linear ticket for tracking and
+as the dependency that gates tickets 9 and 11, but is explicitly flagged **USER-EXECUTED**: no
+developer agent picks it up and no tester agent verifies it. Its acceptance criteria are
+**user-attested** — the user confirms each resource exists (e.g. `gcloud iam service-accounts
+list`, `gcloud secrets versions list MONGODB_URI` show what's expected). It is effectively a
+prerequisite runbook that happens to be filed as an issue.
+
+The Atlas region is the only entry that cannot be corrected later, and it is a hard
+prerequisite: it must be confirmed — and the cluster recreated in `us-central1` if it is
+anywhere else — before the backend scaffold ticket, which is the first thing to open a
+connection. Confirming it needs Atlas org access, so it is a blocker the user must clear
+before that ticket starts, not something an agent can settle from the repo.
 
 ## Ticket slicing
 
@@ -285,3 +424,57 @@ The `product-owner` agent should cut roughly:
 Each is independently testable and leaves the app in a working state. Ticket 1 exists so
 the developer agent's first ticket isn't also the one that discovers the Atlas connection
 string is wrong.
+
+### Deploy and infrastructure
+
+These ship the pipeline described in the Deploy topology and CI/CD sections. Each leaves the
+repo working on its own. The relay in Remote execution is deliberately not among them.
+
+**Acceptance-criteria convention for deploy tickets (9, 10, 11).** A live deploy to Cloud Run
+or Firebase is not observable by an agent — no developer or tester agent holds cloud
+credentials, so "the site is live at the Cloud Run URL" is a criterion neither can honestly
+sign off. The product-owner must therefore split every deploy ticket's acceptance criteria into
+two labeled groups, and the tester verifies only the first:
+
+- **Agent-checkable** — everything provable in the repo with no cloud access: the Dockerfile
+  builds and `docker run` serves `/healthz` locally; the workflow YAML parses and passes
+  `actionlint`; `firebase.json` is schema-valid and the rewrite order is correct; the deploy
+  command lines contain the required flags (`--service-account`, `--set-secrets`, SHA tag, no
+  `latest`, no Cloud Build).
+- **User-attested** — the live outcome only the user can confirm after a real push: the Cloud
+  Run revision is serving, `/api/records` responds through the Firebase rewrite, the container
+  read `MONGODB_URI` at startup. The tester records these as "pending user attestation," not as
+  pass or fail.
+
+7. **Deploy prerequisites (GCP + Atlas) — USER-EXECUTED.** Enable `run`, `iamcredentials`,
+   `secretmanager`, and `firebasehosting` APIs; create the WIF pool `github-pool` and provider
+   `github-provider` with the attribute mapping and the `assertion.repository ==
+   'dperez4787/linear-example'` condition (see Authentication); create the deploy SA with
+   exactly the four roles and bind it to the repo principal; create the dedicated runtime SA
+   and grant it `secretmanager.secretAccessor` on the `MONGODB_URI` secret; create the
+   `MONGODB_URI` secret **and its first version** with the real Atlas string; set the Atlas
+   allowlist to `0.0.0.0/0`. No repo code; the user runs it and attests each resource exists.
+   Depends on the Atlas region being confirmed first. Prerequisite for tickets 9 and 11.
+
+8. **Backend Dockerfile.** `app/backend/Dockerfile` (plus `.dockerignore`) exactly as in the
+   CI/CD section — `node:24-slim`, `npm ci --omit=dev`, listen on `process.env.PORT`. Verified
+   by `docker build` then `docker run` reaching `/healthz`. Depends on ticket 1 (needs a
+   server that listens and a `/healthz` route).
+
+9. **Backend deploy workflow.** A `push to main` GitHub Actions job that OIDC-auths, builds
+   and pushes the image tagged by git SHA to Artifact Registry, and deploys the
+   `linear-example-backend` Cloud Run service with `--min-instances=1 --cpu-boost`,
+   `--service-account=linear-example-run@…`, and `--set-secrets=MONGODB_URI=MONGODB_URI:latest`.
+   File: `.github/workflows/deploy.yml`. No `latest` image tag, no Cloud Build, no service
+   account key. Depends on tickets 7 and 8.
+
+10. **Firebase Hosting config.** Root `firebase.json` (and `.firebaserc`) with the `/api/**`
+    → Cloud Run rewrite ahead of the `**` → `/index.html` SPA fallback, `public` set to
+    `app/frontend/dist`. Depends on ticket 4 (a build to serve) and ticket 9 (the Cloud Run
+    service must exist for the rewrite target to resolve).
+
+11. **Frontend deploy workflow.** A second `push to main` job in `deploy.yml` that runs
+    `npm ci && npm run build` in `app/frontend`, then `firebase deploy --only hosting
+    --project project-d60a83c1-2c60-4d51-ad0 --non-interactive` from the **repo root**, using
+    an exact-pinned `firebase-tools` (>= 11.30) authenticating via the ADC file the OIDC auth
+    step exports — no `FIREBASE_TOKEN` (see Authentication). Depends on tickets 7, 10, and 4.
