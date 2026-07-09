@@ -57,6 +57,12 @@ jobs:
         run: docker push "$IMAGE"
 
       - name: Deploy to Cloud Run
+        # --allow-unauthenticated is explicit, not left to gcloud's default: for a
+        # brand-new service in a non-interactive CI shell gcloud does not prompt and
+        # creates it private. Firebase Hosting invokes the /api/** rewrite anonymously
+        # (no service-agent identity to grant run.invoker to), so a private service
+        # would 403 both that rewrite and /healthz. The service is public by design —
+        # the SPA already calls the API anonymously and there is no auth layer.
         run: |
           gcloud run deploy "$SERVICE" \
             --image "$IMAGE" \
@@ -65,4 +71,5 @@ jobs:
             --min-instances=1 \
             --cpu-boost \
             --service-account="$RUNTIME_SA" \
-            --set-secrets=MONGODB_URI=MONGODB_URI:latest
+            --set-secrets=MONGODB_URI=MONGODB_URI:latest \
+            --allow-unauthenticated
