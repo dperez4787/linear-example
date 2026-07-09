@@ -1,0 +1,68 @@
+name: Deploy
+
+# Deploys the backend to Cloud Run on every push to main.
+#
+# Auth is OIDC-only via Workload Identity Federation: the job mints a GitHub
+# OIDC token (which requires `id-token: write`, below) and google-github-actions/auth
+# exchanges it for short-lived deploy-SA credentials. No service account key exists
+# anywhere. The image is built from app/backend/Dockerfile on the runner and pushed to
+# Artifact Registry — Cloud Build is deliberately not used (its API is disabled and the
+# deploy SA has no Cloud Build roles). Images are tagged by commit SHA, never `latest`,
+# so a rollback always resolves to the exact bytes it originally deployed.
+#
+# NOTE: DAN-15 adds the frontend (Firebase Hosting) job to this same file later.
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Build, push, and deploy backend
+    runs-on: ubuntu-latest
+
+    # id-token: write is mandatory — without it the OIDC token is never minted and the
+    # WIF exchange in google-github-actions/auth fails at runtime.
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      PROJECT_ID: project-d60a83c1-2c60-4d51-ad0
+      REGION: us-central1
+      SERVICE: linear-example-backend
+      RUNTIME_SA: linear-example-run@project-d60a83c1-2c60-4d51-ad0.iam.gserviceaccount.com
+      IMAGE: us-central1-docker.pkg.dev/project-d60a83c1-2c60-4d51-ad0/linear-example/backend:${{ github.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (OIDC / Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.DEPLOY_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build backend image
+        run: docker build -f app/backend/Dockerfile -t "$IMAGE" app/backend
+
+      - name: Push backend image
+        run: docker push "$IMAGE"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --min-instances=1 \
+            --cpu-boost \
+            --service-account="$RUNTIME_SA" \
+            --set-secrets=MONGODB_URI=MONGODB_URI:latest
