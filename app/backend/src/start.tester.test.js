@@ -7,10 +7,10 @@
 //      a hand-typed --env-file — loads app/backend/.env so MONGODB_URI is defined,
 //      logs "connected to MongoDB" (and never "MongoDB connection failed at
 //      startup"), and GET /api/records returns 200 with { records: [...] }.
-//   2. GET /healthz returns 200 without touching Mongo.
+//   2. GET /health returns 200 without touching Mongo.
 //   3. Cloud Run parity, re-asserted independently: with .env absent AND no
 //      ambient MONGODB_URI, the exact start-script flags are a no-op (not a hard
-//      error), the server still listens, and /healthz is 200.
+//      error), the server still listens, and /health is 200.
 //
 // The positive case needs a reachable Mongo. It resolves MONGODB_URI from
 // app/backend/.env (or the ambient env) and skips — never fails — if neither is
@@ -110,7 +110,7 @@ test('.env present: start script loads MONGODB_URI, connects, and GET /api/recor
   assert.ok(connected, `expected "connected to MongoDB", got:\n${getOutput()}`)
   assert.doesNotMatch(getOutput(), /MongoDB connection failed at startup/)
 
-  const health = await fetch(`http://127.0.0.1:${port}/healthz`)
+  const health = await fetch(`http://127.0.0.1:${port}/health`)
   assert.equal(health.status, 200)
   assert.deepEqual(await health.json(), { status: 'ok' })
 
@@ -120,7 +120,7 @@ test('.env present: start script loads MONGODB_URI, connects, and GET /api/recor
   assert.ok(Array.isArray(body.records), `expected { records: [...] }, got ${JSON.stringify(body)}`)
 })
 
-test('Cloud Run parity: start-script flags no-op with .env absent and no MONGODB_URI; server listens, /healthz 200', async (t) => {
+test('Cloud Run parity: start-script flags no-op with .env absent and no MONGODB_URI; server listens, /health 200', async (t) => {
   const port = await freePort()
   const env = { ...process.env }
   delete env.MONGODB_URI
@@ -155,7 +155,7 @@ test('Cloud Run parity: start-script flags no-op with .env absent and no MONGODB
 
   await ready // rejects if bare --env-file would have crashed on the missing file
 
-  const res = await fetch(`http://127.0.0.1:${port}/healthz`)
+  const res = await fetch(`http://127.0.0.1:${port}/health`)
   assert.equal(res.status, 200)
   assert.deepEqual(await res.json(), { status: 'ok' })
   assert.match(out, /MongoDB connection failed at startup/)

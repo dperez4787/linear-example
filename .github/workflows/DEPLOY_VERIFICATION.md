@@ -45,7 +45,7 @@ actionlint recognized the `push` trigger and exited 0.)
 ## User-attested criteria: pending user attestation (no agent can verify)
 
 Revision deploying and serving; container reading `MONGODB_URI` from Secret Manager at
-startup; `/healthz` answering at the Cloud Run URL. Observable only after the user merges.
+startup; `/health` answering at the Cloud Run URL. Observable only after the user merges.
 
 **Merging PR #15 triggers the first real deploy and the first-ever OIDC-token exchange for
 the deploy SA.** Every trust-path component is verified to exist, but a first exchange has
