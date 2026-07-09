@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { listRecords } from './api.js'
 import RecordTable from './RecordTable.jsx'
@@ -10,15 +10,23 @@ export default function App() {
   const [records, setRecords] = useState([])
   const [status, setStatus] = useState('loading') // 'loading' | 'ready' | 'error'
   const [error, setError] = useState(null)
+  // Caches the single in-flight request. StrictMode double-invokes effects in
+  // dev (mount → cleanup → mount) on the same component instance, so a per-effect
+  // `cancelled` flag stops the second render from writing state but does NOT stop
+  // it from firing a second listRecords(). Because the ref survives that cycle,
+  // both effect runs await the *same* promise — the request goes out exactly once,
+  // and the surviving second effect still applies the result.
+  const requestRef = useRef(null)
 
   useEffect(() => {
-    // Fetch exactly once on mount. `cancelled` guards against setting state
-    // after unmount (React 18 StrictMode double-invokes effects in dev).
+    // `cancelled` guards against setting state after this effect run is torn down
+    // (StrictMode cleanup, or a real unmount). It's per-run; the ref is shared.
     let cancelled = false
 
     async function load() {
       try {
-        const data = await listRecords()
+        if (!requestRef.current) requestRef.current = listRecords()
+        const data = await requestRef.current
         if (!cancelled) {
           setRecords(data)
           setStatus('ready')
