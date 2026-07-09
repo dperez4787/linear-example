@@ -1,0 +1,11 @@
+.claude/settings.local.json
+
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.firebase/
