@@ -506,13 +506,20 @@ must reconcile against this current state:
 |---|---|---|
 | `run`, `iamcredentials`, `secretmanager`, `firebasehosting` APIs | **enabled** | declare (no-op) |
 | `artifactregistry.googleapis.com` | enabled | declare (no-op) |
+| `cloudresourcemanager.googleapis.com` | **enabled** (by hand, DAN-19) | declare (no-op) |
 | `cloudbuild.googleapis.com` | **disabled, intentionally** | leave undeclared |
 | Artifact Registry repo `linear-example` (docker, us-central1) | **exists** | `import` |
 | Deploy SA, runtime SA, all IAM, WIF pool/provider, `MONGODB_URI` container | do not exist | create |
 
-- Declaring `google_project_service` for an already-enabled API is a benign no-op, so all five
+- Declaring `google_project_service` for an already-enabled API is a benign no-op, so all six
   are declared. Each sets `disable_on_destroy = false` so a `terraform destroy` never yanks an
   API that predated Terraform.
+- `cloudresourcemanager.googleapis.com` is a prerequisite of the Firebase Management API. It was
+  found **disabled** on the live project and enabled by hand while diagnosing a `403` during
+  DAN-19, leaving it enabled in the project but described nowhere in the repo. It is declared here
+  so the config once again describes the live state; like the other already-enabled APIs its apply
+  is a create-in-state no-op, not an `import` (a `google_project_service` reconciles by re-asserting
+  enablement, not by adopting a pre-existing object, so no import address is needed).
 - `cloudbuild.googleapis.com` is intentionally disabled and intentionally **absent** from the
   config — Terraform manages only what it declares, so leaving it out keeps it off without a
   fight.
@@ -538,7 +545,7 @@ sections — **none are invented here**:
 
 | Resource | Identity |
 |---|---|
-| API enablement | `run`, `iamcredentials`, `secretmanager`, `firebasehosting`, `artifactregistry` (never `cloudbuild`) |
+| API enablement | `run`, `iamcredentials`, `secretmanager`, `firebasehosting`, `artifactregistry`, `cloudresourcemanager` (never `cloudbuild`) |
 | Artifact Registry repo (imported) | `linear-example`, docker, `us-central1` |
 | WIF pool / provider | `github-pool` / `github-provider`, issuer `https://token.actions.githubusercontent.com`, condition `assertion.repository == 'dperez4787/linear-example'` |
 | Deploy SA + IAM | `deploy@…`: `roles/artifactregistry.writer`, `roles/run.admin`, `roles/iam.serviceAccountUser`, `roles/firebasehosting.admin`; plus `roles/iam.workloadIdentityUser` on the repo principalSet |
