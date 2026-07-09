@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { deleteRecord, listRecords, updateRecord } from './api.js'
+import { createRecord, deleteRecord, listRecords, updateRecord } from './api.js'
+import NewRecordForm from './NewRecordForm.jsx'
 import RecordTable from './RecordTable.jsx'
 
 // State lives here and flows down (see docs/architecture.md). App loads the
@@ -74,6 +75,20 @@ export default function App() {
     }
   }
 
+  // Create. Deliberately NOT optimistic and deliberately NOT a re-fetch: the new
+  // row has no server id or timestamps until the POST returns, and re-listing
+  // would re-await the cached mount promise (requestRef) and replay the stale
+  // pre-create list — the new row would never appear. Instead, append the record
+  // the API returns (its own 201 { record } response, already unwrapped) to local
+  // state; that is the same "reconcile from the mutation's own response, never
+  // touch requestRef" rule the edit/delete paths follow. On a 400 nothing is
+  // appended and the error is re-thrown so NewRecordForm can point it at the
+  // offending field.
+  async function handleCreate(input) {
+    const created = await createRecord(input)
+    setRecords((rs) => [...rs, created])
+  }
+
   // Optimistic delete. Drop the row immediately; if the DELETE fails, restore the
   // prior list and surface the error.
   async function handleDelete(id) {
@@ -96,6 +111,7 @@ export default function App() {
       {status === 'ready' && (
         <>
           {actionError && <p role="alert">{actionError}</p>}
+          <NewRecordForm onCreate={handleCreate} />
           <RecordTable
             records={records}
             onSave={handleSave}

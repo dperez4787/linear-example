@@ -7,15 +7,23 @@ const BASE = '/api/records'
 
 // Turn a non-2xx response into a thrown Error carrying the server's message
 // when it sent one, so callers get a useful message instead of "[object]".
+// The API shapes errors as { error: { message, field? } }; when `field` is
+// present (a 400 validation error naming the offending field) it is attached to
+// the Error so a caller — the create form — can surface the message against that
+// exact field instead of dumping a generic banner.
 async function toError(res) {
   let message = `Request failed with status ${res.status}`
+  let field
   try {
     const body = await res.json()
     if (body?.error?.message) message = body.error.message
+    if (body?.error?.field) field = body.error.field
   } catch {
     // Non-JSON or empty body — keep the status-based message.
   }
-  return new Error(message)
+  const err = new Error(message)
+  if (field) err.field = field
+  return err
 }
 
 // GET /api/records -> Record[]. The API wraps the list as { records: [...] }
@@ -26,6 +34,22 @@ export async function listRecords() {
   if (!res.ok) throw await toError(res)
   const body = await res.json()
   return body.records ?? []
+}
+
+// POST /api/records with a new Record (no id) -> the created Record. The API
+// responds { record } (201) with the server-assigned id and timestamps; unwrap
+// it so the caller can append that canonical record to the table without a
+// re-fetch. A 400 throws an Error carrying `field` (see toError) so the form can
+// point at the rejected input; the record is not added.
+export async function createRecord(record) {
+  const res = await fetch(BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(record),
+  })
+  if (!res.ok) throw await toError(res)
+  const body = await res.json()
+  return body.record
 }
 
 // PATCH /api/records/:id with a partial Record -> the updated Record. The API

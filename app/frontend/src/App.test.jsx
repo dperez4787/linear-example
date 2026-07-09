@@ -128,6 +128,76 @@ describe('App edit (optimistic-with-rollback)', () => {
   })
 })
 
+describe('App create', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('appends the record the API returns without re-fetching the list', async () => {
+    const listSpy = vi.spyOn(api, 'listRecords').mockResolvedValue([
+      { id: 'a1', name: 'Alpha', status: 'active', amount: 10, notes: 'note a' },
+    ])
+    const created = {
+      id: 'new1',
+      name: 'Gamma',
+      status: 'pending',
+      amount: 42,
+      notes: 'fresh',
+    }
+    const createSpy = vi.spyOn(api, 'createRecord').mockResolvedValue(created)
+
+    renderApp()
+    await screen.findByText('Alpha')
+
+    fireEvent.change(screen.getByLabelText('New name'), { target: { value: 'Gamma' } })
+    fireEvent.change(screen.getByLabelText('New status'), { target: { value: 'pending' } })
+    fireEvent.change(screen.getByLabelText('New amount'), { target: { value: '42' } })
+    fireEvent.change(screen.getByLabelText('New notes'), { target: { value: 'fresh' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    // The new row shows up, alongside the original — no full reload.
+    expect(await screen.findByText('Gamma')).toBeInTheDocument()
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+
+    expect(createSpy).toHaveBeenCalledWith({
+      name: 'Gamma',
+      status: 'pending',
+      amount: 42,
+      notes: 'fresh',
+    })
+    // The critical guarantee: the list is fetched once (mount) and never again.
+    // Re-fetching would re-await the cached mount promise and replay the stale
+    // pre-create list, so the new row would vanish.
+    expect(listSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not add a row when the create is rejected with a 400', async () => {
+    vi.spyOn(api, 'listRecords').mockResolvedValue([
+      { id: 'a1', name: 'Alpha', status: 'active', amount: 10, notes: 'note a' },
+    ])
+    const err = new Error('amount must be a finite number greater than or equal to 0')
+    err.field = 'amount'
+    vi.spyOn(api, 'createRecord').mockRejectedValue(err)
+
+    renderApp()
+    await screen.findByText('Alpha')
+
+    fireEvent.change(screen.getByLabelText('New name'), { target: { value: 'Bad' } })
+    fireEvent.change(screen.getByLabelText('New amount'), { target: { value: '-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    // Error surfaces on the amount field; no new row is added.
+    expect(
+      await screen.findByText('amount must be a finite number greater than or equal to 0'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Bad')).not.toBeInTheDocument()
+    // Still exactly one data row (Alpha) in the table body.
+    const bodyRows = screen.getAllByRole('row').filter((row) => within(row).queryByText('Alpha'))
+    expect(bodyRows).toHaveLength(1)
+    expect(screen.getByLabelText('New amount')).toHaveAttribute('aria-invalid', 'true')
+  })
+})
+
 describe('App delete (optimistic-with-rollback)', () => {
   afterEach(() => {
     vi.restoreAllMocks()
