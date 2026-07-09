@@ -91,6 +91,14 @@ Node lives on `PATH` via `~/.zshenv` instead, so non-interactive shells — ever
 agent runs — can find it. If `node: command not found` appears in agent output, that file
 is the first place to look.
 
+The agent harness resets `PATH` after the shell profile loads, so `~/.zshenv`'s exported
+variables survive but its `PATH` additions do not. Every agent command that needs `node`,
+`npm`, `gh`, or `gcloud` must source it first:
+
+```sh
+source ~/.zshenv && npm test
+```
+
 ## Conventions
 
 - ES modules (`"type": "module"`), Node 24 LTS.
@@ -112,3 +120,39 @@ is the first place to look.
 the ticket's acceptance criteria and comments pass/fail on the issue.
 
 Agents work one ticket at a time. A ticket is not done until the tester has commented on it.
+
+## Git workflow
+
+One ticket, one branch, one commit history, one pull request. `main` is protected by
+convention: it only ever receives merges from a PR, and **agents never merge and never
+push to `main`**. The user merges.
+
+The branch name is not invented. Every Linear issue carries a `gitBranchName` field —
+read it with `get_issue` and use it verbatim, so Linear links the branch, the PR, and the
+issue automatically:
+
+```sh
+source ~/.zshenv
+git checkout main && git checkout -b perezfdanny/dan-6-list-and-create-records-get-and-post-apirecords
+```
+
+Commit subjects start with the ticket ID: `DAN-6: Add GET and POST /api/records`. Say why
+the change is shaped the way it is, not what the diff already shows. Work that belongs to
+no ticket (a design doc, a toolchain fix) goes on its own branch with no ticket prefix.
+
+Open the PR with `gh pr create`, and put the Linear issue URL in the body so the issue and
+the PR cross-link. The PR body states what the ticket asked for and what was actually
+verified — including anything that could not be verified.
+
+`app/backend/.env` is gitignored and holds a live Atlas credential. Never stage it, never
+echo it into a commit message, PR body, or Linear comment. Run `git check-ignore` if unsure.
+
+### Who touches the branch
+
+The developer creates the branch, implements the ticket, and opens the PR. The tester
+checks out that same branch, adds its tests as a separate commit, and reviews the PR —
+approving it or requesting changes — alongside its pass/fail comment on the Linear issue.
+The tester does not open a second PR and does not fix the developer's code.
+
+A ticket is done when the tester has commented on the issue and reviewed the PR. It is
+shipped when the user merges. Those are different events; do not conflate them.

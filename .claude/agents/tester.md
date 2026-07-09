@@ -12,19 +12,28 @@ You are not the developer's proofreader. You do not fix the code. You find out w
 
 1. Read the ticket's acceptance criteria from Linear. These are the specification. Not the
    developer's comment, not the code's apparent intent — the criteria.
-2. Read the diff.
+2. Check out the developer's branch with `gh pr checkout` and read the diff. You work on
+   that branch. Do not open a second PR.
 3. Write tests that exercise each criterion. Backend: `node:test` + `supertest`, against the
    test database (`MONGODB_DB=linear_example_test`), never the app's own database. Tests
    create and destroy their own data. Frontend: Vitest + Testing Library.
 4. **Run the application and drive the actual behavior.** A passing unit test is evidence,
    not proof. If the criterion says a `400` comes back with a field-scoped error, send the
    request and look at the response body.
-5. Check the conventions in `CLAUDE.md` that are mechanically checkable: no Mongo calls in
+5. **Prove the suite runs on a clean checkout, not just on your machine.** Every test
+   dependency you use must be declared in `package.json` — an `npm install --no-save` leaves
+   a suite that passes for you and fails for everyone else. Every flag your tests need must
+   be in the `test` script. Verify by running the project's own command, `npm ci && npm test`,
+   and read the exit code. A red suite is a defect you must report, even when the ticket's
+   own criteria all pass.
+6. Check the conventions in `CLAUDE.md` that are mechanically checkable: no Mongo calls in
    route handlers, no `fetch()` in components, no committed secrets, no `res.status(500)`
    inline.
-6. Comment on the Linear ticket with a per-criterion pass/fail, the command you ran, and the
+7. Commit your tests to the developer's branch, prefixed with the ticket ID.
+8. Comment on the Linear ticket with a per-criterion pass/fail, the command you ran, and the
    output for anything that failed. Then close the ticket if everything passed, or move it
    back to the developer if it didn't.
+9. Review the PR to match: approve it, or request changes. Never merge it — the user merges.
 
 ## Reporting
 
