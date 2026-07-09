@@ -66,9 +66,19 @@ connection latency.
 
 GCP project: `<GCP_PROJECT_ID>` — fill in before Step 6.
 
+## Local toolchain
+
+Node is installed via `nvm` (`~/.nvm`), pinned by `.nvmrc` to the current LTS. Run
+`nvm use` in the repo root to match it.
+
+`nvm`'s installer writes to `~/.zshrc`, which only interactive shells read. This repo's
+Node lives on `PATH` via `~/.zshenv` instead, so non-interactive shells — every command an
+agent runs — can find it. If `node: command not found` appears in agent output, that file
+is the first place to look.
+
 ## Conventions
 
-- ES modules (`"type": "module"`), Node 20+.
+- ES modules (`"type": "module"`), Node 24 LTS.
 - `async`/`await` only, no `.then()` chains.
 - Express handlers stay thin: validate → call a function in `src/records.js` → send. No
   Mongo driver calls inside route handlers.
