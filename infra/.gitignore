@@ -1,0 +1,13 @@
+# Provider plugin cache and other local Terraform working files.
+.terraform/
+
+# Terraform state. DAN-11 step 4 runs `terraform apply` against LOCAL state,
+# dropping terraform.tfstate into this directory; it holds the full SA / WIF /
+# project topology and must never be committed. Also stops being authoritative
+# the moment the backend migrates to GCS.
+terraform.tfstate
+terraform.tfstate.backup
+*.tfstate.*
+
+# NOTE: .terraform.lock.hcl is intentionally NOT ignored — the provider lock is
+# committed so every run resolves the same provider versions.
