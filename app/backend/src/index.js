@@ -1,11 +1,16 @@
 import express from 'express'
 
+import { authGate, firebaseVerifyToken } from './auth.js'
 import { connect } from './db.js'
 import { recordsRouter } from './routes.js'
 
 const PORT = process.env.PORT ?? 8080
 
-export function createApp() {
+// The token verifier is injected so tests can substitute a stub (no emulator, no
+// network); it defaults to the firebase-admin wrapper, which initializes lazily on
+// first use so boot and /health stay credential- and network-free. See auth.js and
+// docs/architecture.md (Authentication).
+export function createApp({ verifyToken = firebaseVerifyToken } = {}) {
   const app = express()
 
   app.use(express.json())
@@ -22,7 +27,10 @@ export function createApp() {
     res.status(200).json({ status: 'ok' })
   })
 
-  app.use('/api/records', recordsRouter())
+  // The auth gate mounts on /api/records, AFTER /health (which stays unauthenticated
+  // and Mongo-free) and BEFORE the router. A missing/non-Bearer header or any verifier
+  // rejection fails the request as 401 via next(err) — it never reaches the data layer.
+  app.use('/api/records', authGate(verifyToken), recordsRouter())
 
   // One error middleware maps thrown errors to status codes. Validation errors
   // from the schema/data layer carry `status` (400) and `field`; anything else
