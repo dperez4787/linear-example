@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { deleteRecord, listRecords, updateRecord } from './api.js'
+import { createRecord, deleteRecord, listRecords, updateRecord } from './api.js'
 
 describe('api.listRecords', () => {
   afterEach(() => {
@@ -43,6 +43,60 @@ describe('api.listRecords', () => {
     )
 
     await expect(listRecords()).rejects.toThrow('Internal Server Error')
+  })
+})
+
+describe('api.createRecord', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('POSTs a JSON body and unwraps { record } from the 201', async () => {
+    const record = {
+      id: 'new1',
+      name: 'Gamma',
+      status: 'pending',
+      amount: 42,
+      notes: 'fresh',
+    }
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 201,
+      json: async () => ({ record }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const input = { name: 'Gamma', status: 'pending', amount: 42, notes: 'fresh' }
+    await expect(createRecord(input)).resolves.toEqual(record)
+
+    const [url, options] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/records')
+    expect(options.method).toBe('POST')
+    expect(options.headers).toMatchObject({ 'Content-Type': 'application/json' })
+    expect(JSON.parse(options.body)).toEqual(input)
+  })
+
+  it('throws with the server message AND the offending field on a 400', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error: {
+            message: 'amount must be a finite number greater than or equal to 0',
+            field: 'amount',
+          },
+        }),
+      })),
+    )
+
+    // The Error must carry `field` so the form can point at the right input,
+    // not just show a generic banner.
+    await expect(createRecord({ amount: -1 })).rejects.toMatchObject({
+      message: 'amount must be a finite number greater than or equal to 0',
+      field: 'amount',
+    })
   })
 })
 
