@@ -61,7 +61,7 @@ jobs:
         # brand-new service in a non-interactive CI shell gcloud does not prompt and
         # creates it private. Firebase Hosting invokes the /api/** rewrite anonymously
         # (no service-agent identity to grant run.invoker to), so a private service
-        # would 403 both that rewrite and /healthz. The service is public by design —
+        # would 403 both that rewrite and /health. The service is public by design —
         # the SPA already calls the API anonymously and there is no auth layer.
         run: |
           gcloud run deploy "$SERVICE" \

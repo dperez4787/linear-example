@@ -49,8 +49,17 @@ Errors are `{ error: { message, field? } }`. A malformed `:id` that isn't a vali
 is a `404`, not a `400` — the client shouldn't have to distinguish "no such record" from
 "that couldn't possibly be a record".
 
-Health check at `GET /healthz` returning `200` — Cloud Run needs it, and it must not touch
+Health check at `GET /health` returning `200` — Cloud Run needs it, and it must not touch
 Mongo, or a database blip will cause the revision to be torn down.
+
+The path is `/health`, **not** `/healthz` (DAN-18). The platform in front of Cloud Run
+intercepts the exact path `/healthz` and returns a Google `404` before the request ever
+reaches the container, so `/healthz` was unreachable over the public URL even though the
+container served it correctly (verified against the live service: same host, same revision,
+`/healthz` → `404` with no `x-powered-by: Express` header, while every other path including
+`/nonexistent` reached Express). `/health` is not intercepted. The endpoint was originally
+specified as `/healthz` in DAN-5 — that criterion is superseded by this one. Do not rename
+it back to `/healthz`; the platform will swallow it again.
 
 ## Backend structure
 
@@ -106,7 +115,7 @@ The Cloud Run service allows **unauthenticated** invocations: the deploy passes
 `--allow-unauthenticated`, granting `allUsers` → `roles/run.invoker`. This is required, not
 incidental — Firebase Hosting invokes the `/api/**` rewrite anonymously, with no
 service-agent identity to grant `run.invoker` to, so a private service would `403` both the
-rewrite and `/healthz`. It adds no exposure the design didn't already have: the SPA calls
+rewrite and `/health`. It adds no exposure the design didn't already have: the SPA calls
 the API anonymously and there is no auth boundary in v1.
 
 The Cloud Run service is named `linear-example-backend`. `firebase.json` lives at the repo
@@ -242,7 +251,7 @@ CMD ["node", "src/index.js"]
 
 `npm ci` runs before `COPY src` so the dependency layer is cached and only reinstalls when
 `package-lock.json` changes. The process must listen on `process.env.PORT`; Cloud Run injects
-it and health-checks that port. `/healthz` must not touch Mongo — a database blip would
+it and health-checks that port. `/health` must not touch Mongo — a database blip would
 otherwise tear down the revision.
 
 ### Pipeline
@@ -573,7 +582,7 @@ same two-tier split the deploy tickets already use.
 
 The `product-owner` agent should cut roughly:
 
-1. Backend scaffold — Express app, `/healthz`, Mongo connection, no routes.
+1. Backend scaffold — Express app, `/health`, Mongo connection, no routes.
 2. `GET /api/records` + `POST /api/records`.
 3. `PATCH /api/records/:id` + `DELETE /api/records/:id`.
 4. Frontend scaffold + `api.js` + read-only table.
@@ -597,7 +606,7 @@ therefore split every such ticket's acceptance criteria into two labeled groups,
 verifies only the first:
 
 - **Agent-checkable** — everything provable in the repo with no cloud access: the Dockerfile
-  builds and `docker run` serves `/healthz` locally; the workflow YAML parses and passes
+  builds and `docker run` serves `/health` locally; the workflow YAML parses and passes
   `actionlint`; `firebase.json` is schema-valid and the rewrite order is correct; the deploy
   command lines contain the required flags (`--service-account`, `--set-secrets`, SHA tag, no
   `latest`, no Cloud Build); for the infra ticket, `terraform fmt -check` and `terraform init
@@ -629,8 +638,8 @@ verifies only the first:
 
 8. **Backend Dockerfile.** `app/backend/Dockerfile` (plus `.dockerignore`) exactly as in the
    CI/CD section — `node:24-slim`, `npm ci --omit=dev`, listen on `process.env.PORT`. Verified
-   by `docker build` then `docker run` reaching `/healthz`. Depends on ticket 1 (needs a
-   server that listens and a `/healthz` route).
+   by `docker build` then `docker run` reaching `/health`. Depends on ticket 1 (needs a
+   server that listens and a `/health` route).
 
 9. **Backend deploy workflow.** A `push to main` GitHub Actions job that OIDC-auths, builds
    and pushes the image tagged by git SHA to Artifact Registry, and deploys the

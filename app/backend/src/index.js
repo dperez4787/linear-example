@@ -12,7 +12,13 @@ export function createApp() {
 
   // Health check for Cloud Run. Must not touch Mongo — a database blip must not
   // fail the health check, or the revision gets torn down.
-  app.get('/healthz', (req, res) => {
+  //
+  // Path is /health, NOT /healthz: the platform in front of Cloud Run intercepts
+  // the exact path /healthz and returns a Google 404 before the request ever
+  // reaches this container, so /healthz was unreachable over the public URL even
+  // though the container served it correctly. Do not rename this back. See DAN-18
+  // and docs/architecture.md (API contract).
+  app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok' })
   })
 
@@ -43,14 +49,14 @@ export function createApp() {
 async function main() {
   const app = createApp()
 
-  // Listen first so /healthz is available immediately — Cloud Run health-checks
+  // Listen first so /health is available immediately — Cloud Run health-checks
   // the port on startup, and the check must not depend on Mongo being reachable.
   app.listen(PORT, () => {
     console.log(`backend listening on ${PORT}`)
   })
 
   // Connect once at process start and reuse the pooled client. A failed
-  // connection must NOT stop the server: /healthz has to keep returning 200 even
+  // connection must NOT stop the server: /health has to keep returning 200 even
   // when Mongo is unreachable. Routes that need the db (added in a later ticket)
   // call getDb() and will surface a clear error until the connection succeeds.
   try {

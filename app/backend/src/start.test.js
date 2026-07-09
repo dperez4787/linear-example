@@ -66,7 +66,7 @@ test('the start script loads .env if present and is a no-op when absent (--env-f
   assert.match(pkg.scripts.start, /src\/index\.js/)
 })
 
-test('Cloud Run parity: with no .env and no MONGODB_URI, the server still listens and /healthz is 200', async (t) => {
+test('Cloud Run parity: with no .env and no MONGODB_URI, the server still listens and /health is 200', async (t) => {
   const port = await freePort()
   // Strip MONGODB_URI/MONGODB_DB so the process environment mirrors a container
   // that has neither a .env file nor the secret yet at connect() time. Point
@@ -83,7 +83,7 @@ test('Cloud Run parity: with no .env and no MONGODB_URI, the server still listen
 
   await ready // rejects if the process crashed instead of listening
 
-  const res = await fetch(`http://127.0.0.1:${port}/healthz`)
+  const res = await fetch(`http://127.0.0.1:${port}/health`)
   assert.equal(res.status, 200)
   assert.deepEqual(await res.json(), { status: 'ok' })
 
