@@ -1,57 +1,171 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import RecordRow from './RecordRow.jsx'
 
-// Renders the records as a table and owns the single piece of view state this
-// ticket introduces: *which* row is currently in edit mode (see
-// docs/architecture.md — RecordTable owns the editing row, not RecordRow and not
-// App). The record data and the mutations themselves live in App and flow down
-// as `onSave`/`onDelete`; this component just decides which row shows inputs.
-//
-// An empty set still renders the table (with its header) plus a visible empty
-// state, so the page never crashes on zero rows.
+// The status list mirrors the backend schema (docs/architecture.md, Data model)
+// purely so the filter can offer the same options the server enforces; the
+// backend stays the single enforcement point.
+const STATUSES = ['active', 'pending', 'archived']
+
+// Per-column comparators, ascending. Descending negates the result (see
+// `visibleRecords`), never reverses the array, so equal keys keep their fetched
+// relative order (Array.prototype.sort is stable). name/status compare
+// case-insensitively as strings; amount numerically; updatedAt chronologically
+// (Date.parse, not lexicographic, so the semantics survive a wire-format change).
+const COMPARATORS = {
+  name: (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+  status: (a, b) => a.status.localeCompare(b.status, undefined, { sensitivity: 'base' }),
+  amount: (a, b) => a.amount - b.amount,
+  updatedAt: (a, b) => Date.parse(a.updatedAt) - Date.parse(b.updatedAt),
+}
+
+// Renders the records as a table and owns all of the view state: which row is
+// editing (as before), plus the sort and the two filters this ticket adds (see
+// docs/architecture.md — Records table UI, State ownership). The record data and
+// the mutations live in App and flow down as `records`/`onSave`/`onDelete`; the
+// visible rows are DERIVED from the `records` prop, never stored, so every
+// optimistic apply/rollback and every created row flows through the current
+// filters and sort with no coordination code.
 export default function RecordTable({ records, onSave, onDelete }) {
   const [editingId, setEditingId] = useState(null)
+  // `sort` is null until a header is clicked; null means "render in the order
+  // listRecords() returned". Nothing ever sets it back to null.
+  const [sort, setSort] = useState(null)
+  const [nameFilter, setNameFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  // Pure filter-then-sort over the prop. Filters combine with AND; the empty
+  // name string matches everything and 'all' matches every status. Sorting is on
+  // a copy — the `records` prop is never mutated.
+  const visibleRecords = useMemo(() => {
+    const needle = nameFilter.toLowerCase()
+    const filtered = records.filter(
+      (r) =>
+        r.name.toLowerCase().includes(needle) &&
+        (statusFilter === 'all' || r.status === statusFilter),
+    )
+    if (!sort) return filtered
+    const cmp = COMPARATORS[sort.column]
+    const dir = sort.direction === 'asc' ? 1 : -1
+    return [...filtered].sort((a, b) => dir * cmp(a, b))
+  }, [records, nameFilter, statusFilter, sort])
+
+  // Click a column to sort ascending; click the active column to toggle
+  // direction; click a different column to sort by it ascending.
+  function handleSort(column) {
+    setSort((prev) =>
+      prev?.column === column
+        ? { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { column, direction: 'asc' },
+    )
+  }
+
+  function clearFilters() {
+    setNameFilter('')
+    setStatusFilter('all')
+  }
 
   // Leave edit mode immediately and hand the change to App, which applies it to
-  // the list optimistically (so the new value shows at once, before the PATCH
-  // resolves) and rolls it back with an error if the request fails. The row does
-  // not wait on the request — that is what makes the edit feel instant.
+  // the list optimistically and rolls it back with an error if the request fails.
   function handleSave(id, patch) {
     setEditingId(null)
     onSave(id, patch)
   }
 
   return (
-    <table>
-      <thead>
-        <tr>
-          <th scope="col">Name</th>
-          <th scope="col">Status</th>
-          <th scope="col">Amount</th>
-          <th scope="col">Notes</th>
-          <th scope="col">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {records.length === 0 ? (
+    <>
+      <div className="toolbar">
+        <label>
+          Filter by name
+          <input
+            type="search"
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+          />
+        </label>
+        <label>
+          Filter by status
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">all</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <table>
+        <thead>
           <tr>
-            <td colSpan={5}>No records yet.</td>
+            <SortableHeader label="Name" column="name" sort={sort} onSort={handleSort} />
+            <SortableHeader label="Status" column="status" sort={sort} onSort={handleSort} />
+            <SortableHeader label="Amount" column="amount" sort={sort} onSort={handleSort} />
+            <th scope="col">Notes</th>
+            <SortableHeader label="Updated" column="updatedAt" sort={sort} onSort={handleSort} />
+            <th scope="col">Actions</th>
           </tr>
-        ) : (
-          records.map((record) => (
-            <RecordRow
-              key={record.id}
-              record={record}
-              isEditing={editingId === record.id}
-              onEdit={() => setEditingId(record.id)}
-              onCancel={() => setEditingId(null)}
-              onSave={handleSave}
-              onDelete={onDelete}
-            />
-          ))
-        )}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {records.length === 0 ? (
+            <tr>
+              <td colSpan={6}>No records yet.</td>
+            </tr>
+          ) : visibleRecords.length === 0 ? (
+            <tr>
+              <td colSpan={6} className="empty-state">
+                No matching records.{' '}
+                <button type="button" onClick={clearFilters}>
+                  Clear filters
+                </button>
+              </td>
+            </tr>
+          ) : (
+            visibleRecords.map((record) => (
+              <RecordRow
+                key={record.id}
+                record={record}
+                isEditing={editingId === record.id}
+                onEdit={() => setEditingId(record.id)}
+                onCancel={() => setEditingId(null)}
+                onSave={handleSave}
+                onDelete={onDelete}
+              />
+            ))
+          )}
+        </tbody>
+      </table>
+    </>
+  )
+}
+
+// A sortable column header: a real <button> inside the <th> (a bare th click
+// handler is invisible to keyboards and screen readers), with the direction
+// indicator inside it. `aria-sort` is set only on the active column — React
+// omits the attribute entirely when it is undefined, so inactive headers carry
+// no aria-sort.
+function SortableHeader({ label, column, sort, onSort }) {
+  const active = sort?.column === column
+  const direction = active ? sort.direction : null
+  return (
+    <th
+      scope="col"
+      aria-sort={
+        direction === 'asc'
+          ? 'ascending'
+          : direction === 'desc'
+            ? 'descending'
+            : undefined
+      }
+    >
+      <button type="button" className="sort-button" onClick={() => onSort(column)}>
+        {label}
+        {direction === 'asc' && <span aria-hidden="true"> ▲</span>}
+        {direction === 'desc' && <span aria-hidden="true"> ▼</span>}
+      </button>
+    </th>
   )
 }

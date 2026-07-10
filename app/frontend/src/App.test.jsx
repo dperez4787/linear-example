@@ -56,6 +56,24 @@ describe('App', () => {
     expect(await screen.findByText('No records yet.')).toBeInTheDocument()
   })
 
+  it('shows a loading state, and no empty state, while the initial fetch is in flight', async () => {
+    // A promise that never settles during the test — the fetch is "in flight".
+    const d = deferred()
+    vi.spyOn(api, 'listRecords').mockReturnValue(d.promise)
+
+    renderApp()
+
+    expect(screen.getByText('Loading records…')).toBeInTheDocument()
+    // The empty states belong to the ready table; neither may flash during load.
+    expect(screen.queryByText('No records yet.')).not.toBeInTheDocument()
+    expect(screen.queryByText(/No matching records/)).not.toBeInTheDocument()
+
+    // Resolving flips to the ready state, proving the loading text was transient.
+    d.resolve([])
+    expect(await screen.findByText('No records yet.')).toBeInTheDocument()
+    expect(screen.queryByText('Loading records…')).not.toBeInTheDocument()
+  })
+
   it('shows an error message when the fetch fails', async () => {
     vi.spyOn(api, 'listRecords').mockRejectedValue(new Error('boom'))
 

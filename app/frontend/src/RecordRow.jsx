@@ -8,6 +8,15 @@ const STATUSES = ['active', 'pending', 'archived']
 // component only renders the matching mode. Keyed upstream by the API's string
 // `id` (the Mongo ObjectId never reaches the frontend). `notes` is optional, so a
 // missing value renders an empty cell rather than the string "undefined".
+//
+// The `Updated` cell is read-only in both modes — the server owns `updatedAt`,
+// so it is never editable inline — and shows the ISO date (updatedAt.slice(0,10)),
+// not a locale-formatted string, so tests assert on it deterministically. A row
+// without an updatedAt (e.g. a not-yet-reconciled optimistic value) renders an
+// empty cell rather than crashing on .slice.
+function updatedDate(record) {
+  return record.updatedAt ? record.updatedAt.slice(0, 10) : ''
+}
 export default function RecordRow({
   record,
   isEditing = false,
@@ -28,6 +37,7 @@ export default function RecordRow({
       <td>{record.status}</td>
       <td>{record.amount}</td>
       <td>{record.notes ?? ''}</td>
+      <td>{updatedDate(record)}</td>
       <td>
         <button type="button" onClick={onEdit}>
           Edit
@@ -96,6 +106,7 @@ function EditRow({ record, onCancel, onSave }) {
           onChange={(e) => setNotes(e.target.value)}
         />
       </td>
+      <td>{updatedDate(record)}</td>
       <td>
         <button type="button" onClick={handleSave}>
           Save

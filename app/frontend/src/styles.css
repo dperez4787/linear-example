@@ -1,0 +1,77 @@
+/* The app's one stylesheet (docs/architecture.md — Records table UI, CSS).
+   Plain CSS with class names: one screen and one table have no class-name
+   collision for CSS Modules to solve and no theming problem for CSS-in-JS to
+   solve. Class names and exact values here are a local choice, not contract —
+   tests never assert on styles; the visual result is user-attested on the
+   deployed site. */
+
+main {
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  font-family: system-ui, sans-serif;
+}
+
+/* Filter toolbar above the table. */
+.toolbar {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.toolbar input,
+.toolbar select {
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+th {
+  background: #f5f5f5;
+}
+
+/* Sort buttons should read as headers, not form controls: inherit the header's
+   font and drop the button chrome, but keep a pointer cursor so they invite a
+   click. */
+.sort-button {
+  font: inherit;
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.sort-button:hover {
+  text-decoration: underline;
+}
+
+/* Rows read as interactive under the mouse. */
+tbody tr:hover {
+  background: #fafafa;
+}
+
+/* Muted text for the empty / no-match states. */
+.empty-state {
+  color: #666;
+}
