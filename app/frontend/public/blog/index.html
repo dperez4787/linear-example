@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>An Agentic SDLC, End to End</title>
+</head>
+<body>
+<style>
+  :root {
+    --paper: #fbfbfd;
+    --ink: #1f2128;
+    --ink-2: #5a5e6e;
+    --line: #e4e5ec;
+    --accent: #5e6ad2;
+    --accent-ink: #4d58c0;
+    --chip-bg: #eef0fb;
+    --code-bg: #f2f3f7;
+    --done: #2e7d54;
+    --done-bg: #e3f2ea;
+    --human: #8a5a00;
+    --human-bg: #f8efdb;
+    --serif: "Charter", "Iowan Old Style", "Palatino Nova", Palatino, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #17181d; --ink: #e6e7ee; --ink-2: #9b9fb3; --line: #2c2e39;
+      --accent: #8b95e8; --accent-ink: #a3abee; --chip-bg: #23263a; --code-bg: #1f2129;
+      --done: #6fc79a; --done-bg: #1c3229; --human: #d9a93f; --human-bg: #33290f;
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #fbfbfd; --ink: #1f2128; --ink-2: #5a5e6e; --line: #e4e5ec;
+    --accent: #5e6ad2; --accent-ink: #4d58c0; --chip-bg: #eef0fb; --code-bg: #f2f3f7;
+    --done: #2e7d54; --done-bg: #e3f2ea; --human: #8a5a00; --human-bg: #f8efdb;
+  }
+  :root[data-theme="dark"] {
+    --paper: #17181d; --ink: #e6e7ee; --ink-2: #9b9fb3; --line: #2c2e39;
+    --accent: #8b95e8; --accent-ink: #a3abee; --chip-bg: #23263a; --code-bg: #1f2129;
+    --done: #6fc79a; --done-bg: #1c3229; --human: #d9a93f; --human-bg: #33290f;
+  }
+
+  body { background: var(--paper); color: var(--ink); font-family: var(--serif); font-size: 1.06rem; line-height: 1.65; margin: 0; }
+  .wrap { max-width: 44rem; margin: 0 auto; padding: 4rem 1.25rem 6rem; }
+  header.masthead { margin-bottom: 3rem; }
+  .kicker { font-family: var(--sans); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-ink); margin: 0 0 1rem; }
+  h1 { font-family: var(--sans); font-size: clamp(1.8rem, 5vw, 2.5rem); font-weight: 750; letter-spacing: -0.02em; line-height: 1.12; margin: 0 0 1rem; text-wrap: balance; }
+  .dek { font-size: 1.12rem; line-height: 1.55; color: var(--ink-2); margin: 0 0 1.25rem; text-wrap: balance; }
+  .byline { font-family: var(--sans); font-size: 0.85rem; color: var(--ink-2); border-top: 1px solid var(--line); padding-top: 0.9rem; }
+
+  .act { display: flex; align-items: baseline; gap: 0.75rem; margin: 3rem 0 0.4rem; font-family: var(--sans); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-ink); }
+  .act::after { content: ""; flex: 1; border-top: 1px solid var(--line); transform: translateY(-0.15em); }
+  h2 { font-family: var(--sans); font-size: 1.4rem; font-weight: 700; letter-spacing: -0.015em; line-height: 1.25; margin: 0 0 1rem; text-wrap: balance; }
+  h3 { font-family: var(--sans); font-size: 1rem; font-weight: 700; margin: 1.8rem 0 0.5rem; }
+  p { margin: 0 0 1.1rem; }
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+  code, .tid { font-family: var(--mono); font-size: 0.85em; background: var(--code-bg); border-radius: 4px; padding: 0.1em 0.35em; }
+  .tid { background: var(--chip-bg); color: var(--accent-ink); font-weight: 500; white-space: nowrap; }
+  a.sha { font-family: var(--mono); font-size: 0.78rem; white-space: nowrap; }
+
+  pre { font-family: var(--mono); font-size: 0.82rem; line-height: 1.55; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.1rem; overflow-x: auto; margin: 1.4rem 0; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  blockquote { margin: 1.6rem 0; padding: 0.15rem 0 0.15rem 1.15rem; border-left: 3px solid var(--accent); color: var(--ink-2); }
+  blockquote p { margin: 0; }
+  ul, ol { padding-left: 1.4rem; margin: 0 0 1.1rem; }
+  li { margin-bottom: 0.45rem; }
+
+  figure { margin: 1.8rem 0; }
+  figcaption { font-family: var(--sans); font-size: 0.78rem; color: var(--ink-2); margin-top: 0.6rem; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: 0.82rem; line-height: 1.45; }
+  th { text-align: left; font-size: 0.69rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 0.5rem 0.9rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td.mono { font-family: var(--mono); font-size: 0.78rem; white-space: nowrap; color: var(--accent-ink); }
+  .pill { display: inline-block; font-size: 0.68rem; font-weight: 600; padding: 0.1rem 0.55rem; border-radius: 99px; white-space: nowrap; }
+  .pill.human { color: var(--human); background: var(--human-bg); }
+  .pill.bot { color: var(--done); background: var(--done-bg); }
+
+  .goals { border: 1px solid var(--line); border-radius: 8px; padding: 1.2rem 1.4rem; margin: 1.4rem 0; }
+  .goals ol { margin: 0; }
+  .goals li { margin-bottom: 0.55rem; }
+  .goals li:last-child { margin-bottom: 0; }
+
+  .tech { display: grid; grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr)); gap: 0.6rem; margin: 1.4rem 0; font-family: var(--sans); }
+  .tech > div { border: 1px solid var(--line); border-radius: 8px; padding: 0.7rem 0.9rem; }
+  .tech b { display: block; font-size: 0.88rem; font-weight: 650; margin-bottom: 0.15rem; }
+  .tech span { font-size: 0.78rem; color: var(--ink-2); line-height: 1.4; display: block; }
+
+  .diagram { border: 1px solid var(--line); border-radius: 8px; padding: 1.1rem 1.2rem; overflow-x: auto; }
+  .flow { display: flex; align-items: stretch; flex-wrap: wrap; gap: 0.45rem; row-gap: 0.7rem; font-family: var(--sans); }
+  .flow .box { border: 1px solid var(--line); background: var(--code-bg); border-radius: 6px; padding: 0.45rem 0.7rem; font-size: 0.76rem; line-height: 1.35; min-width: 7rem; }
+  .flow .box b { display: block; font-size: 0.72rem; font-weight: 650; letter-spacing: 0.02em; }
+  .flow .box span { color: var(--ink-2); font-size: 0.7rem; }
+  .flow .box.agent { border-color: var(--accent); background: var(--chip-bg); }
+  .flow .box.humanbox { border-color: var(--human); background: var(--human-bg); }
+  .flow .arrow { align-self: center; color: var(--ink-2); font-size: 0.9rem; flex: 0 0 auto; }
+  .lane { font-family: var(--sans); font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 0.55rem; }
+  .lane + .flow { margin-bottom: 1.1rem; }
+  .diagram .flow:last-child { margin-bottom: 0; }
+
+  .stat { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.6rem; margin: 1.4rem 0; font-family: var(--sans); }
+  .stat > div { border: 1px solid var(--line); border-radius: 8px; padding: 0.8rem 1rem; }
+  .stat b { display: block; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 0.75rem; color: var(--ink-2); line-height: 1.4; }
+  .backlink { display: inline-block; margin: 1.4rem 0 0; font-family: var(--sans); font-size: 0.85rem; color: var(--accent); text-decoration: none; }
+</style>
+
+<div class="wrap">
+<a class="backlink" href="/">&larr; Back to the app</a>
+<header class="masthead">
+  <p class="kicker">Case study · Agentic software delivery</p>
+  <h1>An agentic SDLC, end to end: local planning, remote execution</h1>
+  <p class="dek">A production CRUD service — authenticated, deployed, and maintained by a team of Claude Code agents driven from Linear tickets. The final feature was specified locally and implemented, tested, and shipped entirely by remote agents. Every claim links to a commit, pull request, or workflow run in the public repository.</p>
+  <p class="byline">Daniel Perez · July 2026 · 13 min read · <a href="https://github.com/dperez4787/linear-example">github.com/dperez4787/linear-example</a></p>
+</header>
+
+<section>
+  <h2>Initial goals</h2>
+  <div class="goals">
+    <ol>
+      <li><strong>Build a complete product, not a demo:</strong> a CRUD service with a web UI, backed by a managed database, fully authenticated with Google sign-in, and deployed to production on managed infrastructure.</li>
+      <li><strong>Run the entire SDLC through agents with defined roles</strong> — product owner, architect, developer, tester — coordinated through a real ticketing system, with every quality gate enforced structurally rather than by convention.</li>
+      <li><strong>Make the system maintainable by remote agents:</strong> after the initial build, a feature should ship by moving a ticket on the board — implementation and verification running in the cloud on metered API credits, with no development machine involved.</li>
+      <li><strong>Hold everything to production engineering standards:</strong> infrastructure as code, no long-lived credentials, secrets in managed stores, and quality gates enforced by the platform — the practices a team would defend in an enterprise review, not demo shortcuts.</li>
+    </ol>
+  </div>
+  <p>All four were met. The final validation was a non-trivial feature — converting the service's REST API to GraphQL — that went from ticket to production with the only human actions being two status changes and a merge click.</p>
+</section>
+
+<section>
+  <h2>Technologies</h2>
+  <div class="tech">
+    <div><b>Claude Code</b><span>Agent runtime — four custom agents defined in-repo, run locally and on CI runners against the Claude API</span></div>
+    <div><b>Linear</b><span>Ticketing and workflow — acceptance criteria as the spec; board status as the pipeline trigger; MCP integration for agents</span></div>
+    <div><b>GitHub &amp; GitHub Actions</b><span>Source control, draft-PR quality gate, CI/CD, and the remote agent execution environment</span></div>
+    <div><b>MongoDB Atlas</b><span>Managed datastore (free tier), connection pooling pattern enforced by convention</span></div>
+    <div><b>Google Cloud Run</b><span>Containerized Express backend, deployed via Workload Identity Federation — no service-account keys</span></div>
+    <div><b>Firebase Hosting &amp; Auth</b><span>SPA hosting with API rewrite; Google sign-in with ID-token verification on every API request</span></div>
+    <div><b>Terraform</b><span>Deploy identity, API enablement, and secret container as code, with GCS state backend</span></div>
+    <div><b>React · Express · Node.js</b><span>Application stack — deliberately conventional, so every surprise is a process finding, not a stack finding</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Architecture</h2>
+  <figure>
+    <div class="diagram">
+      <p class="lane">Runtime</p>
+      <div class="flow">
+        <div class="box"><b>Browser</b><span>React SPA · Google sign-in → Firebase ID token</span></div>
+        <div class="arrow">→</div>
+        <div class="box"><b>Firebase Hosting</b><span>serves SPA · rewrites /api/** to Cloud Run</span></div>
+        <div class="arrow">→</div>
+        <div class="box"><b>Cloud Run</b><span>Express · token verification · GraphQL endpoint</span></div>
+        <div class="arrow">→</div>
+        <div class="box"><b>MongoDB Atlas</b><span>records collection</span></div>
+      </div>
+      <p class="lane">Delivery pipeline</p>
+      <div class="flow">
+        <div class="box agent"><b>Local agents</b><span>product owner drafts ticket · architect records design</span></div>
+        <div class="arrow">→</div>
+        <div class="box humanbox"><b>Human</b><span>reviews · drags ticket to Ready&nbsp;for&nbsp;Dev</span></div>
+        <div class="arrow">→</div>
+        <div class="box"><b>GitHub Actions</b><span>5-min poll · claims ticket via status change</span></div>
+        <div class="arrow">→</div>
+        <div class="box agent"><b>Remote developer</b><span>implements on runner · opens draft PR</span></div>
+        <div class="arrow">→</div>
+        <div class="box humanbox"><b>Human</b><span>reviews draft · drags to In&nbsp;Review</span></div>
+        <div class="arrow">→</div>
+        <div class="box agent"><b>Remote tester</b><span>verifies criteria · posts verdict · lifts draft on pass</span></div>
+        <div class="arrow">→</div>
+        <div class="box humanbox"><b>Human</b><span>merges</span></div>
+        <div class="arrow">→</div>
+        <div class="box"><b>Deploy workflow</b><span>Cloud Run + Firebase Hosting</span></div>
+      </div>
+    </div>
+    <figcaption>Purple boxes are agent work; amber boxes are the three human touchpoints. Agents author; humans authorize. Agents never merge.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <p class="act">Phase I</p>
+  <h2>Bootstrapping: the team is version-controlled</h2>
+
+  <p>The first commits contain no application code. They establish a team of four agents — <a href="https://github.com/dperez4787/linear-example/tree/main/.claude/agents">checked into the repository</a> as role definitions — and a project handbook (<a href="https://github.com/dperez4787/linear-example/blob/main/CLAUDE.md">CLAUDE.md</a>) covering stack decisions, code conventions, and the git workflow every agent must follow: <a class="sha" href="https://github.com/dperez4787/linear-example/commit/c82385bac6fe132301203c22a272458d05991778">c82385b</a> establishes the baseline, <a class="sha" href="https://github.com/dperez4787/linear-example/commit/641a676d2aa280e8bc44b79b1245001f746fb523">641a676</a> pins the toolchain contract, <a class="sha" href="https://github.com/dperez4787/linear-example/commit/3ac2573a1271b835e94b22255fb3f077ed1eedfc">3ac2573</a> defines the branch-and-PR workflow. Notably, <a class="sha" href="https://github.com/dperez4787/linear-example/commit/39b7451653ddb6b4a6e4ba230a86d0b9bd6438c2">39b7451</a> records the remote-execution decision — GitHub Actions over hosted schedulers — before a single endpoint existed.</p>
+
+  <p>Two rules from this phase carried the entire experiment:</p>
+  <ul>
+    <li><strong>Acceptance criteria on the ticket are the specification.</strong> The tester verifies against what the Linear issue states, never against what the developer reports having built. This made the ticket the interface between roles — which is precisely what later allowed a role to move to a machine I don't own.</li>
+    <li><strong>Agents never merge.</strong> Every ticket PR opens as a draft; only the tester may lift the draft, and only after every criterion passes. GitHub refuses to merge a draft, so the review order is enforced by the platform rather than by memory. Commit <a class="sha" href="https://github.com/dperez4787/linear-example/commit/cbe824280ec559f80093b82bf5a2c1e8fcba260b">cbe8242</a> — <em>“Make the tester, not memory, gate the merge”</em> — records the moment that principle was made structural.</li>
+  </ul>
+</section>
+
+<section>
+  <p class="act">Phase II</p>
+  <h2>The local agentic SDLC</h2>
+
+  <p>The application was built ticket by ticket, each flowing through the same loop: the product owner writes the ticket, the architect records design decisions in <code>docs/architecture.md</code>, the developer implements on the ticket's branch and opens a draft PR, and the tester checks out that branch, adds tests as its own commit, and posts a pass/fail verdict on both the issue and the PR before lifting the draft. Each Linear ticket maps directly to its commits on <code>main</code>:</p>
+
+  <figure>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th>Ticket</th><th>Scope</th><th>Implementation</th><th>Tester</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">DAN-5</td><td>Backend scaffold — Express app, health check, Mongo connection</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/d275d3e2a68c5405e82bf790f96f3333f472b5d0">d275d3e</a></td><td class="mono">—</td></tr>
+        <tr><td class="mono">DAN-6</td><td>List and create records — GET/POST /api/records</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/a1bd6b6522132f06c6586bf824c01750272dff0d">a1bd6b6</a></td><td class="mono">—</td></tr>
+        <tr><td class="mono">DAN-7</td><td>Update and delete — PATCH/DELETE /api/records/:id</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/02f3822c4238f9aa6c77eafe373dea33c0497053">02f3822</a></td><td class="mono">—</td></tr>
+        <tr><td class="mono">DAN-8</td><td>Frontend scaffold — api.js and read-only records table</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/9aeb8ba1693f286150bf6bb6929035beff8b2cdc">9aeb8ba</a> <a class="sha" href="https://github.com/dperez4787/linear-example/commit/6a2625676b9acf0f57d785e01ea5cce9bd8dfb52">6a26256</a></td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/d02593f7a040e46061347422f62ff2b7b28b27af">d02593f</a></td></tr>
+        <tr><td class="mono">DAN-9</td><td>Inline edit and delete, optimistic with rollback</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/70a5fc025cd86b63e1535fb5c570d9187ccefc08">70a5fc0</a></td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/5abf9f68a21834b0d4b747d27d15c9b7ef4d37ab">5abf9f6</a></td></tr>
+        <tr><td class="mono">DAN-10</td><td>Create a record from the table view</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/7f4e180c398aa2da9f76d1864c26f3eb0fb68c66">7f4e180</a></td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/fb95047c40f025cee4aaca038f5f20f860ac2a87">fb95047</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <figcaption>Phase II tickets with their implementation and tester commits. Early tickets predate the tester-commit convention; their verdicts are comments on the PRs.</figcaption>
+  </figure>
+
+  <p>The commit history shows the process doing real work. On <span class="tid">DAN-8</span>, the tester found that React StrictMode double-fired the initial fetch and committed a failing acceptance test (<a class="sha" href="https://github.com/dperez4787/linear-example/commit/d02593f7a040e46061347422f62ff2b7b28b27af">d02593f</a>, <em>“currently red”</em>) before the developer's fix landed (<a class="sha" href="https://github.com/dperez4787/linear-example/commit/6a2625676b9acf0f57d785e01ea5cce9bd8dfb52">6a26256</a>) — test-first pressure applied by one agent to another, because the handbook assigned them adversarial roles.</p>
+
+  <p>Failures from this phase became conventions the same day. A documentation PR with a ticket ID in its title caused Linear to silently auto-close a still-open ticket on merge; ticket IDs now appear in commit subjects and PR bodies only. Agents execute in non-interactive shells that skip normal profile loading; the resulting “missing Node” failures produced the handbook's environment contract. The handbook functions as institutional memory — every agent session, local or remote, starts by reading it.</p>
+</section>
+
+<section>
+  <p class="act">Phase III</p>
+  <h2>Deployment and validation</h2>
+
+  <p>Fourteen tickets took the application to production: a container image, Terraform for the deploy identity (Workload Identity Federation — no service-account keys exist anywhere in the system), Cloud Run and Firebase Hosting deploy workflows, and Google sign-in with ID-token verification gating the API.</p>
+
+  <p>This phase surfaced the most important design boundary in the project: some work must not be done by an agent. Enabling billing, pasting a database credential into a secret store, authorizing OAuth — the product owner labels these tickets <code>[USER-EXECUTED]</code>; the agent writes the runbook and a human executes it. The seam is explicit in the ticket record below.</p>
+
+  <figure>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th>Ticket</th><th>Scope</th><th>Implementation</th><th>Tester</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">DAN-11</td><td>Bootstrap Terraform, Atlas allowlist, GitHub secrets <span class="pill human">user-executed</span></td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/fb098cc5bc5c8a27afca0a658793a2c33a2b73ad">fb098cc</a></td><td class="mono">—</td></tr>
+        <tr><td class="mono">DAN-12</td><td>Backend Dockerfile and .dockerignore</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/5d932b3e4a81f046bd45be6d889d0d4e5d7452d5">5d932b3</a> <a class="sha" href="https://github.com/dperez4787/linear-example/commit/0dc1c28e14f4df7d718018b31e6f0a30b056dcae">0dc1c28</a></td><td class="mono">—</td></tr>
+        <tr><td class="mono">DAN-13</td><td>Backend deploy workflow — build, push, deploy Cloud Run</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/d9117161674bccae5d03fc33b9c4c3036b2eebda">d911716</a> <a class="sha" href="https://github.com/dperez4787/linear-example/commit/fccdba0307ca2aeca78228a2a0f3ea0c58b03c7c">fccdba0</a></td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/534d1ea41b2d00424757f505485714153cb3b499">534d1ea</a></td></tr>
+        <tr><td class="mono">DAN-14</td><td>Firebase Hosting config — /api/** rewrite to Cloud Run</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/f3bd12077f9223ca1025fd41e1a08733ab916cf3">f3bd120</a></td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/b52119e3d5d0d53967b32ba027aaee7dca1e5c31">b52119e</a></td></tr>
+        <tr><td class="mono">DAN-15</td><td>Frontend deploy job — build SPA, firebase deploy on merge</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/58c096807df4327737a31006065107642ce0b02d">58c0968</a></td><td class="mono">—</td></tr>
+        <tr><td class="mono">DAN-16</td><td>Terraform deploy identity — APIs, WIF, service accounts</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/bb7503c531d893f56b38c34c8a106ebb0c2f2367">bb7503c</a></td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/5cc3409a2394919708007ffdec52ae6c5e5c02ba">5cc3409</a></td></tr>
+        <tr><td class="mono">DAN-17</td><td>Bug: npm start doesn't load .env — data routes 500 locally</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/7de80bf1a832dab43c0d8b707b067ac0b67930ef">7de80bf</a></td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/889434f63aa805f736a47cbeb2c049333ff371d5">889434f</a></td></tr>
+        <tr><td class="mono">DAN-18</td><td>Bug: Cloud Run intercepts /healthz at the platform layer</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/706c3492a3b384c6f52c967130f513b48e11b274">706c349</a></td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/2b054859d3cd4bfe89bfacdf231b79f120dff5f9">2b05485</a></td></tr>
+        <tr><td class="mono">DAN-19</td><td>Register project with Firebase, create Hosting site <span class="pill human">user-executed</span></td><td class="mono">—</td><td class="mono">—</td></tr>
+        <tr><td class="mono">DAN-20</td><td>Adopt hand-enabled API into Terraform</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/50cfc6c1d27c3cc077acecde1f11d3b5db647857">50cfc6c</a> <a class="sha" href="https://github.com/dperez4787/linear-example/commit/927169f994e4b60f8c1599bc8bf1ac530b463078">927169f</a></td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/38bc5209ffda39a1577a47a55e04bfc21d49dc06">38bc520</a></td></tr>
+        <tr><td class="mono">DAN-21</td><td>Enable Google sign-in provider, register web app <span class="pill human">user-executed</span></td><td class="mono">—</td><td class="mono">—</td></tr>
+        <tr><td class="mono">DAN-22</td><td>Verify Firebase ID tokens; anonymous requests get 401</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/078bba47a038c16754086c97cbb816f92d35bf99">078bba4</a></td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/89ea154df987300cca7165c03371fada546cbb9b">89ea154</a></td></tr>
+        <tr><td class="mono">DAN-23</td><td>Google sign-in; attach ID token in api.js; handle 401</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/b35e92f9a0f43636b8deba9d9831d0f8acb11999">b35e92f</a></td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/f3a45fcc74ffdfd0803faea2ca16d39e8c0c5e2b">f3a45fc</a></td></tr>
+        <tr><td class="mono">DAN-24</td><td>Adopt Firebase-enabled APIs into Terraform</td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/dd5a36beda6656753b20bb197064fcdf215e2c9b">dd5a36b</a></td><td class="mono"><a class="sha" href="https://github.com/dperez4787/linear-example/commit/510ccaa0e4f707a39a29fe3a84fd3e848c4643f8">510ccaa</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <figcaption>Phase III ticket-to-commit record. <span class="pill human">user-executed</span> marks credentialed work performed by a human from an agent-authored runbook.</figcaption>
+  </figure>
+
+  <h3>Infrastructure as code, treated as a commitment</h3>
+  <p>The environment is not clicked together. What began as a manual runbook was explicitly replaced by Terraform (<a class="sha" href="https://github.com/dperez4787/linear-example/commit/48732b85e85465e7685f9e2962385c532465eea3">48732b8</a>, <em>“Replace the manual DAN-11 runbook with Infrastructure as Code”</em>), with remote state in a GCS backend. The commitment shows most clearly in the adoption tickets: when an API had to be hand-enabled in the console to unblock work, a ticket (<span class="tid">DAN-20</span>, <span class="tid">DAN-24</span>) was filed to bring that resource under Terraform — drift is reconciled into code, not tolerated. The same posture runs through the rest of the system: deploys authenticate through Workload Identity Federation so no service-account key exists to leak; the database credential lives in Secret Manager and a gitignored local file, never in the repository; and application conventions — a single error middleware, a pooled Mongo client, tests colocated with what they test, no data-layer calls in route handlers — are written in the handbook and enforced by the tester on every ticket. Maintainability was designed as a property of the system, not a hope about future diligence.</p>
+
+  <p>Validation stayed concrete throughout. <span class="tid">DAN-17</span> and <span class="tid">DAN-18</span> are bug tickets filed by agents running the deployed system — the second documenting that Cloud Run intercepts <code>/healthz</code> before it reaches the container, a finding no unit test produces. The tester's refusal to mark criteria passed without observed behavior is what surfaced both.</p>
+</section>
+
+<section>
+  <p class="act">Phase IV</p>
+  <h2>Remote execution: the board becomes the trigger</h2>
+
+  <p>Through Phase III, agents still ran in sessions on my machine. The final goal was precise: planning stays local, but once a ticket reaches a designated status, implementation and verification should run remotely — on my API credits, on infrastructure I don't have to keep awake.</p>
+
+  <h3>Selecting the mechanism</h3>
+  <p>I evaluated hosted sandboxes (no external event triggers), scheduled cloud agents (cron-based, and unaware of in-repo agent definitions), Linear's native agent delegation (manual assignment per issue), and a self-hosted Agent SDK service (workable, but requires operating a server). The selected design is deliberately minimal: <strong>a GitHub Actions workflow that polls Linear every five minutes</strong> — one GraphQL request per poll. The deciding factors:</p>
+  <ul>
+    <li><strong>The agents were already in the repository.</strong> Claude Code on a CI runner reads <code>.claude/agents/</code> and <code>CLAUDE.md</code> from checkout exactly as a local session does. The remote developer is the same developer, byte for byte.</li>
+    <li><strong>Push delivery costs more than it returns.</strong> Linear webhooks cannot attach the authentication header GitHub's dispatch API requires, so webhooks mean operating a relay service plus an access token. Polling requires neither, spends no model tokens when the board is quiet, and a five-minute pickup latency is immaterial for ticket work.</li>
+  </ul>
+  <p>The setup is fully public: the <a href="https://github.com/dperez4787/linear-example/blob/main/.github/workflows/linear-agents.yml">workflow definition</a> (commit <a class="sha" href="https://github.com/dperez4787/linear-example/commit/3d69080fc7ceb6e8d00084c1c08c31a16450cd7e">3d69080</a>) and <a href="https://github.com/dperez4787/linear-example/actions/workflows/linear-agents.yml">every agent invocation, with logs</a>, can be inspected directly.</p>
+
+  <h3>Concurrency: the status change is the claim</h3>
+  <p>When the poller finds a ticket in <strong>Ready for Dev</strong>, the job's first action — before any model call — is moving the ticket to In Progress. The board column functions as the mutex: a second scan cannot claim what has left the trigger column, a per-ticket concurrency group covers the race between adjacent polls, and the claim is visible to humans for free, because the claim signal and the board are the same artifact. The tester leg reuses the team's existing In Review status and stamps completed runs with an <code>agent-tested</code> label so no ticket is verified twice. A failed criterion moves the ticket back to In Progress; the draft is never lifted; agents still never merge.</p>
+
+  <p>One setup mistake is worth recording because of what it generalizes to: I armed the pipeline (merged the workflow) while the feature ticket sat in the trigger column and its architecture document was still an open PR. The remote developer would have begun implementing against a design not yet on <code>main</code>. The recovery was one status drag, but the lesson stands — <strong>once a board column can initiate spend, merge order is production configuration.</strong></p>
+
+  <h3>The validation run</h3>
+  <p>The pipeline's first feature was deliberately substantial: <span class="tid">DAN-25</span>, converting the entire REST API to GraphQL. The product owner drafted the ticket with mechanically checkable criteria; the architect recorded the design (library selection, schema, error mapping — including catching that one REST route had never actually been implemented) in <a class="sha" href="https://github.com/dperez4787/linear-example/commit/4d1e4fb676712a663efd5b8cbb2d3ad8b50188d4">4d1e4fb</a>; I merged the design and moved the ticket to Ready for Dev.</p>
+
+  <div class="stat">
+    <div><b>10 min</b><span>ticket claim → draft PR by the remote developer</span></div>
+    <div><b>5 min</b><span>remote tester: verify, commit tests, post verdict, lift draft</span></div>
+    <div><b>155</b><span>tests passing at verdict (98 backend, 57 frontend)</span></div>
+    <div><b>$6.20</b><span>total metered API spend for the month, remote runs included</span></div>
+  </div>
+
+  <p>The result is <a href="https://github.com/dperez4787/linear-example/pull/26">pull request #26</a> — authored by <code>github-actions[bot]</code>, implementing commit <a class="sha" href="https://github.com/dperez4787/linear-example/commit/021bc2f48a283f36da7a5c2547434a138f1cd0a7">021bc2f</a> and tester commit <a class="sha" href="https://github.com/dperez4787/linear-example/commit/34ab0f73a016552f9fe1fe4dfefa689d55443d1e">34ab0f7</a>. The tester's verdict comment on the PR enumerates every acceptance criterion with the command-level evidence: full CRUD via GraphQL, field-scoped validation errors, the authentication gate intact, all five removed REST routes returning 404, and the frontend diff confined to the API layer — verified by inspecting the diff, not by trusting the developer's report. On merge, the existing deploy workflows shipped the feature to Cloud Run and Firebase Hosting, and Linear closed the ticket.</p>
+</section>
+
+<section>
+  <p class="act">Closing</p>
+  <h2>What actually transferred</h2>
+
+  <p>The remote capability was never the workflow file. It was that the preceding phases had moved every interface out of my head and into artifacts a runner can read:</p>
+
+  <ul>
+    <li><strong>The specification</strong> lives on the ticket — acceptance criteria an adversarial tester enforces.</li>
+    <li><strong>The design</strong> lives in the repository — <code>docs/architecture.md</code>, written before implementation.</li>
+    <li><strong>The conventions</strong> live in the handbook — <code>CLAUDE.md</code>, read at the start of every session.</li>
+    <li><strong>The team</strong> lives in version control — <code>.claude/agents/</code>, identical locally and remotely.</li>
+    <li><strong>The safety</strong> lives in the platform — draft PRs, status-as-claim, and a merge button only a human can press.</li>
+  </ul>
+
+  <p>By the final phase, my machine contributed nothing but review judgment at three checkpoints. The remote setup added no new capability — it removed the last dependency. If an agentic process still requires its operator present to function, the missing piece is usually not a cloud feature; it is an interface still living in someone's head.</p>
+
+  <p class="byline" style="border-top: 1px solid var(--line); margin-top: 2.5rem;">All evidence is public: <a href="https://github.com/dperez4787/linear-example">the repository</a>, <a href="https://github.com/dperez4787/linear-example/actions/workflows/linear-agents.yml">the remote agent invocations</a>, and <a href="https://github.com/dperez4787/linear-example/pull/26">the bot-authored pull request</a>. The Linear workspace is private; each ticket referenced here is traceable through its linked commits and the tester verdicts on the pull requests.</p>
+</section>
+</div>
+</body>
+</html>
