@@ -38,6 +38,9 @@ export default function AuthGate({ children }) {
           Sign in with Google
         </button>
         {signInError && <p role="alert">{signInError}</p>}
+        <p>
+          <a href="/blog">Read the case study</a>
+        </p>
       </main>
     )
   }
@@ -46,6 +49,7 @@ export default function AuthGate({ children }) {
     <>
       <header>
         <span>{user.displayName ?? user.email ?? 'Signed in'}</span>
+        <a href="/blog">Read the case study</a>
         <button type="button" onClick={() => signOut()}>
           Sign out
         </button>
