@@ -45,6 +45,19 @@ export async function listRecords() {
   return docs.map(toRecord)
 }
 
+// Single-record read. Mirrors its siblings: a malformed id is a 404 (via
+// toObjectId), and a well-formed id that matched nothing is also a 404. Added
+// for the GraphQL `record(id)` query — the old REST contract listed GET /:id but
+// never implemented it, so there was no single-record read until now.
+export async function getRecord(id) {
+  const _id = toObjectId(id)
+  const doc = await collection().findOne({ _id })
+  if (!doc) {
+    throw new NotFoundError()
+  }
+  return toRecord(doc)
+}
+
 export async function createRecord(input) {
   // Validate + strip unknown fields (including any client-supplied id/_id) here,
   // so an invalid or malicious payload never reaches the driver.

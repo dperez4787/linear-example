@@ -61,6 +61,10 @@ afterEach(() => {
 })
 
 describe('DAN-23 tester · end-to-end token attachment through the mounted App', () => {
+  // DAN-25 moved the records surface to POST /api/graphql; the token-attachment and
+  // same-origin guarantees exercised here are transport-independent, so the
+  // assertions target /api/graphql. The 401 sign-out path stays covered by
+  // api.test.jsx (a gate 401 is HTTP-level and never enters GraphQL).
   it('the signed-in App fires listRecords with a RELATIVE url and a Bearer header', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
@@ -77,7 +81,7 @@ describe('DAN-23 tester · end-to-end token attachment through the mounted App',
     const [url, options] = fetchMock.mock.calls[0]
     // Relative, same-origin — an absolute backend URL would break the Hosting
     // rewrite and reintroduce CORS.
-    expect(url).toBe('/api/records')
+    expect(url).toBe('/api/graphql')
     expect(url.startsWith('http')).toBe(false)
     // The token the mounted tree resolved is on the request.
     expect(options.headers).toMatchObject({

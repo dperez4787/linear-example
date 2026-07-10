@@ -21,9 +21,8 @@ if (!process.env.MONGODB_URI) {
 process.env.MONGODB_DB = 'linear_example_test'
 
 const { connect, getDb } = await import('./db.js')
-const { listRecords, createRecord, updateRecord, deleteRecord, NotFoundError } = await import(
-  './records.js'
-)
+const { listRecords, getRecord, createRecord, updateRecord, deleteRecord, NotFoundError } =
+  await import('./records.js')
 
 // A well-formed ObjectId (24 hex chars) that nothing was inserted under.
 const MISSING_ID = '0123456789abcdef01234567'
@@ -82,6 +81,35 @@ test('createRecord ignores a client-supplied id/_id — the stored doc gets a Mo
 test('createRecord throws (does not insert) on an invalid payload', async () => {
   await assert.rejects(() => createRecord({ status: 'active', amount: 1 }), /name/)
   assert.equal((await listRecords()).length, 0, 'nothing was inserted')
+})
+
+// --- getRecord (added for the GraphQL record(id) query) ---
+
+test('getRecord returns the record for an existing id (string id, no _id, Date timestamps)', async () => {
+  const created = await createRecord({ name: 'Findable', status: 'active', amount: 8, notes: 'x' })
+  const found = await getRecord(created.id)
+
+  assert.equal(found.id, created.id)
+  assert.equal(found._id, undefined)
+  assert.equal(found.name, 'Findable')
+  assert.equal(found.amount, 8)
+  assert.ok(found.createdAt instanceof Date)
+  assert.ok(found.updatedAt instanceof Date)
+})
+
+test('getRecord throws 404 (NotFoundError) for a well-formed but missing id', async () => {
+  await assert.rejects(() => getRecord(MISSING_ID), (err) => {
+    assert.ok(err instanceof NotFoundError)
+    assert.equal(err.status, 404)
+    return true
+  })
+})
+
+test('getRecord throws 404 for a malformed id (before any DB read)', async () => {
+  await assert.rejects(() => getRecord('not-an-object-id'), (err) => {
+    assert.equal(err.status, 404)
+    return true
+  })
 })
 
 // --- updateRecord ---

@@ -1,8 +1,9 @@
 import express from 'express'
+import { createHandler } from 'graphql-http/lib/use/express'
 
 import { authGate, firebaseVerifyToken } from './auth.js'
 import { connect } from './db.js'
-import { recordsRouter } from './routes.js'
+import { schema, rootValue } from './graphql.js'
 
 const PORT = process.env.PORT ?? 8080
 
@@ -27,10 +28,14 @@ export function createApp({ verifyToken = firebaseVerifyToken } = {}) {
     res.status(200).json({ status: 'ok' })
   })
 
-  // The auth gate mounts on /api/records, AFTER /health (which stays unauthenticated
-  // and Mongo-free) and BEFORE the router. A missing/non-Bearer header or any verifier
-  // rejection fails the request as 401 via next(err) — it never reaches the data layer.
-  app.use('/api/records', authGate(verifyToken), recordsRouter())
+  // The records surface is a single GraphQL endpoint, POST /api/graphql. It mounts
+  // AFTER /health (which stays unauthenticated and Mongo-free) and BEHIND the same
+  // auth gate the REST routes used, with identical DAN-22 semantics: a missing/
+  // non-Bearer header or any verifier rejection fails the request as a 401 via
+  // next(err), before any GraphQL parsing and without ever reaching the data layer.
+  // It must live under /api/** or the Firebase Hosting rewrite never routes it to
+  // Cloud Run. See docs/architecture.md (GraphQL API) and graphql.js.
+  app.use('/api/graphql', authGate(verifyToken), createHandler({ schema, rootValue }))
 
   // One error middleware maps thrown errors to status codes. Validation errors
   // from the schema/data layer carry `status` (400) and `field`; anything else

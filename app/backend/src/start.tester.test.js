@@ -91,7 +91,7 @@ test('start script uses --env-file-if-exists=.env and never bare --env-file', ()
   assert.match(pkg.scripts.start, /src\/index\.js/)
 })
 
-test('.env present: start script loads MONGODB_URI, connects, and /api/records is gated (401 anonymous)', async (t) => {
+test('.env present: start script loads MONGODB_URI, connects, and /api/graphql is gated (401 anonymous)', async (t) => {
   if (!haveMongoUri()) {
     t.skip('no MONGODB_URI in app/backend/.env or environment — cannot reach Mongo')
     return
@@ -114,17 +114,20 @@ test('.env present: start script loads MONGODB_URI, connects, and /api/records i
   assert.equal(health.status, 200)
   assert.deepEqual(await health.json(), { status: 'ok' })
 
-  // DAN-22 changed this assertion (see the developer's report). /api/records is now
-  // behind the Firebase ID-token gate. Against the REAL spawned server (default
+  // DAN-22 put the records surface behind the Firebase ID-token gate; DAN-25 moved
+  // that surface to POST /api/graphql. Against the REAL spawned server (default
   // firebase-admin verifier), an anonymous request is rejected at the gate with 401
-  // before the data layer — and the missing-header path never calls firebase-admin,
-  // so this stays network-free and deterministic. The DAN-17 criterion this test
-  // owns — start script loads .env, MONGODB_URI defined, Mongo connected — is fully
-  // proven by the "connected to MongoDB" log assertion above; the old anonymous 200
-  // on /api/records cannot hold once the gate exists, and asserting the 401 here is a
+  // before execution — and the missing-header path never calls firebase-admin, so
+  // this stays network-free and deterministic. The DAN-17 criterion this test owns —
+  // start script loads .env, MONGODB_URI defined, Mongo connected — is fully proven
+  // by the "connected to MongoDB" log assertion above; asserting the 401 here is a
   // bonus real-server proof that the gate is wired into the production boot path.
-  const res = await fetch(`http://127.0.0.1:${port}/api/records`)
-  assert.equal(res.status, 401, 'anonymous /api/records is gated (DAN-22); Mongo connectivity is proven by the log above')
+  const res = await fetch(`http://127.0.0.1:${port}/api/graphql`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: '{ records { id } }' }),
+  })
+  assert.equal(res.status, 401, 'anonymous /api/graphql is gated (DAN-22/DAN-25); Mongo connectivity is proven by the log above')
   const body = await res.json()
   assert.equal(typeof body.error.message, 'string', 'shape is { error: { message } }')
 })
