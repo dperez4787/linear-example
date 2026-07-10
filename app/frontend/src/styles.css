@@ -1,37 +1,253 @@
-/* The app's one stylesheet (docs/architecture.md — Records table UI, CSS).
-   Plain CSS with class names: one screen and one table have no class-name
-   collision for CSS Modules to solve and no theming problem for CSS-in-JS to
-   solve. Class names and exact values here are a local choice, not contract —
-   tests never assert on styles; the visual result is user-attested on the
-   deployed site. */
+/* The app's one stylesheet (docs/architecture.md — Records table UI, "CSS: one
+   plain stylesheet"). DAN-32 extends it from the table to the whole app shell:
+   a header bar, a shared content container, a typography scale, a vertical
+   spacing rhythm, and consistent control + focus styling. Plain CSS with class
+   names — no framework, no CSS Modules, no CSS-in-JS, and no new dependency.
+   Class names and exact values here are a local choice, not contract: tests
+   never assert on styles; the visual result is user-attested on the deployed
+   site. */
 
-main {
-  max-width: 960px;
-  margin: 2rem auto;
-  padding: 0 1rem;
-  font-family: system-ui, sans-serif;
+:root {
+  /* One content width shared by the header and the body so they align. */
+  --container-width: 960px;
+  --gutter: 1rem;
+
+  /* Vertical spacing scale — sections step through these, not ad-hoc values. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Every input/select/button lands on the same height so toolbars line up. */
+  --control-height: 2.25rem;
+
+  --color-text: #1f2328;
+  --color-muted: #656d76;
+  --color-border: #d0d7de;
+  --color-surface: #ffffff;
+  --color-subtle: #f6f8fa;
+  --color-accent: #0969da;
+  --color-on-accent: #ffffff;
+  --color-danger: #cf222e;
+
+  --radius: 6px;
+  --focus-ring: 0 0 0 3px rgba(9, 105, 218, 0.35);
 }
 
-/* Filter toolbar above the table. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--color-text);
+  background: var(--color-surface);
+  line-height: 1.5;
+}
+
+/* The one content container: the header's inner content and <main> both use it,
+   so the header row and the body column share a max-width and left edge. */
+.container {
+  width: 100%;
+  max-width: var(--container-width);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+/* -- Header bar -------------------------------------------------------------- */
+
+.app-header {
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-subtle);
+}
+
+.app-header__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 3.5rem;
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.app-title {
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
+}
+
+/* User name, case-study link, and Sign out pushed to the right, evenly spaced —
+   not run together flush against the viewport edge. */
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-left: auto;
+}
+
+.app-header__user {
+  color: var(--color-muted);
+  font-size: 0.9375rem;
+}
+
+/* -- Body layout ------------------------------------------------------------- */
+
+main {
+  padding-top: var(--space-8);
+  padding-bottom: var(--space-8);
+}
+
+/* Vertical rhythm between the sections of the page (heading, form, filters,
+   table) without hand-tuning each margin. */
+main > * + * {
+  margin-top: var(--space-6);
+}
+
+/* -- Typography -------------------------------------------------------------- */
+
+h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 var(--space-4);
+}
+
+a,
+.app-link {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover,
+.app-link:hover {
+  text-decoration: underline;
+}
+
+/* -- Controls ---------------------------------------------------------------- */
+
+/* Text inputs and selects share one height and shape so the two toolbars align
+   with each other and with the table. */
+.control {
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-height);
+  padding: 0 var(--space-4);
+  font: inherit;
+  font-weight: 500;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: var(--color-subtle);
+}
+
+.btn--primary {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.btn--primary:hover {
+  filter: brightness(0.95);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* A visible focus indicator on every interactive control. Element selectors
+   guarantee the hook exists on every button/input/select/link the app renders;
+   the explicit class selectors keep the ring on controls that strip their
+   chrome (e.g. .sort-button). */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.btn:focus-visible,
+.control:focus-visible,
+.app-link:focus-visible,
+.sort-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius);
+}
+
+/* -- Add-record form as a toolbar ------------------------------------------- */
+
+.record-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Name and Notes take the free space; status/amount stay compact. */
+.field--grow {
+  flex: 1 1 12rem;
+}
+
+.field .control {
+  width: 100%;
+}
+
+.field-error {
+  color: var(--color-danger);
+  font-size: 0.8125rem;
+}
+
+/* -- Filter toolbar ---------------------------------------------------------- */
+
 .toolbar {
   display: flex;
-  gap: 1.5rem;
+  flex-wrap: wrap;
+  gap: var(--space-6);
   align-items: flex-end;
-  margin-bottom: 1rem;
 }
 
 .toolbar label {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.875rem;
+  gap: var(--space-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-muted);
 }
 
-.toolbar input,
-.toolbar select {
-  padding: 0.35rem 0.5rem;
-  font: inherit;
-}
+/* -- Table ------------------------------------------------------------------- */
 
 table {
   width: 100%;
@@ -40,18 +256,18 @@ table {
 
 th,
 td {
-  padding: 0.5rem 0.75rem;
+  padding: var(--space-2) var(--space-3);
   text-align: left;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--color-border);
 }
 
 th {
-  background: #f5f5f5;
+  background: var(--color-subtle);
+  font-weight: 600;
 }
 
-/* Sort buttons should read as headers, not form controls: inherit the header's
-   font and drop the button chrome, but keep a pointer cursor so they invite a
-   click. */
+/* Sort buttons read as headers, not form controls: inherit the header's font
+   and drop the button chrome, but keep a pointer cursor so they invite a click. */
 .sort-button {
   font: inherit;
   font-weight: 600;
@@ -68,10 +284,10 @@ th {
 
 /* Rows read as interactive under the mouse. */
 tbody tr:hover {
-  background: #fafafa;
+  background: var(--color-subtle);
 }
 
 /* Muted text for the empty / no-match states. */
 .empty-state {
-  color: #666;
+  color: var(--color-muted);
 }

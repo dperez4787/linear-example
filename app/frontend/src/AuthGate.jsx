@@ -31,28 +31,50 @@ export default function AuthGate({ children }) {
     }
 
     return (
-      <main>
-        <h1>Records</h1>
-        <p>Sign in to view and manage records.</p>
-        <button type="button" onClick={handleSignIn}>
-          Sign in with Google
-        </button>
-        {signInError && <p role="alert">{signInError}</p>}
-        <p>
-          <a href="/blog">Read the case study</a>
-        </p>
-      </main>
+      <>
+        <header className="app-header">
+          <div className="container app-header__inner">
+            <span className="app-title">linear-example</span>
+            <div className="app-header__actions">
+              <a className="app-link" href="/blog">
+                Read the case study
+              </a>
+            </div>
+          </div>
+        </header>
+        <main className="container">
+          <h1>Records</h1>
+          <p>Sign in to view and manage records.</p>
+          <button className="btn btn--primary" type="button" onClick={handleSignIn}>
+            Sign in with Google
+          </button>
+          {signInError && <p role="alert">{signInError}</p>}
+        </main>
+      </>
     )
   }
 
+  // The header is a top-level landmark (a sibling of App's <main>), so it maps
+  // to role="banner" and holds the whole app-shell chrome: app identity, the
+  // signed-in user, the case-study link, and Sign out — laid out with the
+  // shared content container instead of running together at the viewport edge.
   return (
     <>
-      <header>
-        <span>{user.displayName ?? user.email ?? 'Signed in'}</span>
-        <a href="/blog">Read the case study</a>
-        <button type="button" onClick={() => signOut()}>
-          Sign out
-        </button>
+      <header className="app-header">
+        <div className="container app-header__inner">
+          <span className="app-title">linear-example</span>
+          <div className="app-header__actions">
+            <span className="app-header__user">
+              {user.displayName ?? user.email ?? 'Signed in'}
+            </span>
+            <a className="app-link" href="/blog">
+              Read the case study
+            </a>
+            <button className="btn" type="button" onClick={() => signOut()}>
+              Sign out
+            </button>
+          </div>
+        </div>
       </header>
       {children}
     </>
