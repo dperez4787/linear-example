@@ -1,10 +1,13 @@
-// DAN-22: the /api/records auth gate. These tests are Mongo-free by design.
+// DAN-22 auth gate, now guarding POST /api/graphql (DAN-25). These tests are
+// Mongo-free by design.
 //
-// createApp mounts the gate BEFORE the records router, so a request that fails the
+// createApp mounts the gate BEFORE the GraphQL handler, so a request that fails the
 // gate never reaches the data layer. This file never calls connect(); therefore any
-// request that DID slip past the gate would hit getDb() and surface as a 500. A 401
-// (never a 500) is thus positive proof the gate short-circuited before the data
-// layer. A spy verifier additionally proves whether the verifier was invoked at all.
+// request that DID slip past the gate and hit a resolver would call getDb() and, since
+// GraphQL execution maps a thrown error to a 200 with an INTERNAL error, surface as a
+// 200 carrying extensions.code: 'INTERNAL'. A 401 (never that) is thus positive proof
+// the gate short-circuited before execution. A spy verifier additionally proves whether
+// the verifier was invoked at all.
 //
 // The verifier is injected through createApp — the design's test seam — so nothing
 // here touches firebase-admin or the network.
@@ -34,36 +37,28 @@ const acceptValid = (token) => {
   throw new Error('invalid token')
 }
 
-// Every /api/records method the contract lists. GET /:id has no route handler, but
-// the gate is mounted on the whole /api/records prefix, so it must 401 anyway —
-// which is exactly what proves the gate covers the entire subtree, not just '/'.
-const methods = [
-  ['GET', '/api/records'],
-  ['POST', '/api/records'],
-  ['GET', '/api/records/0123456789abcdef01234567'],
-  ['PATCH', '/api/records/0123456789abcdef01234567'],
-  ['DELETE', '/api/records/0123456789abcdef01234567'],
-]
+const RECORDS_QUERY = '{ records { id } }'
 
-for (const [method, path] of methods) {
-  test(`${method} ${path} with NO Authorization header → 401, verifier untouched, data layer unreached`, async () => {
-    const verify = spyVerifier(acceptValid)
-    const app = createApp({ verifyToken: verify })
-    const res = await request(app)[method.toLowerCase()](path)
+test('POST /api/graphql with NO Authorization header → 401, verifier untouched, data layer unreached', async () => {
+  const verify = spyVerifier(acceptValid)
+  const app = createApp({ verifyToken: verify })
+  const res = await request(app).post('/api/graphql').send({ query: RECORDS_QUERY })
 
-    assert.equal(res.status, 401, 'missing header must be 401, never 500')
-    assert.equal(typeof res.body.error.message, 'string', 'shape is { error: { message } }')
-    assert.equal(res.body.error.field, undefined)
-    assert.equal(verify.calls.length, 0, 'verifier must NOT be called without a Bearer token')
-  })
-}
+  assert.equal(res.status, 401, 'missing header must be 401, never reach execution')
+  assert.equal(typeof res.body.error.message, 'string', 'shape is { error: { message } }')
+  assert.equal(res.body.error.field, undefined)
+  assert.equal(verify.calls.length, 0, 'verifier must NOT be called without a Bearer token')
+})
 
 test('non-Bearer Authorization header → 401 without calling the verifier', async () => {
   const verify = spyVerifier(acceptValid)
   const app = createApp({ verifyToken: verify })
 
   for (const header of ['Basic dXNlcjpwYXNz', 'token abc123', VALID_TOKEN]) {
-    const res = await request(app).get('/api/records').set('Authorization', header)
+    const res = await request(app)
+      .post('/api/graphql')
+      .set('Authorization', header)
+      .send({ query: RECORDS_QUERY })
     assert.equal(res.status, 401, `"${header}" is not a Bearer header → 401`)
     assert.equal(typeof res.body.error.message, 'string')
   }
@@ -73,34 +68,48 @@ test('non-Bearer Authorization header → 401 without calling the verifier', asy
 test('empty Bearer token ("Bearer ") → 401 without calling the verifier', async () => {
   const verify = spyVerifier(acceptValid)
   const app = createApp({ verifyToken: verify })
-  const res = await request(app).get('/api/records').set('Authorization', 'Bearer ')
+  const res = await request(app)
+    .post('/api/graphql')
+    .set('Authorization', 'Bearer ')
+    .send({ query: RECORDS_QUERY })
   assert.equal(res.status, 401)
   assert.equal(verify.calls.length, 0)
 })
 
-test('malformed/invalid bearer token (verifier rejects) → 401 not 500, and data layer unreached', async () => {
+test('malformed/invalid bearer token (verifier rejects) → 401 not execution, data layer unreached', async () => {
   const verify = spyVerifier(acceptValid)
   const app = createApp({ verifyToken: verify })
   const res = await request(app)
-    .get('/api/records')
+    .post('/api/graphql')
     .set('Authorization', 'Bearer not-a-real-token')
+    .send({ query: RECORDS_QUERY })
 
-  assert.equal(res.status, 401, 'a bad token must be 401, never fall through to 500')
+  assert.equal(res.status, 401, 'a bad token must be 401, never fall through to execution')
   assert.equal(typeof res.body.error.message, 'string')
   assert.equal(verify.calls.length, 1, 'verifier was consulted for a Bearer token')
 })
 
-test('valid bearer token passes the gate and REACHES the route', async () => {
+test('valid bearer token passes the gate and REACHES the resolver', async () => {
   const verify = spyVerifier(acceptValid)
   const app = createApp({ verifyToken: verify })
-  // No Mongo is connected in this file, so reaching the data layer surfaces as a 500
-  // from getDb(). A 500 (rather than a 401) is precisely what proves the gate let the
-  // request through to the router. The 200 { records: [] } happy path — the same
-  // criterion with Mongo connected — is asserted in routes.test.js.
-  const res = await request(app).get('/api/records').set('Authorization', `Bearer ${VALID_TOKEN}`)
+  // No Mongo is connected in this file, so reaching a resolver surfaces as an
+  // INTERNAL error inside the GraphQL response (getDb() throws, the error mapper
+  // maps it, and execution returns HTTP 200 with errors[].extensions.code:
+  // 'INTERNAL'). A 200 with that code (rather than a 401) is precisely what proves
+  // the gate let the request through to execution. The happy path — the same
+  // criterion with Mongo connected — is asserted in graphql.test.js.
+  const res = await request(app)
+    .post('/api/graphql')
+    .set('Authorization', `Bearer ${VALID_TOKEN}`)
+    .send({ query: RECORDS_QUERY })
 
   assert.notEqual(res.status, 401, 'a valid token must pass the gate')
-  assert.equal(res.status, 500, 'request reached the data layer, which has no Mongo connection here')
+  assert.equal(res.status, 200, 'a well-formed GraphQL request returns 200 even on a resolver error')
+  assert.equal(
+    res.body.errors[0].extensions.code,
+    'INTERNAL',
+    'the request reached the resolver, which has no Mongo connection here',
+  )
   assert.equal(verify.calls.length, 1)
   assert.deepEqual(verify.calls, [VALID_TOKEN])
 })

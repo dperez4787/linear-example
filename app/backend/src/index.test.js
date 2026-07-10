@@ -1,5 +1,8 @@
-// Verifies DAN-5 index.js criteria at the app level (no Mongo, no port bind).
-// Run with: node --test src/index.test.js
+// App-level tests (no Mongo, no port bind). Run with: node --test src/index.test.js
+//
+// DAN-25 moved the records surface from five REST routes to POST /api/graphql.
+// These assert the health check, that GraphQL validation is reported inside the
+// response without a Mongo connection, and that the five old REST routes are gone.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
@@ -23,30 +26,30 @@ test('GET /healthz is no longer registered (404 from Express)', async () => {
   assert.equal(res.status, 404)
 })
 
-// DAN-6 mounted /api/records. A validation failure exercises the single error
-// middleware end to end without needing a Mongo connection: createRecord()
-// validates before touching the driver, so an invalid POST throws a
-// ValidationError that the middleware maps to a shaped 400.
-//
-// DAN-22: /api/records now sits behind the auth gate, so the request must carry a
-// valid bearer token to reach the router at all. A stub verifier (resolves for the
-// known token, rejects otherwise) is injected through createApp — no firebase-admin,
-// no network — exactly the seam the design mandates.
+// A stub verifier (resolves for the known token, rejects otherwise) is injected
+// through createApp so the request gets past the gate without firebase-admin.
 const VALID_TOKEN = 'stub-valid-token'
 const stubVerify = async (token) => {
   if (token === VALID_TOKEN) return { uid: 'test-uid' }
   throw new Error('invalid token')
 }
 
-test('the error middleware maps a validation error to a shaped 400 (no Mongo needed)', async () => {
+// DAN-25: a validation failure is now reported inside the GraphQL response (200 +
+// errors[].extensions), not as a shaped HTTP 400. createRecord validates before
+// touching the driver, so an invalid input surfaces a BAD_USER_INPUT error with no
+// Mongo connection at all — the execution-layer error mapper end to end.
+test('GraphQL reports a validation error as BAD_USER_INPUT without a Mongo connection', async () => {
   const app = createApp({ verifyToken: stubVerify })
   const res = await request(app)
-    .post('/api/records')
+    .post('/api/graphql')
     .set('Authorization', `Bearer ${VALID_TOKEN}`)
-    .send({ amount: 1, status: 'active' })
-  assert.equal(res.status, 400)
-  assert.equal(res.body.error.field, 'name')
-  assert.equal(typeof res.body.error.message, 'string')
+    .send({
+      query: 'mutation ($input: CreateRecordInput!) { createRecord(input: $input) { id } }',
+      variables: { input: { name: '', status: 'active', amount: 1 } },
+    })
+  assert.equal(res.status, 200)
+  assert.equal(res.body.errors[0].extensions.code, 'BAD_USER_INPUT')
+  assert.equal(res.body.errors[0].extensions.field, 'name')
 })
 
 test('unknown routes still 404', async () => {
@@ -54,3 +57,23 @@ test('unknown routes still 404', async () => {
   const res = await request(app).get('/api/nope')
   assert.equal(res.status, 404)
 })
+
+// DAN-25: the five REST routes are removed, not aliased. The GraphQL endpoint lives
+// at /api/graphql; nothing answers under /api/records any more. Each must be a plain
+// 404 (no gate, no handler). The auth gate is mounted only on /api/graphql now, so a
+// /api/records request no longer even reaches an authenticated 401 — it just 404s.
+const goneRestRoutes = [
+  ['get', '/api/records'],
+  ['post', '/api/records'],
+  ['get', '/api/records/0123456789abcdef01234567'],
+  ['patch', '/api/records/0123456789abcdef01234567'],
+  ['delete', '/api/records/0123456789abcdef01234567'],
+]
+
+for (const [method, path] of goneRestRoutes) {
+  test(`${method.toUpperCase()} ${path} is gone (404) — the REST surface was removed`, async () => {
+    const app = createApp({ verifyToken: stubVerify })
+    const res = await request(app)[method](path)
+    assert.equal(res.status, 404, 'the old REST route must return 404, not be aliased or gated')
+  })
+}

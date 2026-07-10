@@ -1,4 +1,4 @@
-// The /api/records authentication gate and the default firebase-admin verifier.
+// The /api/graphql authentication gate and the default firebase-admin verifier.
 //
 // Design (docs/architecture.md, Authentication): the verifier is INJECTED through
 // createApp({ verifyToken }); this module only supplies the default. The middleware
@@ -28,11 +28,11 @@ export async function firebaseVerifyToken(idToken) {
   return getAuth().verifyIdToken(idToken)
 }
 
-// The gate. Mounts on /api/records, after /health, before the router.
+// The gate. Mounts on /api/graphql, after /health, before the GraphQL handler.
 //
 //  - A missing or non-Bearer Authorization header short-circuits to 401 WITHOUT
 //    calling the verifier or the data layer.
-//  - Otherwise it awaits verifyToken(token). On success it continues to the router.
+//  - Otherwise it awaits verifyToken(token). On success it continues to the handler.
 //    On ANY rejection it fails the request as 401.
 //
 // Errors are never formatted inline (CLAUDE.md forbids res.status(...) in handlers):

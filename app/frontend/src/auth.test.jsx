@@ -64,10 +64,12 @@ function renderGatedApp() {
   )
 }
 
+// This suite drives the REAL api.js (not a mock), so the fetch stub must return the
+// GraphQL transport's response shape: HTTP 200 with { data: { records } } (DAN-25).
 function stubFetchOk(records = []) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ records }) })),
+    vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ data: { records } }) })),
   )
 }
 
