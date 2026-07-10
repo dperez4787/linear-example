@@ -7,10 +7,12 @@ anything here that doesn't survive contact with a real ticket.
 ## Scope
 
 One resource — `Record` — rendered as a table. Users can list, create, edit, and delete
-rows. Access is gated by Google sign-in (see [Authentication](#authentication)): a signed-in
-user may read and write every record, and there is no per-user data. No pagination, no search
-in v1. Those are deliberate omissions, not oversights; adding them is a follow-up ticket, not
-scope creep into the first four.
+rows, and can sort and filter the table **client-side** (see
+[Records table UI](#records-table-ui)) — the API knows nothing about sorting or filtering.
+Access is gated by Google sign-in (see [Authentication](#authentication)): a signed-in
+user may read and write every record, and there is no per-user data. No pagination and no
+server-side search in v1. Those are deliberate omissions, not oversights; adding them is a
+follow-up ticket, not scope creep.
 
 ## Data model
 
@@ -396,11 +398,12 @@ database, and `graphql.js` is testable with `supertest` without a database at al
 
 ```
 app/frontend/src/
-├── App.jsx           layout, loads records once
+├── App.jsx           layout, loads records once, owns the data + mutations
 ├── api.js            the only module that knows the API exists
-├── RecordTable.jsx   renders rows, owns the "which row is editing" state
+├── RecordTable.jsx   renders rows; owns the view state — editing row, sort, filters
 ├── RecordRow.jsx     one row — display mode and edit mode
-└── NewRecordForm.jsx create
+├── NewRecordForm.jsx create
+└── styles.css        the app's one stylesheet, imported once in main.jsx
 ```
 
 State lives in `App.jsx` and flows down. No state manager in v1 — one resource and one
@@ -410,6 +413,126 @@ next reader has to unwind.
 Mutations are optimistic-with-rollback: apply locally, fire the request, restore the prior
 value and surface an error if it fails. The alternative — spinner on every keystroke-commit —
 makes an inline-editable table feel broken.
+
+## Records table UI
+
+Client-side sorting (name, amount, status, updatedAt), name/status filtering, and the
+table's loading/empty/no-match states. Everything here operates on the array `listRecords()`
+already returned: the GraphQL contract is frozen, `api.js`'s exported signatures and
+resolved shapes do not change, and the backend is untouched.
+
+### Hand-rolled, no table library
+
+The existing hand-rolled table is extended; **no table or component library** (no TanStack
+Table, no MUI, no AG Grid) and no new npm dependency at all. The entire interactive surface
+is a handful of pure functions — four comparators and two predicates over an array already
+in memory — while any table library would force the existing optimistic-update, inline-edit,
+and editing-row code through its row model: an invasive retrofit of working code, a bundle
+cost, and a second API for the next reader to learn, in exchange for virtualization and
+pagination this app has declared out of scope. Zero new dependencies also trivially
+satisfies the remote-runner constraint (nothing to install, nothing native, nothing that
+can't run headless under Vitest).
+
+### State ownership
+
+`App.jsx` keeps owning the **data** — the records array and the optimistic mutations — and
+is unchanged by this feature. `RecordTable.jsx` owns the **view state**, exactly as it
+already owns `editingId`:
+
+- `sort` — `{ column: 'name' | 'amount' | 'status' | 'updatedAt', direction: 'asc' | 'desc' }`
+  or `null`. `null` is the initial value and means "render in the order `listRecords()`
+  returned"; nothing ever sets it back to `null`.
+- `nameFilter` — string, initially `''`.
+- `statusFilter` — `'all' | 'active' | 'pending' | 'archived'`, initially `'all'`.
+
+The visible rows are **derived, never stored**: a pure filter-then-sort over the `records`
+prop (memoized with `useMemo`). Because derivation is pure over props, every optimistic
+apply/rollback in App and every created row flows through the current filters and sort with
+no coordination code — which is why the state lives here and not in App: App would have to
+either pass it back down or own presentation logic, and the rollback snapshots in App must
+stay snapshots of the *unfiltered, unsorted* source list.
+
+### Sorting semantics
+
+Clicking a sortable header sorts by that column **ascending**; clicking the already-active
+column toggles the direction. Sorting always applies to the filtered set, on a **copy**
+(`[...filtered].sort(cmp)`) — the `records` prop is never mutated. Per-column comparators
+(descending negates):
+
+| Column | Comparator |
+|---|---|
+| `name`, `status` | `a.localeCompare(b, undefined, { sensitivity: 'base' })` — case-insensitive |
+| `amount` | `a - b` — numeric, never string |
+| `updatedAt` | `Date.parse(a) - Date.parse(b)` — chronological, not lexicographic, so the semantics survive any future change to the wire format |
+
+`Array.prototype.sort` is stable in every supported runtime, so equal keys keep their
+fetched relative order — no tiebreaker column is needed.
+
+Sortable headers are `<th scope="col">` elements whose `aria-sort` attribute is present
+**only on the active column** (`ascending`/`descending`); the click target inside each is a
+`<button>`, because a bare `th` click handler is invisible to keyboards and screen readers.
+The visible direction indicator (e.g. ▲/▼) lives inside that button. `Notes` and `Actions`
+are not sortable and get neither a button nor `aria-sort`.
+
+**The table gains an `Updated` column.** `updatedAt` is fetched but was never displayed,
+and a sort indicator needs a header cell to live on. It is read-only — never editable
+inline; the server owns `updatedAt` — and renders as `updatedAt.slice(0, 10)` (the ISO
+date). The slice, not `toLocaleDateString()`, because locale-formatted output differs
+between a developer's machine and the CI runner, and tests must assert on cell text
+deterministically.
+
+### Filtering semantics
+
+A toolbar rendered by `RecordTable` above the table (it owns the state): a labeled text
+input for the name filter and a labeled `<select>` for status with options `all` (default),
+`active`, `pending`, `archived` — the same list `schema.js` enforces; the frontend mirrors
+it for UX, per the Data model section. Predicates:
+
+- **Name** — case-insensitive substring:
+  `r.name.toLowerCase().includes(nameFilter.toLowerCase())`; the empty string matches
+  everything.
+- **Status** — exact match, or everything when `'all'`.
+
+Filters combine with **AND**, and the sort is applied to the result.
+
+### Loading, empty, and no-match states
+
+Three mutually exclusive states, decided in this order:
+
+1. **Loading** — App's existing `status === 'loading'` gate, unchanged: `RecordTable` does
+   not mount until the initial fetch resolves, so no empty state can flash during loading.
+2. **Zero records** — in `RecordTable`, `records.length === 0` (the prop, pre-filter):
+   the existing "No records yet." row.
+3. **No matches** — `records.length > 0` but the derived visible set is empty: a distinct
+   "no records match" row with a **Clear filters** button that resets `nameFilter` to `''`
+   and `statusFilter` to `'all'` (it does not touch `sort`).
+
+The order matters: an empty database with a stale filter typed into it is still "zero
+records", not "no matches" — clearing filters can only help when there is something to show.
+
+### CSS: one plain stylesheet
+
+The app has had no CSS at all; this feature introduces it as **one plain stylesheet**,
+`app/frontend/src/styles.css`, imported once in `main.jsx`. Plain CSS with class names — no
+Tailwind, no CSS Modules, no CSS-in-JS: one screen and one table have no class-name
+collision for Modules to solve and no theming problem for CSS-in-JS to solve, and every
+alternative adds build or runtime surface the next reader has to learn before they can
+restyle a cell. Vite bundles a plain import with zero configuration.
+
+What it carries: cell padding and `border-collapse` for the table, a `tbody tr:hover`
+background so rows read as interactive, sort-button styling (inherit the header's font,
+`cursor: pointer`) so the buttons look like headers, muted text for the empty/no-match
+states, and toolbar spacing. Class names and exact values are local choices, not contract —
+tests never assert on styles, and the visual result is verified by the user on the deployed
+site, not by the suite.
+
+### Testing
+
+No new test dependencies: Vitest + Testing Library, colocated, mocking `api.js` exactly as
+the existing component tests do. Row order is asserted through `getAllByRole('row')` and
+cell text, direction through the `aria-sort` attribute, and states through visible
+text/roles — all of which run headless under jsdom on the CI runner. Do not assert on
+computed styles or class names; polish is user-attested.
 
 ## Deploy topology
 
