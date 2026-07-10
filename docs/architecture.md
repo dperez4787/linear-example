@@ -33,23 +33,18 @@ update. The frontend may mirror it for UX but is never the enforcement point.
 
 ## API contract
 
-Base path `/api/records`. JSON in, JSON out. All responses are objects, never bare arrays —
-that leaves room to add pagination metadata without a breaking change.
+The records surface is a single GraphQL endpoint, `POST /api/graphql` — see
+[GraphQL API](#graphql-api) for the schema, operations, and error shapes. It began life as
+five REST routes under `/api/records`; DAN-25 superseded that contract at the user's
+explicit request, and the REST routes are **removed, not aliased** — they return `404`.
+Everything client-facing lives under `/api/**`, because that is the prefix Firebase Hosting
+rewrites to Cloud Run; a path outside it is swallowed by the SPA fallback and never reaches
+the backend.
 
-| Method   | Path                | Body            | Success            | Errors |
-|----------|---------------------|-----------------|--------------------|--------|
-| `GET`    | `/api/records`      | —               | `200 {records:[]}` | — |
-| `POST`   | `/api/records`      | Record, no `id` | `201 {record}`     | `400` invalid |
-| `GET`    | `/api/records/:id`  | —               | `200 {record}`     | `404` |
-| `PATCH`  | `/api/records/:id`  | partial Record  | `200 {record}`     | `400`, `404` |
-| `DELETE` | `/api/records/:id`  | —               | `204` no body      | `404` |
-
-`PATCH` rather than `PUT`: the table edits individual cells, so partial update is the
-natural verb and avoids clients having to round-trip the whole document.
-
-Errors are `{ error: { message, field? } }`. A malformed `:id` that isn't a valid ObjectId
-is a `404`, not a `400` — the client shouldn't have to distinguish "no such record" from
-"that couldn't possibly be a record".
+HTTP-level errors — the ones produced *outside* GraphQL execution, i.e. the `401` from the
+auth gate and malformed request bodies — are `{ error: { message, field? } }`, emitted by
+the single Express error middleware. Domain errors (validation, not-found) travel inside
+the GraphQL response instead; see [Error mapping](#error-mapping).
 
 Health check at `GET /health` returning `200` — Cloud Run needs it, and it must not touch
 Mongo, or a database blip will cause the revision to be torn down.
@@ -63,10 +58,238 @@ container served it correctly (verified against the live service: same host, sam
 specified as `/healthz` in DAN-5 — that criterion is superseded by this one. Do not rename
 it back to `/healthz`; the platform will swallow it again.
 
+## GraphQL API
+
+One endpoint, `POST /api/graphql`, serving the whole records surface: queries `records`
+and `record(id)`, mutations `createRecord(input)`, `updateRecord(id, input)`,
+`deleteRecord(id)`. It mounts behind the **same** auth gate as the REST routes did, with
+identical DAN-22 semantics — a missing/non-Bearer header or a rejected token is an HTTP
+`401 { error: { message } }` from the Express error middleware, before any GraphQL parsing
+happens:
+
+```js
+app.use('/api/graphql', authGate(verifyToken), createHandler({ schema, rootValue }))
+```
+
+`/health` is untouched: unauthenticated, Mongo-free, outside the gate.
+
+### Library: `graphql` + `graphql-http`
+
+The backend adds two dependencies: **`graphql`** (the reference JavaScript implementation)
+and **`graphql-http`** (the GraphQL Foundation's reference GraphQL-over-HTTP handler, with
+a first-class Express adapter: `import { createHandler } from 'graphql-http/lib/use/express'`).
+
+Why not the alternatives:
+
+- `express-graphql` is archived; `graphql-http` is its designated successor.
+- Apollo Server (and graphql-yoga) are frameworks where we need a handler: they bring their
+  own error-formatting conventions, plugins, body parsing, and a landing page — each one a
+  thing that fights the repo's one-error-middleware convention or that the next reader has
+  to learn. `graphql-http` mounts as ordinary Express middleware behind our existing gate,
+  is ESM, spec-compliant, and effectively zero-config.
+
+Both are semver-ranged (`^`) like `express` and `mongodb` — the exact pin on
+`firebase-admin` was that ticket's own decision, not a repo-wide rule.
+
+### Schema
+
+The schema is SDL in a template string, built with `graphql`'s own `buildSchema`, in a new
+`src/graphql.js`. No `@graphql-tools/schema`: `makeExecutableSchema` earns its keep when
+there are nested type resolvers or custom scalars to wire, and this surface has neither —
+`buildSchema` plus a flat root object is already in the box.
+
+```graphql
+type Record {
+  id: ID!
+  name: String!
+  status: String!
+  amount: Float!
+  notes: String
+  createdAt: String!
+  updatedAt: String!
+}
+
+input CreateRecordInput {
+  name: String!
+  status: String!
+  amount: Float!
+  notes: String
+}
+
+input UpdateRecordInput {
+  name: String
+  status: String
+  amount: Float
+  notes: String
+}
+
+type Query {
+  records: [Record!]!
+  record(id: ID!): Record
+}
+
+type Mutation {
+  createRecord(input: CreateRecordInput!): Record!
+  updateRecord(id: ID!, input: UpdateRecordInput!): Record!
+  deleteRecord(id: ID!): ID!
+}
+```
+
+Decisions, with reasons:
+
+- **`status` is `String`, not a GraphQL enum.** `schema.js` is the single validation
+  enforcement point; an enum would validate `status` at the type layer, giving that one
+  field a differently-shaped error than `amount` or `name` and a second copy of the allowed
+  list that can drift.
+- **Timestamps are ISO-8601 strings, not a custom `DateTime` scalar.** REST serialized
+  `Date`s through `res.json()` as ISO strings; typing them `String` keeps the wire format
+  byte-identical and avoids a scalar the next reader must learn. `records.js` keeps
+  returning `Date` objects (its Mongo round-trip tests stay honest); `graphql.js` converts
+  the two date fields with `.toISOString()` before returning — presentation stays in the
+  presentation layer, and `graphql`'s `String` type would throw on a raw `Date` anyway.
+- **`record` is nullable; mutation return types are not.** A not-found on the query yields
+  `data.record: null` alongside the error; a not-found on a mutation nulls `data` (see the
+  not-found shape below).
+- **`deleteRecord` returns the deleted `ID!`.** A mutation must return something; echoing
+  the id needs no wrapper payload type. The frontend ignores it — `deleteRecord(id)` keeps
+  resolving to `undefined`.
+- **`UpdateRecordInput` is all-optional and passed straight to `validateUpdate`.** An
+  omitted input field never appears in the coerced argument object, which is exactly
+  `validateUpdate`'s "absent means untouched" contract — partial update semantics carry
+  over from `PATCH` with no adapter code.
+
+### Resolvers
+
+`src/graphql.js` holds the SDL, the root resolvers, and the error mapper; `src/routes.js`
+is deleted. Resolvers are the same one-liners the REST handlers were — no Mongo driver
+calls, no validation, no inline error formatting:
+
+| Operation | `records.js` function |
+|---|---|
+| `records` | `listRecords()` |
+| `record(id)` | `getRecord(id)` — **new** |
+| `createRecord(input)` | `createRecord(input)` |
+| `updateRecord(id, input)` | `updateRecord(id, input)` |
+| `deleteRecord(id)` | `deleteRecord(id)`, then return `id` |
+
+`getRecord` is new because the old contract's `GET /api/records/:id` row was never actually
+implemented — `routes.js` has no `GET /:id` handler and `records.js` has no single-record
+read. It is added to `records.js` mirroring its siblings exactly: `toObjectId(id)` (throws
+`NotFoundError` on a malformed id), `findOne`, throw `NotFoundError` on no match, return
+`toRecord(doc)`.
+
+`records.js` remains the data layer and `schema.js` remains the only validation enforcement
+point; both are reused as-is apart from the added `getRecord`.
+
+### Error mapping
+
+The team convention is "throw from the data layer, catch in one place." The Express error
+middleware stays, but inside GraphQL execution HTTP status codes stop being the error
+channel — a well-formed request returns `200` and reports field errors in the `errors`
+array. So the "one place" splits along the transport boundary:
+
+- **Outside execution** — the Express error middleware, unchanged: the gate's `401`,
+  malformed JSON. Shape stays `{ error: { message, field? } }`.
+- **Inside execution** — one error-mapper function in `graphql.js` that wraps every root
+  resolver (the execution-layer analogue of the middleware; resolvers still never format
+  errors inline). It maps thrown data-layer errors to `GraphQLError`s:
+
+| Thrown | Becomes |
+|---|---|
+| `ValidationError` (`status` 400, `field`) | same message, `extensions: { code: 'BAD_USER_INPUT', field }` |
+| `NotFoundError` (`status` 404) | message `record not found`, `extensions: { code: 'NOT_FOUND' }` |
+| anything else | `console.error` server-side; message `Internal Server Error`, `extensions: { code: 'INTERNAL' }` — the same don't-leak rule as the middleware's 5xx branch |
+
+A single wrapper rather than a handler-specific `formatError` hook, so the mapping is plain
+JavaScript — testable without the HTTP layer and not coupled to any `graphql-http` option.
+A domain failure (invalid input, missing record) is never an HTTP 4xx/5xx: the response is
+`200` with a non-empty `errors` array. A failed mutation writes nothing, exactly as before —
+the mapper only reshapes errors the data layer already threw before touching the driver.
+
+#### The not-found shape
+
+The shape the acceptance criteria reference: HTTP `200`, an `errors` entry with
+`extensions.code: 'NOT_FOUND'`, and a null data field —
+
+```json
+{
+  "data": { "record": null },
+  "errors": [
+    { "message": "record not found", "path": ["record"], "extensions": { "code": "NOT_FOUND" } }
+  ]
+}
+```
+
+For `updateRecord`/`deleteRecord` the shape is the same except `data` is `null` overall,
+because those return types are non-null. A malformed id is indistinguishable from a
+nonexistent one — the same principle as REST's "malformed `:id` is a `404`, not a `400`":
+the client shouldn't have to distinguish "no such record" from "that couldn't possibly be a
+record". Not-found is uniformly an *error*, never a bare `null` with no `errors` entry,
+for one reason: the frontend's optimistic mutations roll back on a thrown failure, and one
+rule for all three id-taking operations is simpler to implement and test than "null for the
+query, error for mutations".
+
+### Frontend transport: plain `fetch`, no client library
+
+`api.js` gains one private helper and keeps its exported signatures; **no Apollo Client,
+urql, or graphql-request**. A GraphQL client earns its keep through a normalized cache and
+query bindings — but `App.jsx` owns all state in v1, so a caching client would be a second
+state owner, which is the state-manager decision this architecture already declined.
+
+```js
+async function gql(query, variables) {
+  const res = await authedFetch('/api/graphql', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables }),
+  })
+  if (!res.ok) throw await toError(res)          // gate 401s etc. — HTTP-level, unchanged
+  const body = await res.json()
+  if (body.errors?.length) {
+    const err = new Error(body.errors[0].message)
+    if (body.errors[0].extensions?.field) err.field = body.errors[0].extensions.field
+    throw err
+  }
+  return body.data
+}
+```
+
+The DAN-23 semantics carry over for free: the `401` still comes from the Express gate as an
+HTTP status before GraphQL is involved, so `authedFetch`'s sign-out-on-401 path is
+untouched. `err.field` now reads `extensions.field` instead of `error.field`, which keeps
+`NewRecordForm`'s field-scoped error display working.
+
+Exported functions keep their signatures and resolved shapes, so components do not change:
+`listRecords()` returns `data.records`, `createRecord(record)` returns `data.createRecord`,
+`updateRecord(id, patch)` returns `data.updateRecord`, `deleteRecord(id)` resolves to
+`undefined`.
+
+### Testing
+
+**Backend** — same in-process pattern as today: build the app with the stub token verifier,
+send a bearer token, and `supertest`-POST `{ query, variables }` to `/api/graphql`. The
+HTTP-level suites (`routes.test.js`, `index.test.js`, the tester suites) move from the REST
+routes to the GraphQL operations, asserting on `body.data` / `body.errors[].extensions`
+rather than status codes for domain outcomes (plus one suite asserting the five old REST
+paths now `404`). `records.test.js` is unchanged except for new `getRecord` coverage. The
+environment contract is also unchanged: tests need any reachable `mongod` via `MONGODB_URI`
+(they read the ambient environment when there is no `.env`) and force
+`MONGODB_DB=linear_example_test`. On a CI runner that means a Mongo service container and
+`MONGODB_URI=mongodb://localhost:27017` in the job env — no Atlas, no secret. The runner is
+still `node --test --test-concurrency=1`.
+
+**Frontend** — Vitest with `vi.stubGlobal('fetch', …)`, the existing pattern. The `api.js`
+tests assert one POST to `/api/graphql`, parse the request body to check `variables` and
+the operation name, and assert the resolved shapes and the thrown `err.field`. Do **not**
+byte-match the whole query document — its formatting is a local choice, not contract. The
+DAN-23 regression test (HTTP `401` body `{ error: { message } }` triggers sign-out) passes
+against the new transport unchanged, because gate errors never enter GraphQL. Component
+tests are untouched; they mock `api.js`, whose surface has not moved.
+
 ## Authentication
 
-Every `/api/records` request must carry a valid Firebase ID token; anonymous or invalid
-requests get `401`. This is a **gate, not a data-model change** — any signed-in user reads
+Every records-API request — `POST /api/graphql` (see [GraphQL API](#graphql-api)) — must
+carry a valid Firebase ID token; anonymous or invalid requests get `401`. This is a **gate, not a data-model change** — any signed-in user reads
 and writes every record. There is no `owner`/`uid` field, no migration, and no per-record
 ownership check; adding per-user data is a separate decision, not this one. Sign-in is
 Google-only (`signInWithPopup(GoogleAuthProvider)`); the frontend attaches the token as
@@ -120,11 +343,11 @@ and DAN-5 require. Boot must not import-and-initialize in a way that reaches the
 
 ### Where the gate mounts, and the 401 contract
 
-The gate mounts **on `/api/records`, after `/health`, before the records router**:
+The gate mounts **on `/api/graphql`, after `/health`, before the GraphQL handler**:
 
 ```js
 app.get('/health', …)                        // unauthenticated — the gate never covers it
-app.use('/api/records', authGate, recordsRouter())
+app.use('/api/graphql', authGate, createHandler(…))
 ```
 
 `/health` stays unauthenticated and Mongo-free: it is what Cloud Run health-checks, and it was
@@ -148,11 +371,10 @@ rule "no verified token ⇒ unauthorized" is one line and cannot leak a `500` fo
 which is exactly what the contract pins down — and distinguishing "your token is bad" from "our
 cert fetch blipped" is not worth a second error path in a reference app.
 
-A design consequence for the existing tests (not a mandate on their structure): the HTTP-level
-tests in `routes.test.js` and `index.test.js` currently call `/api/records` with no token and
-will now `401`. They must build the app with a stub verifier and send a bearer token to reach
-the routes. The data-layer tests in `records.test.js` are unaffected — they call `records.js`
-directly, below the gate.
+A design consequence for the HTTP-level tests (not a mandate on their structure): any test
+that reaches `/api/graphql` must build the app with a stub verifier and send a bearer token
+to get past the gate. The data-layer tests in `records.test.js` are unaffected — they call
+`records.js` directly, below the gate.
 
 ## Backend structure
 
@@ -162,12 +384,12 @@ app/backend/src/
 ├── db.js         connect() / getDb(), module-level client
 ├── records.js    data layer — all Mongo calls live here
 ├── schema.js     validation for create + update
-├── auth.js       the /api/records gate + default firebase-admin verifier (see Authentication)
-└── routes.js     express router, thin handlers
+├── auth.js       the /api/graphql gate + default firebase-admin verifier (see Authentication)
+└── graphql.js    GraphQL SDL, root resolvers, error mapper (see GraphQL API)
 ```
 
 The split matters for the tester agent: `records.js` is unit-testable against a scratch
-database, and `routes.js` is testable with `supertest` without a database at all if
+database, and `graphql.js` is testable with `supertest` without a database at all if
 `records.js` is stubbed.
 
 ## Frontend structure
