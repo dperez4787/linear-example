@@ -104,7 +104,7 @@ export default function App() {
   }
 
   return (
-    <main>
+    <main className="container">
       <h1>Records</h1>
       {status === 'loading' && <p>Loading records…</p>}
       {status === 'error' && <p role="alert">Could not load records: {error}</p>}

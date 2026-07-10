@@ -68,75 +68,95 @@ export default function NewRecordForm({ onCreate }) {
   const errorFor = (field) => (fieldError?.field === field ? fieldError.message : null)
 
   return (
-    <form aria-label="New record" onSubmit={handleSubmit}>
+    <form className="record-form" aria-label="New record" onSubmit={handleSubmit}>
       <h2>Add a record</h2>
       {formError && <p role="alert">{formError}</p>}
 
-      <input
-        aria-label="New name"
-        placeholder="Name"
-        aria-invalid={errorFor('name') ? 'true' : undefined}
-        aria-describedby={errorFor('name') ? 'new-name-error' : undefined}
-        value={draft.name}
-        onChange={(e) => update('name', e.target.value)}
-      />
-      {errorFor('name') && (
-        <span id="new-name-error" role="alert">
-          {errorFor('name')}
-        </span>
-      )}
+      {/* One aligned toolbar row: every control shares the .control height so the
+          form lines up with itself, the filter toolbar, and the table. Each
+          control keeps its own .field cell so its field-scoped error can sit
+          directly beneath it. Inputs stay label-less (aria-label + placeholder,
+          as before) — a visible "Name"/"Amount" label would collide with the
+          edit-row labels of the same text. */}
+      <div className="record-form__row">
+        <div className="field field--grow">
+          <input
+            className="control"
+            aria-label="New name"
+            placeholder="Name"
+            aria-invalid={errorFor('name') ? 'true' : undefined}
+            aria-describedby={errorFor('name') ? 'new-name-error' : undefined}
+            value={draft.name}
+            onChange={(e) => update('name', e.target.value)}
+          />
+          {errorFor('name') && (
+            <span id="new-name-error" className="field-error" role="alert">
+              {errorFor('name')}
+            </span>
+          )}
+        </div>
 
-      <select
-        aria-label="New status"
-        aria-invalid={errorFor('status') ? 'true' : undefined}
-        aria-describedby={errorFor('status') ? 'new-status-error' : undefined}
-        value={draft.status}
-        onChange={(e) => update('status', e.target.value)}
-      >
-        {STATUSES.map((s) => (
-          <option key={s} value={s}>
-            {s}
-          </option>
-        ))}
-      </select>
-      {errorFor('status') && (
-        <span id="new-status-error" role="alert">
-          {errorFor('status')}
-        </span>
-      )}
+        <div className="field">
+          <select
+            className="control"
+            aria-label="New status"
+            aria-invalid={errorFor('status') ? 'true' : undefined}
+            aria-describedby={errorFor('status') ? 'new-status-error' : undefined}
+            value={draft.status}
+            onChange={(e) => update('status', e.target.value)}
+          >
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          {errorFor('status') && (
+            <span id="new-status-error" className="field-error" role="alert">
+              {errorFor('status')}
+            </span>
+          )}
+        </div>
 
-      <input
-        aria-label="New amount"
-        type="number"
-        placeholder="Amount"
-        aria-invalid={errorFor('amount') ? 'true' : undefined}
-        aria-describedby={errorFor('amount') ? 'new-amount-error' : undefined}
-        value={draft.amount}
-        onChange={(e) => update('amount', e.target.value)}
-      />
-      {errorFor('amount') && (
-        <span id="new-amount-error" role="alert">
-          {errorFor('amount')}
-        </span>
-      )}
+        <div className="field">
+          <input
+            className="control"
+            aria-label="New amount"
+            type="number"
+            placeholder="Amount"
+            aria-invalid={errorFor('amount') ? 'true' : undefined}
+            aria-describedby={errorFor('amount') ? 'new-amount-error' : undefined}
+            value={draft.amount}
+            onChange={(e) => update('amount', e.target.value)}
+          />
+          {errorFor('amount') && (
+            <span id="new-amount-error" className="field-error" role="alert">
+              {errorFor('amount')}
+            </span>
+          )}
+        </div>
 
-      <input
-        aria-label="New notes"
-        placeholder="Notes"
-        aria-invalid={errorFor('notes') ? 'true' : undefined}
-        aria-describedby={errorFor('notes') ? 'new-notes-error' : undefined}
-        value={draft.notes}
-        onChange={(e) => update('notes', e.target.value)}
-      />
-      {errorFor('notes') && (
-        <span id="new-notes-error" role="alert">
-          {errorFor('notes')}
-        </span>
-      )}
+        <div className="field field--grow">
+          <input
+            className="control"
+            aria-label="New notes"
+            placeholder="Notes"
+            aria-invalid={errorFor('notes') ? 'true' : undefined}
+            aria-describedby={errorFor('notes') ? 'new-notes-error' : undefined}
+            value={draft.notes}
+            onChange={(e) => update('notes', e.target.value)}
+          />
+          {errorFor('notes') && (
+            <span id="new-notes-error" className="field-error" role="alert">
+              {errorFor('notes')}
+            </span>
+          )}
+        </div>
 
-      <button type="submit" disabled={submitting}>
-        Add
-      </button>
+        <button className="btn btn--primary" type="submit" disabled={submitting}>
+          Add
+        </button>
+      </div>
     </form>
   )
 }

@@ -78,6 +78,7 @@ export default function RecordTable({ records, onSave, onDelete }) {
         <label>
           Filter by name
           <input
+            className="control"
             type="search"
             value={nameFilter}
             onChange={(e) => setNameFilter(e.target.value)}
@@ -86,6 +87,7 @@ export default function RecordTable({ records, onSave, onDelete }) {
         <label>
           Filter by status
           <select
+            className="control"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
@@ -118,7 +120,7 @@ export default function RecordTable({ records, onSave, onDelete }) {
             <tr>
               <td colSpan={6} className="empty-state">
                 No matching records.{' '}
-                <button type="button" onClick={clearFilters}>
+                <button type="button" className="btn" onClick={clearFilters}>
                   Clear filters
                 </button>
               </td>
