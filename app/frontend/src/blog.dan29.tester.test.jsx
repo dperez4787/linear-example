@@ -21,8 +21,13 @@ const blogPath = resolve(process.cwd(), 'public/blog/index.html')
 const blogBytes = readFileSync(blogPath)
 const blog = blogBytes.toString('utf8')
 
+// Re-pinned in DAN-31: linkifying every DAN-* reference into a /blog/tickets/ deep
+// link (and HTML-encoding the hyphen in the 5 <img alt> screenshot descriptions, which
+// cannot syntactically hold an anchor) necessarily changes the blog's bytes. Per DAN-31
+// Round 2 point 3 this lock now tracks the new canonical bytes; every v4 invariant below
+// (PR #29 + #30 anchors, the $16.10 total, three screenshots) survives linkification.
 const CANONICAL_SHA256 =
-  '3eb06653fd9bfbdd0d844cc00e6e8f712f11a96fe1175c0e575d1ef39e1fbd2a'
+  'bddf9fcde6c439f8377c9ccd735a215a978b4dfea8e1571ddad40562cc788c23'
 
 describe('DAN-29 · /blog is the canonical v4 document', () => {
   it('is byte-identical to the pinned v4 asset (sha256)', () => {
