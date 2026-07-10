@@ -248,9 +248,12 @@ jobs:
               developer says it built.
             - Add its tests as a separate commit on the same branch and push.
             - Post the pass/fail verdict with evidence as a comment on BOTH the Linear
-              issue and the PR (`gh pr comment`). Do not submit a formal GitHub review:
-              CI's identity authored the PR and GitHub forbids self-approval — the PR
-              comment is the verdict.
+              issue and the PR (`gh pr comment`). The PR comment MUST begin with the
+              exact phrase "Tester verdict" (e.g. "## Tester verdict — PASS") — the
+              workflow only marks the ticket tested if a comment containing that
+              phrase exists, so omitting it voids the run. Do not submit a formal
+              GitHub review: CI's identity authored the PR and GitHub forbids
+              self-approval — the PR comment is the verdict.
             - If every criterion passes: run `gh pr ready ${{ matrix.issue.branchName }}`
               and leave the Linear status at "In Review" (the human merges).
             - If any criterion fails: leave the PR a draft and move the Linear issue
