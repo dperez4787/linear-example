@@ -221,6 +221,7 @@ jobs:
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
+          echo "started=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Verify ticket
         if: steps.guard.outputs.skip != 'true'
@@ -261,10 +262,29 @@ jobs:
               already exported. There is no Atlas access and no .env file to read.
             - `gh` is authenticated via GH_TOKEN. Never push to main, never merge.
 
-      - name: Mark ticket agent-tested
+      # The label may only be applied when the tester demonstrably ran: a silent
+      # Claude no-op that exits 0 (it has happened) must not mark the ticket tested,
+      # or it wedges invisibly — labeled but verdict-less, skipped by every scan.
+      # Without the label, the next scheduled scan simply retries the ticket.
+      - name: Mark ticket agent-tested (evidence-gated)
         if: steps.guard.outputs.skip != 'true'
         run: |
           set -euo pipefail
+          PR_NUMBER=$(gh pr list --repo "${{ github.repository }}" \
+            --head "${{ matrix.issue.branchName }}" --state all \
+            --json number -q '.[0].number')
+          if [ -z "$PR_NUMBER" ]; then
+            echo "::error::No PR found for ${{ matrix.issue.branchName }} — cannot have been tested; not labeling."
+            exit 1
+          fi
+          VERDICTS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" --paginate \
+            -q '[.[] | select(.user.login == "github-actions[bot]")
+                     | select(.body | contains("Tester verdict"))
+                     | select(.created_at >= "${{ steps.guard.outputs.started }}")] | length')
+          if [ "$VERDICTS" -eq 0 ]; then
+            echo "::error::No tester verdict posted on PR #$PR_NUMBER since ${{ steps.guard.outputs.started }} — the tester did not complete; not labeling so the next scan retries."
+            exit 1
+          fi
           curl -sS --fail https://api.linear.app/graphql \
             -H "Authorization: $LINEAR_API_KEY" \
             -H "Content-Type: application/json" \
