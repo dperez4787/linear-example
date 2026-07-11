@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const blogPath = resolve(process.cwd(), 'public/blog/index.html')
+const blogPath = resolve(process.cwd(), 'public/blog/agentic-sdlc/index.html')
 const archivePath = resolve(process.cwd(), 'public/blog/tickets/index.html')
 const blog = readFileSync(blogPath, 'utf8')
 const archive = readFileSync(archivePath, 'utf8')
