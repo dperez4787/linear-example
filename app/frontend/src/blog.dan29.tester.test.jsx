@@ -27,7 +27,7 @@ const blog = blogBytes.toString('utf8')
 // Round 2 point 3 this lock now tracks the new canonical bytes; every v4 invariant below
 // (PR #29 + #30 anchors, the $16.10 total, three screenshots) survives linkification.
 const CANONICAL_SHA256 =
-  'bddf9fcde6c439f8377c9ccd735a215a978b4dfea8e1571ddad40562cc788c23'
+  'd9e6ea8a712eb616b4623cf0aab74a724e038389a6745cb3a00272a76777dcd7'
 
 describe('DAN-29 · /blog is the canonical v4 document', () => {
   it('is byte-identical to the pinned v4 asset (sha256)', () => {
