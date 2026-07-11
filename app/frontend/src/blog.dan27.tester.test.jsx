@@ -23,7 +23,7 @@ import { describe, expect, it } from 'vitest'
 
 // Vitest runs with cwd = app/frontend; public/blog/index.html is the source Vite
 // copies verbatim into dist/blog/index.html.
-const blogPath = resolve(process.cwd(), 'public/blog/index.html')
+const blogPath = resolve(process.cwd(), 'public/blog/agentic-sdlc/index.html')
 const blogBytes = readFileSync(blogPath)
 const blog = blogBytes.toString('utf8')
 

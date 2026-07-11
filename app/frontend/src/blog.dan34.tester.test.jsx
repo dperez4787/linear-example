@@ -18,6 +18,7 @@ const post = postBytes.toString('utf8')
 
 // Sibling blog assets that this ticket must NOT touch.
 const blogIndexPath = resolve(process.cwd(), 'public/blog/index.html')
+const agenticSdlcPath = resolve(process.cwd(), 'public/blog/agentic-sdlc/index.html')
 const ticketsPath = resolve(process.cwd(), 'public/blog/tickets/index.html')
 
 describe('DAN-34 · C1 verbatim byte-for-byte drop of the canonical asset', () => {
@@ -70,9 +71,11 @@ describe('DAN-34 · C5 known-transient links left exactly as authored (not "fixe
 })
 
 describe('DAN-34 · C6 sibling blog assets untouched by this ticket', () => {
-  it('/blog is still part 1 (An Agentic SDLC, End to End)', () => {
+  it('/blog is the index screen and /blog/agentic-sdlc/ is part 1 (post-DAN-35)', () => {
     const blogIndex = readFileSync(blogIndexPath, 'utf8')
-    expect(blogIndex).toContain('An Agentic SDLC, End to End')
+    expect(blogIndex).toContain('Building real systems with AI agents')
+    const agenticSdlc = readFileSync(agenticSdlcPath, 'utf8')
+    expect(agenticSdlc).toContain('An Agentic SDLC, End to End')
   })
 
   it('/blog/tickets/ archive still present', () => {
