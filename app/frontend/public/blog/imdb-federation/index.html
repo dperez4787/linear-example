@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Federating IMDb: An Agentic Build at Three Speeds</title>
+</head>
+<body>
+<style>
+  :root {
+    --paper: #fbfbfd;
+    --ink: #1f2128;
+    --ink-2: #5a5e6e;
+    --line: #e4e5ec;
+    --accent: #5e6ad2;
+    --accent-ink: #4d58c0;
+    --chip-bg: #eef0fb;
+    --code-bg: #f2f3f7;
+    --done: #2e7d54;
+    --done-bg: #e3f2ea;
+    --human: #8a5a00;
+    --human-bg: #f8efdb;
+    --teal: #17756c;
+    --teal-bg: #17756c14;
+    --serif: "Charter", "Iowan Old Style", "Palatino Nova", Palatino, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #17181d; --ink: #e6e7ee; --ink-2: #9b9fb3; --line: #2c2e39;
+      --accent: #8b95e8; --accent-ink: #a3abee; --chip-bg: #23263a; --code-bg: #1f2129;
+      --done: #6fc79a; --done-bg: #1c3229; --human: #d9a93f; --human-bg: #33290f;
+      --teal: #3cb3a5; --teal-bg: #3cb3a51f;
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #fbfbfd; --ink: #1f2128; --ink-2: #5a5e6e; --line: #e4e5ec;
+    --accent: #5e6ad2; --accent-ink: #4d58c0; --chip-bg: #eef0fb; --code-bg: #f2f3f7;
+    --done: #2e7d54; --done-bg: #e3f2ea; --human: #8a5a00; --human-bg: #f8efdb;
+    --teal: #17756c; --teal-bg: #17756c14;
+  }
+  :root[data-theme="dark"] {
+    --paper: #17181d; --ink: #e6e7ee; --ink-2: #9b9fb3; --line: #2c2e39;
+    --accent: #8b95e8; --accent-ink: #a3abee; --chip-bg: #23263a; --code-bg: #1f2129;
+    --done: #6fc79a; --done-bg: #1c3229; --human: #d9a93f; --human-bg: #33290f;
+    --teal: #3cb3a5; --teal-bg: #3cb3a51f;
+  }
+
+  body { background: var(--paper); color: var(--ink); font-family: var(--serif); font-size: 1.06rem; line-height: 1.65; margin: 0; }
+  .wrap { max-width: 46rem; margin: 0 auto; padding: 4rem 1.25rem 6rem; }
+  .backlink { font-family: var(--sans); font-size: 0.85rem; color: var(--accent-ink); text-decoration: none; }
+  .backlink:hover { text-decoration: underline; }
+  header.masthead { margin: 1.5rem 0 3rem; }
+  .kicker { font-family: var(--sans); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-ink); margin: 0 0 1rem; }
+  h1 { font-family: var(--sans); font-size: clamp(1.8rem, 5vw, 2.5rem); font-weight: 750; letter-spacing: -0.02em; line-height: 1.12; margin: 0 0 1rem; text-wrap: balance; }
+  .dek { font-size: 1.12rem; line-height: 1.55; color: var(--ink-2); margin: 0 0 1.25rem; text-wrap: balance; }
+  .byline { font-family: var(--sans); font-size: 0.85rem; color: var(--ink-2); border-top: 1px solid var(--line); padding-top: 0.9rem; }
+  .byline a { color: var(--accent-ink); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin: 0 0 1rem; }
+  .stat { background: var(--paper); padding: 0.85rem 1rem; }
+  .stat b { display: block; font-family: var(--sans); font-size: 1.35rem; font-weight: 750; letter-spacing: -0.01em; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+  .stat span { font-family: var(--sans); font-size: 0.74rem; color: var(--ink-2); letter-spacing: 0.02em; }
+
+  .act { display: flex; align-items: baseline; gap: 0.75rem; margin: 3rem 0 0.4rem; font-family: var(--sans); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-ink); }
+  .act::after { content: ""; flex: 1; border-top: 1px solid var(--line); transform: translateY(-0.15em); }
+  h2 { font-family: var(--sans); font-size: 1.4rem; font-weight: 700; letter-spacing: -0.015em; line-height: 1.25; margin: 0 0 1rem; text-wrap: balance; }
+  h3 { font-family: var(--sans); font-size: 1rem; font-weight: 700; margin: 1.6rem 0 0.5rem; }
+  p { margin: 0 0 1rem; }
+  section { margin-bottom: 1rem; }
+  ul, ol { padding-left: 1.35rem; margin: 0 0 1rem; }
+  li { margin-bottom: 0.5rem; }
+  li::marker { color: var(--accent); }
+  a { color: var(--accent-ink); }
+  strong { font-weight: 650; }
+  code { font-family: var(--mono); font-size: 0.82em; background: var(--code-bg); border-radius: 4px; padding: 0.1em 0.35em; }
+  pre { background: var(--code-bg); border-radius: 8px; padding: 0.9rem 1.1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.78rem; line-height: 1.5; margin: 0.8rem 0 1.1rem; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  .goals { border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.35rem; margin-bottom: 1rem; }
+  .goals h3 { margin-top: 0.4rem; }
+  .goals ol { margin-bottom: 0.5rem; }
+
+  .tablewrap { overflow-x: auto; margin: 0.9rem 0 1.2rem; }
+  table { border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: 0.85rem; min-width: 540px; }
+  th { text-align: left; font-size: 0.7rem; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); padding: 0.45rem 0.9rem 0.45rem 0; border-bottom: 2px solid var(--ink); }
+  td { padding: 0.55rem 0.9rem 0.55rem 0; border-bottom: 1px solid var(--line); vertical-align: top; font-variant-numeric: tabular-nums; }
+  td:first-child { font-weight: 600; white-space: nowrap; font-family: var(--sans); }
+  .mono { font-family: var(--mono); font-size: 0.82em; }
+
+  /* architecture diagram */
+  figure { margin: 1.4rem 0 1.6rem; }
+  figcaption { font-family: var(--sans); font-size: 0.8rem; color: var(--ink-2); margin-top: 0.7rem; }
+  .diagram { border: 1px solid var(--line); border-radius: 12px; padding: 1.1rem 1.2rem; overflow-x: auto; }
+  .lane { font-family: var(--sans); font-size: 0.68rem; font-weight: 650; letter-spacing: 0.13em; text-transform: uppercase; color: var(--ink-2); margin: 0.9rem 0 0.5rem; }
+  .lane:first-child { margin-top: 0; }
+  .flow { display: flex; align-items: stretch; gap: 0.45rem; min-width: 640px; }
+  .box { flex: 1; background: var(--chip-bg); border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem 0.75rem; font-family: var(--sans); }
+  .box b { display: block; font-size: 0.85rem; margin-bottom: 0.15rem; }
+  .box span { font-size: 0.72rem; color: var(--ink-2); display: block; line-height: 1.4; }
+  .box .repo { display: block; font-family: var(--mono); font-size: 0.68rem; color: var(--accent-ink); margin-top: 0.3rem; }
+  .box.plane { background: var(--teal-bg); border-color: var(--teal); }
+  .box.humanbox { background: var(--human-bg); }
+  .arrow { display: flex; align-items: center; font-family: var(--sans); color: var(--ink-2); font-size: 0.95rem; }
+  .hoplabel { display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 6rem; text-align: center; font-family: var(--sans); font-size: 0.66rem; color: var(--accent-ink); font-weight: 650; line-height: 1.35; }
+  .hoplabel i { color: var(--ink-2); font-style: normal; font-size: 0.95rem; line-height: 1; }
+
+  .callout { border-left: 3px solid var(--accent); background: var(--chip-bg); border-radius: 0 8px 8px 0; padding: 0.85rem 1.05rem; margin: 1.1rem 0; font-size: 0.95rem; }
+  .callout.teal { border-left-color: var(--teal); background: var(--teal-bg); }
+  .callout .co { font-family: var(--sans); font-size: 0.66rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--accent-ink); display: block; margin-bottom: 0.35rem; font-weight: 650; }
+  .callout.teal .co { color: var(--teal); }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .speeds { display: grid; gap: 0.8rem; margin: 1.2rem 0; }
+  .speed { border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.2rem; }
+  .speed .s-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem; margin-bottom: 0.4rem; font-family: var(--sans); }
+  .speed .s-num { font-family: var(--mono); font-size: 0.72rem; font-weight: 650; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent-ink); }
+  .speed .s-title { font-weight: 700; font-size: 1rem; }
+  .speed .s-repo { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-2); margin-left: auto; }
+  .speed p { font-size: 0.95rem; color: var(--ink); margin-bottom: 0.4rem; }
+  .speed p:last-child { margin-bottom: 0; }
+
+  @media (max-width: 640px) { .wrap { padding-top: 2.5rem; } }
+</style>
+<div class="wrap">
+<a class="backlink" href="/blog">&larr; All posts</a>
+<header class="masthead">
+  <p class="kicker">Case study · Agentic software delivery · Part 2</p>
+  <h1>Federating IMDb: an agentic build at three speeds</h1>
+  <p class="dek">211 million documents behind one federated GraphQL endpoint, with enterprise-grade field-level governance enforced at an open-source router — built by AI agents working at three deliberately different levels of formality, from vibe coding to the full ticket-driven SDLC of <a href="/blog/agentic-sdlc/">the first post in this series</a>.</p>
+  <p class="byline">Daniel Perez · July 2026 · <a href="https://github.com/dperez4787">github.com/dperez4787</a></p>
+</header>
+
+<div class="stats">
+  <div class="stat"><b>211M</b><span>documents federated</span></div>
+  <div class="stat"><b>8&thinsp;+&thinsp;1</b><span>Java subgraphs + Cosmo router</span></div>
+  <div class="stat"><b>6</b><span>repositories, one system</span></div>
+  <div class="stat"><b>~130ms</b><span>warm p50 through the router</span></div>
+</div>
+
+<section>
+  <h2>Goals</h2>
+  <div class="goals">
+    <h3>Functional</h3>
+    <ol>
+      <li><strong>An extremely snappy, rich IMDb data experience</strong> — every public IMDb dataset available through one UI: titles, people, ratings, episodes, crews, regional titles, and the 100-million-row principals collection.</li>
+      <li><strong>Sort by popularity, everywhere</strong> — titles rank by vote counts for free; people needed a materialized popularity score computed from the work they're known for.</li>
+      <li><strong>Search facets</strong> — vocabulary dropdowns (every genre, every credit category) and live counts that narrow with the filter: “Drama (1,204)”.</li>
+      <li><strong>Images for titles</strong> — poster art in the browsing experience, not just rows of text.</li>
+      <li><strong>Enterprise-grade, field-level governance and security</strong> — individual fields like <code>Rating.numVotes</code> or <code>Name.birthYear</code> grantable per role, administered from a control-plane UI, enforced live with no redeploys.</li>
+    </ol>
+    <h3>Technical</h3>
+    <ol>
+      <li><strong>Use AI to build the application — at varying degrees of formality.</strong> One system, three delivery styles: full ticket-driven rigor, lightweight file-based tickets, and pure vibe coding. Measure what each buys.</li>
+      <li><strong>A proof-of-concept of open-source GraphQL federation</strong> — WunderGraph Cosmo composing eight Netflix DGS subgraphs, with custom Go router modules instead of a commercial control plane.</li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <h2>Architecture: six repositories, one system</h2>
+  <p>Every artifact below is a repository on <a href="https://github.com/dperez4787">my GitHub profile</a>. The centerpiece is <a href="https://github.com/dperez4787/imdb-federation"><code>imdb-federation</code></a> — a single Maven mono-repo holding all <strong>eight Java subgraphs</strong> as modules. One shared Dockerfile parameterized by module, one <code>paths-filter</code> matrix that builds only what changed, one <code>common/</code> library — eight Cloud Run services out the other end. The mono-repo is what made “stamp out seven more subgraphs from the proven pattern” a one-day exercise instead of seven repo setups.</p>
+  <figure>
+    <div class="diagram">
+      <p class="lane">Runtime — the request path</p>
+      <div class="flow">
+        <div class="box"><b>imdb-browser</b><span>React UI — popularity sort, search facets, title images</span><span class="repo">github.com/dperez4787/imdb-browser</span></div>
+        <div class="hoplabel"><i>&rarr;</i>Google-signed JWT<br>anonymous &rarr; 401</div>
+        <div class="box"><b>cosmo-router</b><span>Custom WunderGraph Cosmo build · <code>fieldauth</code> field-level authorization · <code>subgraphtoken</code> perimeter keys</span><span class="repo">github.com/dperez4787/cosmo-router</span></div>
+        <div class="hoplabel"><i>&rarr;</i>SA ID token per audience<br>direct calls &rarr; 403</div>
+        <div class="box"><b>imdb-federation</b><span>Maven mono-repo · 8 Spring Boot + Netflix DGS subgraphs on Cloud Run · <code>@governed</code> declarations</span><span class="repo">github.com/dperez4787/imdb-federation</span></div>
+      </div>
+      <p class="lane">Governance plane — decide at the center</p>
+      <div class="flow">
+        <div class="box plane"><b>imdb-policy-service</b><span>Field-level auth control plane: admin UI, policy bundle (ETag, ~15s poll), persona JWTs + JWKS, audit log — MongoDB <code>imdb_governance</code></span><span class="repo">github.com/dperez4787/imdb-policy-service</span></div>
+        <div class="hoplabel"><i>&harr;</i>router polls bundle ·<br>subgraphs register @governed</div>
+        <div class="box"><b>Enforcement &amp; declaration</b><span>Router rejects denied coordinates with <code>PERMISSION_DENIED</code>; subgraphs declare sensitivity in SDL and never enforce</span></div>
+      </div>
+      <p class="lane">Data plane</p>
+      <div class="flow">
+        <div class="box"><b>imdb-data-pipeline</b><span>Weekly Cloud Run Job — 7 IMDb TSVs &rarr; mongoimport &rarr; staging &rarr; atomic rename · also hosted imdb-browser's file-based tickets</span><span class="repo">github.com/dperez4787/imdb-data-pipeline</span></div>
+        <div class="hoplabel"><i>&rarr;</i>211M docs, weekly</div>
+        <div class="box"><b>MongoDB Atlas</b><span>us-central1 · source collections + derived <code>search_titles</code>/<code>search_names</code> + governance DB</span></div>
+      </div>
+      <p class="lane">Reference implementation — the formal end of the spectrum</p>
+      <div class="flow">
+        <div class="box humanbox"><b>linear-example</b><span>The agentic-SDLC reference app from part one — Linear tickets, remote agents, draft-PR gates. Hosts this blog.</span><span class="repo">github.com/dperez4787/linear-example</span></div>
+      </div>
+    </div>
+    <figcaption>Six repositories. The router is the only public door into the graph; the policy service decides, the router enforces, the subgraphs declare. Teal is the governance plane.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>Dependencies</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Dependency</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td>MongoDB Atlas</td><td>The system of record — 211M documents across 7 source collections, two derived search collections, and the <code>imdb_governance</code> policy database, all on one cluster in us-central1</td></tr>
+        <tr><td>Google Cloud Run</td><td>Every compute surface: 8 subgraphs, the router, the policy service, and the import job — services and jobs, scale-to-zero</td></tr>
+        <tr><td>WunderGraph Cosmo</td><td>The open-source federation POC — <code>wgc</code> composes eight SDLs into one supergraph; a custom Go build of the router adds the <code>fieldauth</code> and <code>subgraphtoken</code> modules</td></tr>
+        <tr><td>Spring Boot + Netflix DGS</td><td>All eight subgraphs and the policy service — Java 21, one Maven mono-repo, DataLoader-batched entity fetchers</td></tr>
+        <tr><td>GitHub &amp; GitHub Actions</td><td>CI/CD for all six repos; a subgraph push chains into a router recompose via <code>repository_dispatch</code>, ~10 minutes end to end</td></tr>
+        <tr><td>Workload Identity Federation</td><td>Keyless CI-to-GCP auth in every repo — no service-account keys anywhere in the system</td></tr>
+        <tr><td>Cloud Run IAM + Secret Manager</td><td>The subgraph perimeter (router SA only) and every credential (connection strings, signing keys)</td></tr>
+        <tr><td>Cloud Scheduler + mongodb-database-tools</td><td>The weekly import: cron-triggered Cloud Run Job streaming TSVs through <code>mongoimport</code></td></tr>
+        <tr><td>Terraform</td><td>Per-repo infrastructure as code — SAs, WIF providers, Artifact Registry, IAM invoker grants</td></tr>
+        <tr><td>React + Firebase</td><td>imdb-browser's UI and sign-in; Firebase-minted JWTs are one of the identities the router's JWKS verification accepts</td></tr>
+        <tr><td>Claude Code</td><td>Every line of every repo — as vibe-coding sessions, file-ticketed agents, or the full agent team from part one</td></tr>
+        <tr><td>Linear</td><td>The ticketing system at the formal end of the spectrum (this blog itself ships through it)</td></tr>
+        <tr><td>IMDb non-commercial datasets</td><td>The raw material: seven TSV files at <code>datasets.imdbws.com</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <p class="act">The build</p>
+  <h2>Two entities, eight owners of the truth</h2>
+  <p>The federation design fell out of the data. Two things in this world have identity — a title (<code>tconst</code>) and a person (<code>nconst</code>) — so the graph has exactly two entities. Each MongoDB collection became a subgraph that either <em>owns</em> an entity (titles, names) or <em>contributes fields</em> to it (ratings, episodes, crew, akas, principals), and the eighth — the orchestrator — owns search. The load-bearing trick is the <strong>key stub</strong>: when the crew subgraph says “directed by <code>nm0005690</code>,” it returns a <code>Name</code> stub marked <code>resolvable: false</code>, and the router hydrates the person from the names subgraph in a parallel <code>_entities</code> hop. No subgraph ever reads another subgraph's collection.</p>
+  <p>The riskiest assumption was proven first: that a DGS entity fetcher could batch through a DataLoader so N representations collapse into <em>one</em> indexed <code>$in</code> query rather than N+1 lookups against a 100M-row collection. The keystone subgraph shipped with a Mongo <code>CommandListener</code> that counts every command the driver sends — <code>assertThat(counter.count("find")).isEqualTo(1)</code> — and that batching-proof assertion became house style across all 114 tests. With the keystone green, the remaining subgraphs were stamped from the same pattern and went green on the first full run.</p>
+
+  <h3>Search earns its own collections</h3>
+  <p>“Top-rated Sci-Fi from the 70s and 80s” is not a query the source collections can answer: genres are comma-joined strings, ratings live apart from years, and the import pipeline atomically replaces any collection you dare to index. So the orchestrator subgraph owns two <em>derived</em> collections it rebuilds on demand — genres split into real arrays, ratings merged in, and a materialized <code>popularity</code> for people (explode 45M known-for credits, join 1.7M rated titles, sum the vote counts — Bryan Cranston outranks a prolific-but-obscure character actor, exactly as a search box should behave). Facets come in two typed flavors — materialized vocabularies and contextual <code>$facet</code> counts capped at the same 10k budget as totals — because the tempting alternative, a GraphQL field that accepts a raw aggregation pipeline, is an injection surface, an unbounded-cost surface, and a schema-contract vacuum. The API reports what it approximated (<code>titleCandidatesCapped</code>) instead of pretending exactness over 12.6M rows.</p>
+
+  <h3>The router is the only door</h3>
+  <p>Auth splits into two boundaries with two token types, and the subgraphs needed <strong>zero</strong> auth code for either. Client → router: stock Cosmo JWT verification against Google's JWKS — anonymous requests die with 401 before any GraphQL work. Router → subgraphs: Cloud Run IAM. The subgraphs deploy with <code>--no-allow-unauthenticated</code>, and the router's <code>subgraphtoken</code> module mints a Google-signed ID token per subgraph audience; a direct call to any subgraph gets 403 from Google's front end before Spring Boot ever sees it. That perimeter is what makes single-point field enforcement honest.</p>
+
+  <h3>Field-level governance: declare at the edge, decide at the center, enforce at the gate</h3>
+  <p>The governance plane follows one rule — each layer does exactly one job, and no job is done twice:</p>
+  <ul>
+    <li><strong>Subgraphs declare.</strong> A custom DGS directive marks sensitive fields in the schema, next to the code that owns the data: <code>numVotes: Int! @governed(reason: "vote counts are analyst-only")</code>. At startup each subgraph registers its declarations with the policy service. It never evaluates authorization at runtime.</li>
+    <li><strong>The policy service decides.</strong> <code>imdb-policy-service</code> is the system of record: governed fields, role policies, personas, and an append-only audit log in MongoDB. It publishes a versioned policy bundle and mints demo persona JWTs — identity and policy in one coherent system.</li>
+    <li><strong>The router enforces.</strong> The <code>fieldauth</code> Go module polls the bundle (ETag, ~15s, fail-static on outage), resolves every selected field of an operation to a schema coordinate — aliases, fragments, union spreads included — and rejects violations with a <code>PERMISSION_DENIED</code> error naming the exact coordinates.</li>
+    <li><strong>The control-plane UI administers it.</strong> The admin UI is where governance becomes visible: a graph view of every governed field and its live policy, a per-subgraph view of <code>@governed</code> declarations exactly as registered, a playground that mints a persona token and replays a real query, and the audit trail — who changed what, when.</li>
+  </ul>
+  <div class="callout teal">
+    <span class="co">Verified live</span>
+    <p>Against production: an <code>analyst</code> reads <code>Rating.numVotes</code> (2.6M votes for Game of Thrones); <code>public</code> gets <code>PERMISSION_DENIED</code> naming the coordinate; an admin grant flipped the outcome live within one 15-second poll — bundle revision 2 → 3, no deploy — and the revert re-denied. The audit trail records every step.</p>
+  </div>
+</section>
+
+<section>
+  <p class="act">The experiment</p>
+  <h2>Three speeds of formality</h2>
+  <p>The technical goal worth the most was not the federation — it was watching the <em>same developer-agent capability</em> deliver under three different process regimes, and seeing what each one costs and buys.</p>
+  <div class="speeds">
+    <div class="speed">
+      <div class="s-head"><span class="s-num">Speed 1 · Vibe coding</span><span class="s-title">imdb-federation &amp; the router</span><span class="s-repo">fastest</span></div>
+      <p>The federation itself — eight subgraphs, the custom router, two auth boundaries, the whole 211M-document graph — was built by <strong>vibe coding</strong>: conversational sessions with Claude Code, no tickets, no formal acceptance criteria. It was by far the fastest mode; a keystone-first strategy and a house rule that every subgraph proves its batching arithmetic in a test supplied the rigor the process didn't.</p>
+    </div>
+    <div class="speed">
+      <div class="s-head"><span class="s-num">Speed 2 · File-based tickets</span><span class="s-title">imdb-browser</span><span class="s-repo">the optimization</span></div>
+      <p>The browsing UI ran one notch more formal: its implementation was driven by <strong>tickets maintained as files in the <code>imdb-data-pipeline</code> repository</strong> — not in Linear. An optimization: the structure of scoped work items and acceptance criteria, without the ceremony of a ticketing system, a board, or a polling pipeline. Tickets keep an agent honest even when they're just markdown in a sibling repo.</p>
+    </div>
+    <div class="speed">
+      <div class="s-head"><span class="s-num">Speed 3 · The full agentic SDLC</span><span class="s-title">linear-example</span><span class="s-repo">the rigor</span></div>
+      <p>At the formal end sits <a href="/blog/agentic-sdlc/">the first post in this series</a>: a product owner, architect, developer, and tester coordinating through Linear, remote agents claiming tickets from a board, draft-PR gates the platform enforces, and a human whose only actions are two status changes and a merge click.</p>
+    </div>
+  </div>
+  <p><strong>The point of the spectrum is that formality scales to the stakes — and to the author.</strong> Vibe coding was the right speed for an expert-steered infrastructure build where the operator could supply judgment interactively. File tickets were right for a UI with clear scope and a fast feedback loop. And the fully formal end is not bureaucracy for its own sake: when acceptance criteria on a ticket are the specification, and implementation and verification run remotely against that specification, <strong>the person driving delivery no longer has to be an engineer</strong>. That is the trajectory the first post now states explicitly: dial the formality up and the same pipeline lets product owners and designers drive their own application development — engineering rigor supplied by the process, not gated on engineering availability.</p>
+</section>
+
+<section>
+  <p class="act">Where it stands</p>
+  <h2>Live, governed, and one endpoint wide</h2>
+  <p>Eight subgraphs, the router, and the policy service are live on Cloud Run behind two auth boundaries. The full dataset is imported weekly, searchable, faceted, and governed at the field level from a control-plane UI. The browsing experience consumes one endpoint and one contract: entity queries, filtered searches with live facet counts, a unified search box, and popularity-ranked everything.</p>
+  <p>Both posts in this series are built and shipped the same way their subjects were — this one arrived as a Linear ticket with acceptance criteria, implemented and verified by agents. <a href="/blog/agentic-sdlc/">Read part one</a> for how that pipeline works, including what every feature cost to the cent.</p>
+</section>
+
+<p class="byline" style="margin-top:3rem"><a href="/blog">&larr; All posts</a> · <a href="/">Back to the app</a> · <a href="https://github.com/dperez4787">github.com/dperez4787</a></p>
+</div>
+</body>
+</html>
