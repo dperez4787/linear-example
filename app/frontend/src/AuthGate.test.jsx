@@ -46,7 +46,7 @@ describe('DAN-26 · AuthGate links to the /blog case study', () => {
         screen.getByRole('button', { name: /sign in with google/i }),
       ).toBeInTheDocument(),
     )
-    const link = screen.getByRole('link', { name: /case study/i })
+    const link = screen.getByRole('link', { name: /danny's blog/i })
     expect(link).toHaveAttribute('href', '/blog')
   })
 
@@ -58,7 +58,7 @@ describe('DAN-26 · AuthGate links to the /blog case study', () => {
     await waitFor(() =>
       expect(screen.getByText('records ui')).toBeInTheDocument(),
     )
-    const link = screen.getByRole('link', { name: /case study/i })
+    const link = screen.getByRole('link', { name: /danny's blog/i })
     expect(link).toHaveAttribute('href', '/blog')
   })
 })

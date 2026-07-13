@@ -60,7 +60,7 @@ describe('DAN-32 tester · signed-in header landmark holds all four items', () =
     expect(inBanner.getByText('linear-example')).toBeInTheDocument()
     expect(inBanner.getByText('Ada Lovelace')).toBeInTheDocument()
 
-    const link = inBanner.getByRole('link', { name: /case study/i })
+    const link = inBanner.getByRole('link', { name: /danny's blog/i })
     expect(link).toHaveAttribute('href', '/blog')
     // The case-study link is a real anchor (an interactive hook the a:focus-visible
     // rule selects), not a button styled as a link.
@@ -94,7 +94,7 @@ describe('DAN-32 tester · signed-out view uses the same shell landmarks', () =>
     // Signed-out is NOT a bare page: it carries the same banner landmark as the
     // signed-in view, holding the case-study link.
     const banner = screen.getByRole('banner')
-    expect(within(banner).getByRole('link', { name: /case study/i })).toHaveAttribute(
+    expect(within(banner).getByRole('link', { name: /danny's blog/i })).toHaveAttribute(
       'href',
       '/blog',
     )
