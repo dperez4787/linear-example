@@ -123,11 +123,15 @@
 
   /* accordions */
   details.acc { border: 1px solid var(--line); border-radius: 10px; margin: 0.9rem 0; overflow: hidden; }
-  details.acc summary { cursor: pointer; list-style: none; padding: 0.85rem 1.15rem; font-family: var(--sans); font-weight: 650; font-size: 0.95rem; display: flex; align-items: baseline; gap: 0.6rem; }
+  details.acc summary { cursor: pointer; list-style: none; padding: 0.85rem 1.15rem; font-family: var(--sans); font-weight: 650; font-size: 0.95rem; display: flex; align-items: baseline; gap: 0.6rem; background: var(--chip-bg); }
+  details.acc summary:hover, details.acc summary:focus-visible { background: var(--code-bg); }
   details.acc summary::-webkit-details-marker { display: none; }
   details.acc summary::before { content: "\25B8"; color: var(--accent-ink); flex: none; transition: transform 120ms ease; }
   details.acc[open] summary::before { transform: rotate(90deg); }
   details.acc summary .s-sub { font-weight: 400; color: var(--ink-2); font-size: 0.82rem; }
+  details.acc summary::after { content: "expand +"; margin-left: auto; flex: none; font-family: var(--mono); font-size: 0.68rem; font-weight: 650; letter-spacing: 0.04em; color: var(--accent-ink); border: 1px solid var(--accent); border-radius: 20px; padding: 0.1rem 0.6rem; white-space: nowrap; }
+  details.acc[open] summary::after { content: "collapse \2212"; color: var(--ink-2); border-color: var(--line); }
+  details.acc[open] summary { border-bottom: 1px solid var(--line); margin-bottom: 0.6rem; }
   details.acc .acc-body { padding: 0 1.15rem 1.1rem; }
   details.acc .acc-body p { font-size: 0.98rem; }
   figure.shot { margin: 1rem 0; }
@@ -194,7 +198,7 @@
   <h2>Marquee: the browsing experience the graph was shaped for</h2>
   <p><a href="https://github.com/dperez4787/imdb-browser">Marquee</a> is the face of the system — a React SPA on Firebase Hosting at <a href="https://dfp-imdb-browser.web.app">dfp-imdb-browser.web.app</a>, Google-sign-in gated, that consumes <em>only</em> the federated endpoint. No REST side doors, no direct database reads: every poster grid, facet count, and cast list is a GraphQL operation against the router, authenticated with the signed-in user's own Firebase ID token. It was built by a five-agent team (a product owner, a UI/UX designer, an architect, a developer, and a tester) working from <a href="https://github.com/dperez4787/imdb-browser/tree/main/tickets">markdown tickets checked into the repo itself</a> — more on that in the formality section below.</p>
 
-  <details class="acc" open>
+  <details class="acc">
     <summary>Browse &amp; search — popularity-ranked, faceted, poster-rich <span class="s-sub">· the snappy part</span></summary>
     <div class="acc-body">
       <p>The home screen is one search box with keystroke-speed autocomplete across titles and people. “Browse all titles” opens the faceted view: genre, type, year, rating, and people filters with <strong>live counts</strong> that narrow as you stack them (“Drama · 5,646”), default-sorted by the materialized popularity score, every result carrying poster art. Counts over 10,000 are honestly capped (“10,000+ titles”), and the header states when the search index was last rebuilt — a freshness signal the orchestrator exposes as <code>searchInfo.rebuiltAt</code>.</p>
@@ -350,11 +354,11 @@
   <p>Field-level governance follows one rule — each layer does exactly one job, and no job is done twice:</p>
   <ul>
     <li><strong>Subgraphs declare.</strong> A custom DGS directive marks sensitive fields in the schema, next to the code that owns the data: <code>numVotes: Int! @governed(reason: "vote counts are analyst-only")</code>. At startup each subgraph registers its declarations with the policy service. It never evaluates authorization at runtime.</li>
-    <li><strong>The policy service decides.</strong> <a href="https://github.com/dperez4787/imdb-policy-service"><code>imdb-policy-service</code></a> (repo currently private) is the system of record — a Spring Boot + MongoDB service holding governed fields, role policies, personas, and an append-only audit log in its own <code>imdb_governance</code> database. It publishes a versioned, ETag-cached policy bundle, maps signed-in Google identities to personas, mints playground tokens, and serves the control-plane UI you see below from the same Cloud Run service. Like the federation itself, it was <strong>vibe-coded</strong> — the governance plane took shape in conversational sessions, not tickets.</li>
+    <li><strong>The policy service decides.</strong> <a href="https://github.com/dperez4787/imdb-policy-service"><code>imdb-policy-service</code></a> is the system of record — a Spring Boot + MongoDB service holding governed fields, role policies, personas, and an append-only audit log in its own <code>imdb_governance</code> database. It publishes a versioned, ETag-cached policy bundle, maps signed-in Google identities to personas, mints playground tokens, and serves the control-plane UI you see below from the same Cloud Run service. Like the federation itself, it was <strong>vibe-coded</strong> — the governance plane took shape in conversational sessions, not tickets.</li>
     <li><strong>The router enforces.</strong> The <code>fieldauth</code> Go module polls the bundle (~15 seconds, fail-static on outage), resolves every selected field of an operation to a schema coordinate — aliases, fragments, union spreads included — and <strong>withholds the coordinates the caller's roles can't read</strong>, annotating the response with <code>extensions.governance</code>: the redacted field list, the deciding bundle revision, and the caller's roles. That annotation is what lets Marquee render truthful lock chips and Concierge explain a denial instead of hallucinating around it.</li>
   </ul>
 
-  <details class="acc" open>
+  <details class="acc">
     <summary>The control plane, read-only <span class="s-sub">· what anyone can see</span></summary>
     <div class="acc-body">
       <p>The UI's read views come straight from the public bundle: every governed coordinate with its allowed roles, each subgraph's <code>@governed</code> declarations exactly as registered at startup, and the <em>live</em> federated schema introspected from the router at runtime — governed fields highlighted, everything else open by posture (<em>allow-unless-governed</em>; a governed field with no roles denies everyone). Admin operations sit behind a token.</p>
@@ -402,7 +406,7 @@
         <tr><td><a href="https://github.com/dperez4787/imdb-browser">imdb-browser</a></td><td><span class="pill semi">semi-formal</span></td><td>18 markdown tickets checked into the repo's own <code>tickets/</code> directory; five agents (product-owner, ui-ux-designer, architect, developer, tester); one PR per ticket</td></tr>
         <tr><td><a href="https://github.com/dperez4787/imdb-federation">imdb-federation</a></td><td><span class="pill vibe">vibe-coded</span></td><td>Conversational sessions; keystone-first strategy; rigor supplied by the batching-proof test convention, not process</td></tr>
         <tr><td><a href="https://github.com/dperez4787/cosmo-router">cosmo-router</a></td><td><span class="pill vibe">vibe-coded</span></td><td>Conversational sessions; custom Go modules de-risked by a spike, verified by smoke tests against the live deploy</td></tr>
-        <tr><td><a href="https://github.com/dperez4787/imdb-policy-service">imdb-policy-service</a></td><td><span class="pill vibe">vibe-coded</span></td><td>Conversational sessions from a written plan; 15 integration tests before first deploy; repo currently private</td></tr>
+        <tr><td><a href="https://github.com/dperez4787/imdb-policy-service">imdb-policy-service</a></td><td><span class="pill vibe">vibe-coded</span></td><td>Conversational sessions from a written plan; 15 integration tests before first deploy</td></tr>
         <tr><td><a href="https://github.com/dperez4787/imdb-data-pipeline">imdb-data-pipeline</a></td><td><span class="pill vibe">vibe-coded</span></td><td>Conversational sessions; correctness carried by unit tests and the staging-rename design rather than tickets</td></tr>
       </tbody>
     </table>
@@ -458,7 +462,7 @@
 <section>
   <p class="act">Where it stands</p>
   <h2>Live, governed, and one endpoint wide</h2>
-  <p>Eight subgraphs, the router, the policy service, the chat backend, and Marquee are live on Cloud Run and Firebase Hosting behind two auth boundaries. The full dataset is imported weekly, searchable, faceted, poster-rich, and governed at the field level from a control plane whose every decision is audited. The chatbot answers from the same graph with the same permissions as the person asking.</p>
+  <p>Eight subgraphs, the router, the policy service, the chat backend, and <a href="https://dfp-imdb-browser.web.app">Marquee</a> are live on Cloud Run and Firebase Hosting behind two auth boundaries. The full dataset is imported weekly, searchable, faceted, poster-rich, and governed at the field level from a control plane whose every decision is audited. The chatbot answers from the same graph with the same permissions as the person asking. Try it yourself: Marquee is open to anyone with a Google account at <a href="https://dfp-imdb-browser.web.app">dfp-imdb-browser.web.app</a>.</p>
   <p>Both posts in this series are built and shipped the same way their subjects were — this one arrived through the pipeline described in <a href="/blog/agentic-sdlc/">part one</a>, which also records what every feature cost to the cent.</p>
 </section>
 
