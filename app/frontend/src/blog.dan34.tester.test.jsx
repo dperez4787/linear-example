@@ -8,9 +8,12 @@ import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 
-// The canonical asset sha256 pinned by the ticket (imdb-federation-post-v1.html).
+// The canonical sha256 of the published part-2 document. Originally the ticket
+// attachment (imdb-federation-post-v1.html); re-pinned by the blog deep-dive
+// revision (v2: Marquee/Concierge/governance screenshots, component diagram,
+// data deep-dive, ticket catalog, honest ledger).
 const CANONICAL_SHA256 =
-  '47e47319bd7b4545f69033251fc1e8f238c9e040c8238a275950774e556b2d66'
+  '7188fd3baa09643bde42aec2841d3fc82504074a43893159d9c6f20fa9484c0d'
 
 const postPath = resolve(process.cwd(), 'public/blog/imdb-federation/index.html')
 const postBytes = readFileSync(postPath) // Buffer — byte-exact, no encoding coercion
@@ -27,8 +30,8 @@ describe('DAN-34 · C1 verbatim byte-for-byte drop of the canonical asset', () =
     expect(sha).toBe(CANONICAL_SHA256)
   })
 
-  it('is exactly 26604 bytes, as delivered', () => {
-    expect(postBytes.length).toBe(26604)
+  it('is exactly 1216983 bytes, as delivered', () => {
+    expect(postBytes.length).toBe(1216983)
   })
 })
 
@@ -48,10 +51,15 @@ describe('DAN-34 · C2 it is the part-2 document', () => {
 })
 
 describe('DAN-34 · C3 self-contained — inline CSS, no external assets', () => {
-  it('references no external scripts/styles/images/fonts (github.com / linear.app content links are fine)', () => {
+  it('references no external scripts/styles/images/fonts (content links to github.com, linear.app, and the live estate are fine)', () => {
     const external = [...post.matchAll(/\b(?:src|href)="(https?:\/\/[^"]+)"/g)]
       .map((m) => m[1])
-      .filter((u) => !/^https?:\/\/(github\.com|linear\.app)/.test(u))
+      .filter(
+        (u) =>
+          !/^https?:\/\/(github\.com|linear\.app|dfp-imdb-browser\.web\.app|imdb-policy-service-dkuqnmldta-uc\.a\.run\.app)/.test(
+            u,
+          ),
+      )
     expect(external).toEqual([])
   })
 })
