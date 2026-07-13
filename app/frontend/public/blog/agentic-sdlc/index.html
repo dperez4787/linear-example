@@ -109,6 +109,10 @@
 
   .backlink { display: inline-block; margin: 0 0 1.6rem; font-family: var(--sans); font-size: 0.85rem; color: var(--accent-ink); text-decoration: none; }
   .backlink:hover { text-decoration: underline; }
+  .delivs { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; font-family: var(--sans); font-size: 0.8rem; margin-bottom: 1.4rem; }
+  .delivs .d-label { color: var(--ink-2); font-weight: 600; }
+  .delivs a.d-pill { border: 1px solid var(--accent); color: var(--accent-ink); border-radius: 20px; padding: 0.25rem 0.8rem; text-decoration: none; font-weight: 650; }
+  .delivs a.d-pill:hover, .delivs a.d-pill:focus-visible { background: var(--chip-bg); }
 
   figure.shot img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 8px; }
 
@@ -136,7 +140,13 @@
 </style>
 
 <div class="wrap">
-<a class="backlink" href="/">&larr; Back to the app</a>
+<nav class="delivs" aria-label="Live deliverables">
+  <a class="backlink" href="/blog" style="margin:0">&larr; All posts</a>
+  <span class="d-label">Live:</span>
+  <a class="d-pill" href="/">Records app</a>
+  <a class="d-pill" href="https://dfp-imdb-browser.web.app/titles">Marquee · IMDb browser</a>
+  <a class="d-pill" href="https://imdb-policy-service-dkuqnmldta-uc.a.run.app/">Governance control plane</a>
+</nav>
 <header class="masthead">
   <p class="kicker">Case study · Agentic software delivery</p>
   <h1>An agentic SDLC, end to end: local planning, remote execution</h1>

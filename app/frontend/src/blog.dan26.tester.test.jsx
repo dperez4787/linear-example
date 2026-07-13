@@ -74,7 +74,7 @@ describe('DAN-26 · SPA links to /blog in both auth states', () => {
         screen.getByRole('button', { name: /sign in with google/i }),
       ).toBeInTheDocument(),
     )
-    expect(screen.getByRole('link', { name: /case study/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /danny's blog/i })).toHaveAttribute(
       'href',
       '/blog',
     )
@@ -84,7 +84,7 @@ describe('DAN-26 · SPA links to /blog in both auth states', () => {
     authMock.user = { displayName: 'Ada Lovelace', email: 'ada@example.com' }
     renderGate()
     await waitFor(() => expect(screen.getByText('records ui')).toBeInTheDocument())
-    expect(screen.getByRole('link', { name: /case study/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /danny's blog/i })).toHaveAttribute(
       'href',
       '/blog',
     )

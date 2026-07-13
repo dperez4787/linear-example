@@ -37,7 +37,7 @@ export default function AuthGate({ children }) {
             <span className="app-title">linear-example</span>
             <div className="app-header__actions">
               <a className="app-link" href="/blog">
-                Read the case study
+                Go To Danny's Blog
               </a>
             </div>
           </div>
@@ -68,7 +68,7 @@ export default function AuthGate({ children }) {
               {user.displayName ?? user.email ?? 'Signed in'}
             </span>
             <a className="app-link" href="/blog">
-              Read the case study
+              Go To Danny's Blog
             </a>
             <button className="btn" type="button" onClick={() => signOut()}>
               Sign out

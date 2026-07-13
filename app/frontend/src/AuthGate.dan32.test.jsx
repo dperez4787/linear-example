@@ -57,7 +57,7 @@ describe('DAN-32 · signed-in header landmark', () => {
     // Signed-in user's display name.
     expect(inBanner.getByText('Grace Hopper')).toBeInTheDocument()
     // Case-study link.
-    expect(inBanner.getByRole('link', { name: /case study/i })).toHaveAttribute(
+    expect(inBanner.getByRole('link', { name: /danny's blog/i })).toHaveAttribute(
       'href',
       '/blog',
     )
@@ -79,7 +79,7 @@ describe('DAN-32 · signed-out landmark structure', () => {
 
     // Same banner landmark as the signed-in view, carrying the case-study link.
     const banner = screen.getByRole('banner')
-    expect(within(banner).getByRole('link', { name: /case study/i })).toHaveAttribute(
+    expect(within(banner).getByRole('link', { name: /danny's blog/i })).toHaveAttribute(
       'href',
       '/blog',
     )

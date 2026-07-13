@@ -51,6 +51,10 @@
   .wrap { max-width: 46rem; margin: 0 auto; padding: 4rem 1.25rem 6rem; }
   .backlink { font-family: var(--sans); font-size: 0.85rem; color: var(--accent-ink); text-decoration: none; }
   .backlink:hover { text-decoration: underline; }
+  .delivs { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; font-family: var(--sans); font-size: 0.8rem; margin-bottom: 0.5rem; }
+  .delivs .d-label { color: var(--ink-2); font-weight: 600; }
+  .delivs a.d-pill { border: 1px solid var(--accent); color: var(--accent-ink); border-radius: 20px; padding: 0.25rem 0.8rem; text-decoration: none; font-weight: 650; }
+  .delivs a.d-pill:hover, .delivs a.d-pill:focus-visible { background: var(--chip-bg); }
   header.masthead { margin: 1.5rem 0 3rem; }
   .kicker { font-family: var(--sans); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-ink); margin: 0 0 1rem; }
   h1 { font-family: var(--sans); font-size: clamp(1.8rem, 5vw, 2.5rem); font-weight: 750; letter-spacing: -0.02em; line-height: 1.12; margin: 0 0 1rem; text-wrap: balance; }
@@ -166,6 +170,12 @@
 </style>
 <div class="wrap">
 <a class="backlink" href="/blog">&larr; All posts</a>
+<nav class="delivs" style="margin-top:0.8rem" aria-label="Live deliverables">
+  <span class="d-label">Live:</span>
+  <a class="d-pill" href="/">Records app</a>
+  <a class="d-pill" href="https://dfp-imdb-browser.web.app/titles">Marquee · IMDb browser</a>
+  <a class="d-pill" href="https://imdb-policy-service-dkuqnmldta-uc.a.run.app/">Governance control plane</a>
+</nav>
 <header class="masthead">
   <p class="kicker">Case study · Agentic software delivery · Part 2</p>
   <h1>Federating IMDb: an agentic build at three speeds</h1>
@@ -473,7 +483,7 @@
   <p>Both posts in this series are built and shipped the same way their subjects were — this one arrived through the pipeline described in <a href="/blog/agentic-sdlc/">part one</a>, which also records what every feature cost to the cent.</p>
 </section>
 
-<p class="byline" style="margin-top:3rem"><a href="/blog">&larr; All posts</a> · <a href="/">Back to the app</a> · <a href="https://github.com/dperez4787">github.com/dperez4787</a></p>
+<p class="byline" style="margin-top:3rem"><a href="/blog">&larr; All posts</a> · <a href="/">Records app</a> · <a href="https://dfp-imdb-browser.web.app/titles">Marquee</a> · <a href="https://imdb-policy-service-dkuqnmldta-uc.a.run.app/">Governance control plane</a> · <a href="https://github.com/dperez4787">github.com/dperez4787</a></p>
 </div>
 </body>
 </html>

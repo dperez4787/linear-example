@@ -10,9 +10,10 @@ GitHub Actions.
 
 - **Live app:** https://project-d60a83c1-2c60-4d51-ad0.web.app/
 - **Blog (the case study of the build):** https://project-d60a83c1-2c60-4d51-ad0.web.app/blog
+- **Marquee — the IMDb browser (built on the same agentic estate):** https://dfp-imdb-browser.web.app/titles
+- **IMDb Graph Governance — field-level policy control plane:** https://imdb-policy-service-dkuqnmldta-uc.a.run.app/
 
-The blog is the write-up of how this repo was built; once the blog index ships it is the
-index of every post.
+The blog is the write-up of how this repo was built, and /blog is the index of every post.
 
 ## What it is
 
