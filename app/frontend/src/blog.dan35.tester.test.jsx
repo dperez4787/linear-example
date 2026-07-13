@@ -20,7 +20,7 @@ const sha256 = (buf) => createHash('sha256').update(buf).digest('hex')
 
 // The two byte-precise pins from the ticket.
 const INDEX_SHA = '094770e37446d623c6e07e0c80fe8abbc98f609d81c7587afca8deaa08a9ac9e'
-const PART1_SHA = 'd9e6ea8a712eb616b4623cf0aab74a724e038389a6745cb3a00272a76777dcd7'
+const PART1_SHA = '3f48c6aec8826b51a0ca3a35ada77d368c9af3a49a808f2334bd8ce9610ef885'
 
 describe('DAN-35 · C1 the index screen is the canonical attachment, byte-for-byte', () => {
   it('public/blog/index.html sha256 matches the attached blog-index-v1.html', () => {

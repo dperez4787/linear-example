@@ -59,8 +59,14 @@
   .byline a { color: var(--accent-ink); }
 
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin: 0 0 1rem; }
-  .stat { background: var(--paper); padding: 0.85rem 1rem; }
+  .stat { background: var(--paper); padding: 0.85rem 1rem; border-top: 3px solid var(--accent); }
   .stat b { display: block; font-family: var(--sans); font-size: 1.35rem; font-weight: 750; letter-spacing: -0.01em; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+  .stat:nth-child(2) { border-top-color: var(--teal); }
+  .stat:nth-child(2) b { color: var(--teal); }
+  .stat:nth-child(3) { border-top-color: var(--human); }
+  .stat:nth-child(3) b { color: var(--human); }
+  .stat:nth-child(4) { border-top-color: var(--done); }
+  .stat:nth-child(4) b { color: var(--done); }
   .stat span { font-family: var(--sans); font-size: 0.74rem; color: var(--ink-2); letter-spacing: 0.02em; }
 
   .act { display: flex; align-items: baseline; gap: 0.75rem; margin: 3rem 0 0.4rem; font-family: var(--sans); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-ink); }
@@ -74,12 +80,13 @@
   li::marker { color: var(--accent); }
   a { color: var(--accent-ink); }
   strong { font-weight: 650; }
-  code { font-family: var(--mono); font-size: 0.82em; background: var(--code-bg); border-radius: 4px; padding: 0.1em 0.35em; }
+  code { font-family: var(--mono); font-size: 0.82em; background: var(--chip-bg); color: var(--accent-ink); border-radius: 4px; padding: 0.08em 0.32em; }
   pre { background: var(--code-bg); border-radius: 8px; padding: 0.9rem 1.1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.78rem; line-height: 1.5; margin: 0.8rem 0 1.1rem; }
-  pre code { background: none; padding: 0; font-size: inherit; }
+  pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
 
-  .goals { border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.35rem; margin-bottom: 1rem; }
-  .goals h3 { margin-top: 0.4rem; }
+  .goals { border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 10px; padding: 1.1rem 1.35rem; margin-bottom: 1rem; }
+  .goals h3 { margin-top: 0.4rem; font-size: 0.74rem; font-weight: 650; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-ink); }
+  .goals h3:nth-of-type(2) { color: var(--teal); }
   .goals ol { margin-bottom: 0.5rem; }
 
   .tablewrap { overflow-x: auto; margin: 0.9rem 0 1.2rem; }
@@ -162,7 +169,7 @@
 <header class="masthead">
   <p class="kicker">Case study · Agentic software delivery · Part 2</p>
   <h1>Federating IMDb: an agentic build at three speeds</h1>
-  <p class="dek">211 million documents behind one federated GraphQL endpoint; a poster-rich browsing UI whose chatbot inherits exactly your permissions; and enterprise-grade field-level governance run from its own control plane — built by AI agents working at three deliberately different levels of formality, from vibe coding to the full ticket-driven SDLC of <a href="/blog/agentic-sdlc/">part one</a>.</p>
+  <p class="dek">211 million IMDb records served through one federated GraphQL endpoint. On top of it: a poster-rich browser, a chatbot that inherits your exact permissions, and field-level governance you can administer live. AI agents built all of it, at three very different levels of formality, from vibe coding to the full ticket-driven SDLC of <a href="/blog/agentic-sdlc/">part one</a>.</p>
   <p class="byline">Daniel Perez · July 2026 · <a href="https://github.com/dperez4787">github.com/dperez4787</a></p>
 </header>
 
@@ -178,16 +185,16 @@
   <div class="goals">
     <h3>Functional</h3>
     <ol>
-      <li><strong>An extremely snappy, rich IMDb data experience</strong> — every public IMDb dataset available through one UI: titles, people, ratings, episodes, crews, regional titles, and the 100-million-row principals collection.</li>
-      <li><strong>Sort by popularity, everywhere</strong> — titles rank by vote counts for free; people needed a materialized popularity score computed from the work they're known for.</li>
-      <li><strong>Search facets</strong> — vocabulary dropdowns (every genre, every credit category) and live counts that narrow with the filter: “Drama (5,646)”.</li>
-      <li><strong>Images for titles</strong> — poster art in the browsing experience, not just rows of text.</li>
-      <li><strong>Enterprise-grade, field-level governance and security</strong> — individual fields like <code>Rating.numVotes</code> or <code>Name.birthYear</code> grantable per role, administered from a control-plane UI, enforced live with no redeploys.</li>
+      <li><strong>An extremely snappy, rich IMDb data experience.</strong> Every public IMDb dataset is available through one UI: titles, people, ratings, episodes, crews, regional titles, and the 100-million-row principals collection.</li>
+      <li><strong>Sort by popularity, everywhere.</strong> Titles get this for free from vote counts. Performers and crew have no native ranking signal, so the build materializes one: a popularity score derived from each person's best-known work.</li>
+      <li><strong>Search facets.</strong> Vocabulary dropdowns for every genre and credit category, plus live counts that narrow with the filter: “Drama (5,646)”.</li>
+      <li><strong>Images for titles.</strong> Poster art in the browsing experience, not just rows of text.</li>
+      <li><strong>Enterprise-grade, field-level governance and security.</strong> Individual fields like <code>Rating.numVotes</code> or <code>Name.birthYear</code> are grantable per role, administered from a control-plane UI, and enforced live with no redeploys.</li>
     </ol>
     <h3>Technical</h3>
     <ol>
-      <li><strong>Use AI to build the application — at varying degrees of formality.</strong> One system, three delivery styles: full ticket-driven rigor, lightweight file-based tickets, and pure vibe coding. Measure what each buys.</li>
-      <li><strong>A proof-of-concept of open-source GraphQL federation</strong> — WunderGraph Cosmo composing eight Netflix DGS subgraphs, with custom Go router modules instead of a commercial control plane.</li>
+      <li><strong>Use AI to build the application, at varying degrees of formality.</strong> One system, three delivery styles: full ticket-driven rigor, lightweight file-based tickets, and pure vibe coding. Measure what each buys.</li>
+      <li><strong>Prove open-source GraphQL federation.</strong> WunderGraph Cosmo composes eight Netflix DGS subgraphs, with custom Go router modules instead of a commercial control plane.</li>
     </ol>
   </div>
 </section>
@@ -196,7 +203,7 @@
 <section>
   <p class="act">The product</p>
   <h2>Marquee: the browsing experience the graph was shaped for</h2>
-  <p><a href="https://github.com/dperez4787/imdb-browser">Marquee</a> is the face of the system — a React SPA on Firebase Hosting at <a href="https://dfp-imdb-browser.web.app">dfp-imdb-browser.web.app</a>, Google-sign-in gated, that consumes <em>only</em> the federated endpoint. No REST side doors, no direct database reads: every poster grid, facet count, and cast list is a GraphQL operation against the router, authenticated with the signed-in user's own Firebase ID token. It was built by a five-agent team (a product owner, a UI/UX designer, an architect, a developer, and a tester) working from <a href="https://github.com/dperez4787/imdb-browser/tree/main/tickets">markdown tickets checked into the repo itself</a> — more on that in the formality section below.</p>
+  <p><a href="https://github.com/dperez4787/imdb-browser">Marquee</a> is the face of the system: a React SPA on Firebase Hosting at <a href="https://dfp-imdb-browser.web.app">dfp-imdb-browser.web.app</a>, gated by Google sign-in, that consumes <em>only</em> the federated endpoint. No REST side doors, no direct database reads. Every poster grid, facet count, and cast list is a GraphQL operation against the router, authenticated with the signed-in user's own Firebase ID token. A five-agent team built it (product owner, UI/UX designer, architect, developer, tester), working from <a href="https://github.com/dperez4787/imdb-browser/tree/main/tickets">markdown tickets checked into the repo itself</a>; the formality section below tells that story.</p>
 
   <details class="acc">
     <summary>Browse &amp; search — popularity-ranked, faceted, poster-rich <span class="s-sub">· the snappy part</span></summary>
