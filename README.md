@@ -1,19 +1,25 @@
 # linear-example
 
+**▶ Live app: [project-d60a83c1-2c60-4d51-ad0.web.app](https://project-d60a83c1-2c60-4d51-ad0.web.app/)** —
+the records app this repo builds and deploys. (Google sign-in required.)
+
+**📖 The blog: [project-d60a83c1-2c60-4d51-ad0.web.app/blog](https://project-d60a83c1-2c60-4d51-ad0.web.app/blog)** —
+the case study of how it was built, written and shipped by the same agent pipeline that
+built the app.
+
 A table-CRUD reference app built **end-to-end by a team of Claude Code agents** — a
 product-owner, an architect, a developer, and a tester — each driven from Linear tickets.
 The point of the project is less the CRUD app and more the *story of how it was built*:
 tickets in, working software out, with implementation and testing runnable remotely on
 GitHub Actions.
 
-## Links
+## Live UIs across the estate
 
-- **Live app:** https://project-d60a83c1-2c60-4d51-ad0.web.app/
-- **Blog (the case study of the build):** https://project-d60a83c1-2c60-4d51-ad0.web.app/blog
-- **Marquee — the IMDb browser (built on the same agentic estate):** https://dfp-imdb-browser.web.app/titles
-- **IMDb Graph Governance — field-level policy control plane:** https://imdb-policy-service-dkuqnmldta-uc.a.run.app/
-
-The blog is the write-up of how this repo was built, and /blog is the index of every post.
+| Surface | URL |
+|---|---|
+| **This repo's records app + blog** | https://project-d60a83c1-2c60-4d51-ad0.web.app/ · [blog](https://project-d60a83c1-2c60-4d51-ad0.web.app/blog) |
+| **Marquee** — the IMDb browser, built on the same agentic estate | https://dfp-imdb-browser.web.app/titles |
+| **IMDb Graph Governance** — field-level policy control plane | https://imdb-policy-service-dkuqnmldta-uc.a.run.app/ |
 
 ## What it is
 
