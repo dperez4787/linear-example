@@ -113,8 +113,8 @@
   figure.shot img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 8px; }
 
   @keyframes stepglow {
-    0%, 11%, 100% { border-color: var(--line); background: var(--code-bg); }
-    3%, 8% { border-color: var(--accent); background: var(--chip-bg); }
+    0%, 11%, 100% { box-shadow: 0 0 0 0 transparent; }
+    3%, 8% { box-shadow: 0 0 0 3px var(--chip-bg), 0 0 0 5px var(--accent); }
   }
   .flow.animated .box { animation: stepglow 16s infinite; }
   .flow.animated > div:nth-of-type(1)  { animation-delay: 0s; }
