@@ -29,7 +29,7 @@ const blog = blogBytes.toString('utf8')
 // Re-pinned again (v5): one empowerment paragraph added to "Initial goals" — the
 // product-owner/designer aim stated explicitly. All v4 invariants survive.
 const CANONICAL_SHA256 =
-  'd9e6ea8a712eb616b4623cf0aab74a724e038389a6745cb3a00272a76777dcd7'
+  '3f48c6aec8826b51a0ca3a35ada77d368c9af3a49a808f2334bd8ce9610ef885'
 
 describe('DAN-29 · /blog is the canonical v4 document', () => {
   it('is byte-identical to the pinned v4 asset (sha256)', () => {
