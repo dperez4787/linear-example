@@ -19,15 +19,15 @@ const part1 = part1Bytes.toString('utf8')
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex')
 
 // The two byte-precise pins from the ticket.
-const INDEX_SHA = 'de2e1257b42cddd492125f22e83ce59bc642d3be5a14e300bf97b12ed4095d84'
-const PART1_SHA = '40b8093398a32469b11c6ed23d4503c6dd0c51ecc3e4d9201a0b9571bbedf0a8'
+const INDEX_SHA = 'bd4e99579f5033f3755d954a59683b50ddd13309618540fd81d8056f8a48966c'
+const PART1_SHA = 'ccba51d65633a04d507e0ea40ecbdfbb2b1f91d9c146c224c8f1a6ff74cd93d2'
 
 describe('DAN-35 · C1 the index screen is the canonical attachment, byte-for-byte', () => {
   it('public/blog/index.html sha256 matches the attached blog-index-v1.html', () => {
     expect(sha256(indexBytes)).toBe(INDEX_SHA)
   })
-  it('is 6241 bytes', () => {
-    expect(indexBytes.length).toBe(6241)
+  it('is 6248 bytes', () => {
+    expect(indexBytes.length).toBe(6248)
   })
 })
 

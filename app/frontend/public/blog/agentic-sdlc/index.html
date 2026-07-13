@@ -373,6 +373,7 @@
   <h2>What each remote delivery cost</h2>
 
   <p>Every remote run logs its metered API cost. The figures below are taken directly from the workflow logs (<code>total_cost_usd</code> in each run's output) — and they reconcile with the Anthropic Console at every checkpoint: <strong>$6.20</strong> after the first feature, <strong>$9.67</strong> after the second, <strong>$16.10</strong> after all four — each reading matching the log-derived total to the cent. Runner minutes are free on a public repository; the only marginal cost of a feature is the model.</p>
+  <p><strong>What these dollars are — and are not.</strong> Every figure below is the API-token consumption of <em>remote</em> runs: GitHub Actions jobs billing against <code>ANTHROPIC_API_KEY</code>. The local half of the workflow — the product owner writing tickets, the architect recording designs, and the bootstrap and scaffolding sessions that built this repository in the first place — ran as interactive Claude Code sessions under a subscription: no per-token metering, no marginal dollars. The meter starts only when a ticket leaves for the runners.</p>
 
   <figure>
     <div class="tablewrap">
@@ -383,12 +384,21 @@
         <tr><td class="mono"><a href="/blog/tickets/#DAN-26">DAN-26</a></td><td>Serve this blog post at /blog (<a href="https://github.com/dperez4787/linear-example/pull/27">PR #27</a>)</td><td class="num">$2.21</td><td class="num">$1.26</td><td class="num">$3.47</td><td class="num">6m 14s + 5m 28s</td></tr>
         <tr><td class="mono"><a href="/blog/tickets/#DAN-27">DAN-27</a></td><td>Blog revision — loop-closing update, cost appendix, screenshots (<a href="https://github.com/dperez4787/linear-example/pull/29">PR #29</a>)</td><td class="num">$1.59</td><td class="num">$1.29</td><td class="num">$2.88</td><td class="num">4m 46s + 5m 22s</td></tr>
         <tr><td class="mono"><a href="/blog/tickets/#DAN-28">DAN-28</a></td><td>Records table v2 — sorting, filtering, polished states (<a href="https://github.com/dperez4787/linear-example/pull/30">PR #30</a>)</td><td class="num">$1.93</td><td class="num">$1.62</td><td class="num">$3.55</td><td class="num">6m 1s + 11m 13s</td></tr>
-        <tr><td class="mono"><a href="/blog/tickets/#DAN-29">DAN-29</a></td><td>This revision — the completed table you are reading</td><td class="num" colspan="3">open by construction — see note below</td><td class="num">—</td></tr>
-        <tr class="total"><td></td><td>Total, four shipped remote features</td><td class="num">$10.49</td><td class="num">$5.61</td><td class="num">$16.10</td><td class="num">~55 min</td></tr>
+        <tr class="total"><td></td><td>Subtotal — launch evening’s four features</td><td class="num">$10.49</td><td class="num">$5.61</td><td class="num">$16.10</td><td class="num">~55 min</td></tr>
+        <tr><td class="mono"><a href="/blog/tickets/#DAN-29">DAN-29</a></td><td>Blog v4 — this cost appendix as first published (<a href="https://github.com/dperez4787/linear-example/pull/31">PR #31</a>)</td><td class="num">$3.81 <span class="dim">(two runs)</span></td><td class="num">$2.84 <span class="dim">(two runs)</span></td><td class="num">$6.65</td><td class="num">—</td></tr>
+        <tr><td class="mono"><a href="/blog/tickets/#DAN-30">DAN-30</a></td><td>Linguist reclassification of the blog page (<a href="https://github.com/dperez4787/linear-example/pull/32">PR #32</a>)</td><td class="num">$0.71</td><td class="num">$0.99</td><td class="num">$1.69</td><td class="num">—</td></tr>
+        <tr><td class="mono"><a href="/blog/tickets/#DAN-31">DAN-31</a></td><td>Ticket archive at /blog/tickets/ + deep-linking this post (<a href="https://github.com/dperez4787/linear-example/pull/35">PR #35</a>)</td><td class="num">$6.86 <span class="dim">(two runs)</span></td><td class="num">$2.41</td><td class="num">$9.27</td><td class="num">—</td></tr>
+        <tr><td class="mono"><a href="/blog/tickets/#DAN-32">DAN-32</a></td><td>App shell UI polish (<a href="https://github.com/dperez4787/linear-example/pull/33">PR #33</a>)</td><td class="num">$2.73</td><td class="num">$1.42 <span class="dim">(two runs)</span></td><td class="num">$4.15</td><td class="num">—</td></tr>
+        <tr><td class="mono"><a href="/blog/tickets/#DAN-33">DAN-33</a></td><td>Evidence-gate the agent-tested label (<a href="https://github.com/dperez4787/linear-example/pull/34">PR #34</a>) — local-executed: workflow files can't be pushed by CI</td><td class="num">local session <span class="dim">(subscription)</span></td><td class="num">—</td><td class="num">$0.00</td><td class="num">—</td></tr>
+        <tr><td class="mono"><a href="/blog/tickets/#DAN-34">DAN-34</a></td><td>Blog part 2 — “Federating IMDb” (<a href="https://github.com/dperez4787/linear-example/pull/37">PR #37</a>)</td><td class="num">$1.03</td><td class="num">$1.23</td><td class="num">$2.26</td><td class="num">—</td></tr>
+        <tr><td class="mono"><a href="/blog/tickets/#DAN-35">DAN-35</a></td><td>Blog index screen; part 1 moves to /blog/agentic-sdlc/ (<a href="https://github.com/dperez4787/linear-example/pull/38">PR #38</a>)</td><td class="num">$3.42 <span class="dim">(incl. one blocked run)</span></td><td class="num">$1.45</td><td class="num">$4.87</td><td class="num">—</td></tr>
+        <tr><td class="mono"><a href="/blog/tickets/#DAN-36">DAN-36</a></td><td>Part-1 revision — the empowerment aim (<a href="https://github.com/dperez4787/linear-example/pull/39">PR #39</a>, superseded; content shipped via <a href="https://github.com/dperez4787/linear-example/pull/40">#40</a>)</td><td class="num">$3.50 <span class="dim">(incl. one blocked run)</span></td><td class="num">$1.24</td><td class="num">$4.75</td><td class="num">—</td></tr>
+        <tr><td class="mono"><a href="/blog/tickets/#DAN-37">DAN-37</a></td><td>Comprehensive top-level README (<a href="https://github.com/dperez4787/linear-example/pull/36">PR #36</a>)</td><td class="num">$0.97</td><td class="num">$1.14</td><td class="num">$2.12</td><td class="num">—</td></tr>
+        <tr class="total"><td></td><td>Grand total — every metered dollar in the project (26 remote runs across 12 tickets)</td><td class="num">$33.52</td><td class="num">$18.33</td><td class="num">$51.85</td><td class="num">—</td></tr>
       </tbody>
     </table>
     </div>
-    <figcaption>Model cost per remotely-delivered feature, from the public workflow-run logs. Polling scans cost $0 — no model is invoked unless a ticket is waiting. The <a href="/blog/tickets/#DAN-29">DAN-29</a> row is open by construction: a revision cannot report its own cost, which is only knowable after it ships. Each revision inherits the duty of closing its predecessor's row.</figcaption>
+    <figcaption>Model cost per remotely-delivered feature, from the public workflow-run logs. Polling scans cost $0 — no model is invoked unless a ticket is waiting. The first edition of this table shipped with the <a href="/blog/tickets/#DAN-29">DAN-29</a> row “open by construction” — a revision cannot know its own cost. This edition closes every row and opens none: it was made in a local session, which meters nothing. Two developer legs include a run that stopped without a PR after detecting contradictory acceptance criteria; the tokens spent detecting that are part of the honest total.</figcaption>
   </figure>
 
   <h3>The spend, as it happened</h3>
@@ -407,7 +417,7 @@
       </tbody>
     </table>
     </div>
-    <figcaption>One evening, four features, $16.10. The meter and the board never disagreed.</figcaption>
+    <figcaption>One evening, four features, $16.10. The meter and the board never disagreed. The same pipeline has since shipped eight more remote deliveries — including part two of this blog and everything around it — and the completed table above still reconciles to the log line: $51.85, all of it remote-agent API tokens.</figcaption>
   </figure>
 
   <h3>The exact specifications the agents worked from</h3>

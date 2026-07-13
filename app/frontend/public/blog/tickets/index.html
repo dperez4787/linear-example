@@ -94,12 +94,12 @@
 <header class="masthead">
   <p class="kicker">Ticket archive</p>
   <h1>The ticket history behind the case study</h1>
-  <p class="dek">A static snapshot of Linear tickets <span class="tid">DAN-5</span> through <span class="tid">DAN-30</span> &mdash; every description, comment, and tester verdict that the case study at <a href="/blog">/blog</a> is built on. The Linear workspace is private, so this committed snapshot is the evidence.</p>
-  <p class="snapshot">Snapshot exported 2026-07-10 (UTC) from the private Linear workspace via the Linear API. This is a committed static page; it does not update at runtime.</p>
+  <p class="dek">A static snapshot of Linear tickets <span class="tid">DAN-5</span> through <span class="tid">DAN-37</span> &mdash; every description, comment, and tester verdict that the case study at <a href="/blog">/blog</a> is built on. The Linear workspace is private, so this committed snapshot is the evidence.</p>
+  <p class="snapshot">Snapshot exported 2026-07-12 (UTC) from the private Linear workspace via the Linear API. This is a committed static page; it does not update at runtime.</p>
 </header>
 
 <nav class="toc" aria-label="Ticket index">
-  <h2>Index &mdash; 26 tickets</h2>
+  <h2>Index &mdash; 33 tickets</h2>
   <ol>
     <li><a href="#DAN-5"><span class="tid">DAN-5</span> <span class="toc-title">Backend scaffold — Express app, /healthz, and Mongo connection (no routes)</span> <span class="pill bot">Done</span></a></li>
     <li><a href="#DAN-6"><span class="tid">DAN-6</span> <span class="toc-title">List and create records — GET and POST /api/records</span> <span class="pill bot">Done</span></a></li>
@@ -127,6 +127,13 @@
     <li><a href="#DAN-28"><span class="tid">DAN-28</span> <span class="toc-title">Records table v2 — client-side column sorting, name/status filtering, and polished table states</span> <span class="pill bot">Done</span></a></li>
     <li><a href="#DAN-29"><span class="tid">DAN-29</span> <span class="toc-title">Blog v4 — completed cost appendix: final DAN-27/DAN-28 costs, $16.10 reconciliation, billing timeline, concurrent-delivery record</span> <span class="pill bot">Done</span></a></li>
     <li><a href="#DAN-30"><span class="tid">DAN-30</span> <span class="toc-title">Mark the blog page linguist-documentation + linguist-generated so the repo reads as JavaScript, not HTML</span> <span class="pill bot">Done</span></a></li>
+    <li><a href="#DAN-31"><span class="tid">DAN-31</span> <span class="toc-title">Publish the ticket archive at /blog/tickets/ and turn every DAN-* reference in the blog into a deep link</span> <span class="pill bot">Done</span></a></li>
+    <li><a href="#DAN-32"><span class="tid">DAN-32</span> <span class="toc-title">App shell UI polish — header bar, aligned form/filter toolbars, consistent container, typography, and control styling</span> <span class="pill bot">Done</span></a></li>
+    <li><a href="#DAN-33"><span class="tid">DAN-33</span> <span class="toc-title">[LOCAL-EXECUTED] Evidence-gate the "Mark ticket agent-tested" step — fail the test job when no tester verdict comment exists</span> <span class="pill bot">Done</span></a></li>
+    <li><a href="#DAN-34"><span class="tid">DAN-34</span> <span class="toc-title">Publish blog part 2 — "Federating IMDb: An Agentic Build at Three Speeds" at /blog/imdb-federation/</span> <span class="pill bot">Done</span></a></li>
+    <li><a href="#DAN-35"><span class="tid">DAN-35</span> <span class="toc-title">Blog index screen at /blog — move part 1 unchanged to /blog/agentic-sdlc/, repoint the four blog tester locks</span> <span class="pill bot">Done</span></a></li>
+    <li><a href="#DAN-36"><span class="tid">DAN-36</span> <span class="toc-title">Revise blog part 1 — state the product-owner/designer empowerment aim (byte-for-byte v5 replacement, re-pin two tester locks)</span> <span class="pill bot">Done</span></a></li>
+    <li><a href="#DAN-37"><span class="tid">DAN-37</span> <span class="toc-title">Comprehensive top-level README.md — what this repo is, live links, stack, agent workflow, how to run it</span> <span class="pill bot">Done</span></a></li>
   </ol>
 </nav>
 
@@ -3849,10 +3856,982 @@ PR draft lifted via `gh pr ready`. Leaving the issue in **In Review** for the hu
       </article>
     </div>
   </details>
+  <details class="ticket" id="DAN-31">
+    <summary><span class="tid">DAN-31</span> <span class="tt">Publish the ticket archive at /blog/tickets/ and turn every DAN-* reference in the blog into a deep link</span> <span class="pill bot">Done</span></summary>
+    <div class="body">
+      <p class="meta"><span class="ml">State</span> Done &nbsp;·&nbsp; <span class="ml">Labels</span> <span class="label">agent-tested</span> &nbsp;·&nbsp; <a class="ext" href="https://linear.app/daniel-perez/issue/DAN-31/publish-the-ticket-archive-at-blogtickets-and-turn-every-dan-reference">open in Linear</a></p>
+      <h3>Description</h3>
+      <pre class="doc">The case-study post at `/blog` cites DAN-* tickets throughout — as styled `.tid` chips and as plain monospace table cells — but none of them link anywhere, and the Linear workspace is private, so a reader cannot inspect the evidence the post is built on. This ticket publishes a static snapshot of the ticket history with the site and turns every DAN-* mention in the post into a working deep link into it. **This is new scope** (the blog itself was filed as new scope in [DAN-26](https://linear.app/daniel-perez/issue/DAN-26/serve-the-case-study-blog-post-at-blog-verbatim-static-page-cross); this extends it), filed at the user's explicit request.
+
+**For the remote developer agent.** The data export happens at implementation time on the runner, via the Linear MCP server already configured there.
+
+**Scope note:** the archive covers [DAN-5](https://linear.app/daniel-perez/issue/DAN-5/backend-scaffold-express-app-healthz-and-mongo-connection-no-routes) through [DAN-30](https://linear.app/daniel-perez/issue/DAN-30/mark-the-blog-page-linguist-documentation-linguist-generated-so-the) exactly. This ticket, [DAN-31](https://linear.app/daniel-perez/issue/DAN-31/publish-the-ticket-archive-at-blogtickets-and-turn-every-dan-reference), is deliberately outside its own archive's range — do not add a 27th entry for it.
+
+## Round 2 — amendment resolving the round-1 bounce
+
+Round 1 (GitHub Actions run 29070373098) correctly bounced this ticket without opening a PR: scope §2 as originally written ("only `.tid` chips and `&lt;td class="mono"&gt;` cells become links; no other blog content changes") contradicted acceptance criterion 5 as originally written ("zero unlinked DAN-\d+ occurrences in rendered text") — the v4 blog also carries DAN-* mentions in prose, an italic commit-message quote, non-`mono` table cells, `&lt;summary&gt;` labels, figcaptions, and inside the verbatim `&lt;pre&gt;` ticket bodies in the appendix. Both statements could not hold. The developer's blocker comment on this issue enumerates the instances.
+
+**The authoring decision (user intent: a reader should find no dead ticket reference they might want to follow):**
+
+1. **§2 is amended** to authorize linkifying DAN-\d+ mentions in **all rendered text** of the blog — chips, all table cells, prose, `&lt;summary&gt;` labels, figcaptions — **except inside** `&lt;pre&gt;` **elements**. The `&lt;pre&gt;` ticket bodies are verbatim specifications; altering them would break their verbatim character, and plain-text mentions there are expected and stay as-is. Linkification must not change any visible wording: an anchor wraps the existing text exactly. Chips keep their `.tid` styling, `mono` cells their monospace styling, prose mentions inherit normal link styling.
+2. **Criterion 5 is amended** to match: zero unlinked DAN-\d+ occurrences **outside** `&lt;pre&gt;` **elements** (mechanically: strip `&lt;pre&gt;…&lt;/pre&gt;` blocks, then assert every remaining match sits inside an `&lt;a&gt;` whose href starts with `/blog/tickets/#DAN-`). Occurrences inside `&lt;pre&gt;` are exempt and expected.
+3. **The secondary blocker is resolved: re-pinning the blog-lock tester tests is in scope.** Linkification necessarily changes the blog's bytes, which breaks the sha256 locks in `app/frontend/src/blog.dan27.tester.test.jsx` and `app/frontend/src/blog.dan29.tester.test.jsx`. Updating those pinned hashes (and any other blog-lock test) to the new canonical bytes is authorized as part of this ticket — this follows the established precedent of commit `c37540c` ("Re-pin the [DAN-27](https://linear.app/daniel-perez/issue/DAN-27/blog-post-closes-the-loop-cite-pr-27-as-the-second-remote-delivery-and) /blog lock to the v4 canonical bytes") and is the **only** tester-test edit authorized; do not weaken or remove the lock tests themselves.
+
+Every other criterion stands unchanged. Round 1 also verified the prerequisites are now met: [DAN-29](https://linear.app/daniel-perez/issue/DAN-29/blog-v4-completed-cost-appendix-final-dan-27dan-28-costs-dollar1610) is merged to `main` (`b6c4b26`) and `.gitattributes` carries the blog pattern, so the Sequencing gate below is satisfied.
+
+## Sequencing — read before branching
+
+**Blocked by** [DAN-29](https://linear.app/daniel-perez/issue/DAN-29/blog-v4-completed-cost-appendix-final-dan-27dan-28-costs-dollar1610) **and** [DAN-30](https://linear.app/daniel-perez/issue/DAN-30/mark-the-blog-page-linguist-documentation-linguist-generated-so-the) **(relations recorded on this issue). Both are merged to** `main` **as of Round 2 — the gate is satisfied.** Branch from current `main`; verify before branching that `git log --oneline main | head` shows the [DAN-29](https://linear.app/daniel-perez/issue/DAN-29/blog-v4-completed-cost-appendix-final-dan-27dan-28-costs-dollar1610) merge and `.gitattributes` exists at the repo root, so you linkify the v4 document, not the superseded v3.1.
+
+## 1. Ticket archive page — `app/frontend/public/blog/tickets/index.html`
+
+A single static HTML file, fully self-contained exactly like the blog itself: all CSS and JS inline, no external assets, no fonts or scripts fetched from anywhere, **no runtime API calls** — the page must render identically with the network disabled. It is a committed snapshot; it does not update at runtime.
+
+**Content — one entry per ticket,** [DAN-5](https://linear.app/daniel-perez/issue/DAN-5/backend-scaffold-express-app-healthz-and-mongo-connection-no-routes) **through** [DAN-30](https://linear.app/daniel-perez/issue/DAN-30/mark-the-blog-page-linguist-documentation-linguist-generated-so-the) **inclusive (26 entries):**
+
+* Identifier, title, final state (e.g. Done, In Review), and labels.
+* The full ticket description, readable: either rendered from its markdown or shown preformatted — implementer's choice, but a reader must be able to follow it (no raw escape soup).
+* **All comments, each with author and timestamp.** The tester verdict comments are the point of this page — they are the evidence the blog cites. Do not truncate or summarize them.
+* A visible snapshot date line (the date the export ran), so readers know the archive's vintage.
+
+**Data source:** export at implementation time using the Linear MCP tools on the runner — `get_issue` and `list_comments` for each of [DAN-5](https://linear.app/daniel-perez/issue/DAN-5/backend-scaffold-express-app-healthz-and-mongo-connection-no-routes)..[DAN-30](https://linear.app/daniel-perez/issue/DAN-30/mark-the-blog-page-linguist-documentation-linguist-generated-so-the). Commit the result as static HTML.
+
+**Privacy scrub (hard requirements):**
+
+* No API key values anywhere in the file — nothing matching `lin_api&#95;`.
+* Strip signature/query parameters from any `uploads.linear.app` URLs that appear in ticket bodies or comments (no `signature&#61;` may survive). Bare upload URLs without query params are acceptable — they 401 without auth.
+
+**Interactivity and navigation:**
+
+* A navigable index of all 26 tickets at the top of the page.
+* Each entry expandable/collapsible (or an equivalent progressive-disclosure mechanism) so the page is scannable despite 26 full ticket histories.
+* A stable anchor per ticket: an element with `id="DAN-5"` … `id="DAN-30"`, so deep links like `/blog/tickets/#DAN-25` land on (and reveal, if collapsed) the right entry.
+* A link back to the post at `/blog` and to the app at `/`.
+
+**Visual style:** echo the blog's existing design — read its tokens directly from `app/frontend/public/blog/index.html` (`--accent`, `--chip-bg`, `--accent-ink`, `--mono`, the `.tid` chip treatment, light/dark via `prefers-color-scheme` with `:root[data-theme=…]` overrides) so the two pages read as one site.
+
+## 2. Blog linkification — `app/frontend/public/blog/index.html` (amended in Round 2)
+
+Every DAN-\d+ mention in the blog's **rendered text** becomes an anchor to `/blog/tickets/#DAN-nn` — **except inside** `&lt;pre&gt;` **elements**, which stay byte-for-byte verbatim:
+
+* The `.tid` chips become links, keeping their chip styling (a chip that is now clickable, not a default blue underlined link).
+* Ticket IDs in table cells — `&lt;td class="mono"&gt;` **and** any other cell class — become links, keeping the cell's existing styling.
+* DAN-* mentions in prose (including inside `&lt;em&gt;` quotes), `&lt;summary&gt;` labels, and figcaptions become links inheriting normal link styling.
+* **Inside** `&lt;pre&gt;` **elements: no changes whatsoever.** The verbatim ticket bodies in the appendix keep their plain-text DAN references.
+* **Linkification never changes visible wording** — each anchor wraps the existing text exactly as it appears. No copy edits, no restructuring. This is the v4 document from [DAN-29](https://linear.app/daniel-perez/issue/DAN-29/blog-v4-completed-cost-appendix-final-dan-27dan-28-costs-dollar1610) with anchors added and nothing else.
+
+## 3. Linguist coverage — verify, don't assume
+
+The new file lives under `app/frontend/public/blog/`, which [DAN-30](https://linear.app/daniel-perez/issue/DAN-30/mark-the-blog-page-linguist-documentation-linguist-generated-so-the)'s `.gitattributes` pattern covers (confirmed on `main` in Round 1). An acceptance criterion below verifies this with `git check-attr` rather than trusting the pattern.
+
+## Files expected to change
+
+* `app/frontend/public/blog/tickets/index.html` (new)
+* `app/frontend/public/blog/index.html` (linkification only)
+* `app/frontend/src/blog.dan27.tester.test.jsx` and `app/frontend/src/blog.dan29.tester.test.jsx` (re-pin sha256 locks to the new canonical blog bytes — see Round 2, point 3)
+
+No backend, SPA source, `firebase.json`, or CI changes expected.
+
+## Acceptance criteria
+
+ 1. `app/frontend/public/blog/tickets/index.html` exists and is self-contained: no external URLs are fetched to render it (no external `src=`/`href=` for scripts, stylesheets, images, or fonts; anchors to `/blog` and `/` and links out to [github.com](&lt;http://github.com&gt;) / [linear.app](&lt;http://linear.app&gt;) within ticket content are fine), and it contains no runtime calls to any API.
+ 2. For **every** n in 5..30, the archive page contains an element with `id="DAN-n"` (scriptable check: all 26 ids present, no gaps).
+ 3. The archive page contains ticket title, final state, labels, full description, and all comments with author and timestamp for each entry, plus a visible snapshot date line. Mechanical spot-check: it contains a distinctive phrase from the [DAN-25](https://linear.app/daniel-perez/issue/DAN-25/convert-the-records-rest-api-to-graphql-apigraphql-endpoint-migrate) tester verdict comment (grep the exact phrase from the [DAN-25](https://linear.app/daniel-perez/issue/DAN-25/convert-the-records-rest-api-to-graphql-apigraphql-endpoint-migrate) comment thread, e.g. its pass verdict line).
+ 4. Privacy scrub holds: `grep -c 'lin_api&#95;'` and `grep -c 'signature&#61;'` on the archive file both return 0.
+ 5. **(Amended in Round 2.)** In `app/frontend/public/blog/index.html`, zero unlinked DAN-\d+ occurrences remain in rendered text **outside** `&lt;pre&gt;` **elements**. Mechanically: strip all `&lt;pre&gt;…&lt;/pre&gt;` blocks, then assert every remaining DAN-\d+ match sits inside an `&lt;a&gt;` whose `href` starts with `/blog/tickets/#DAN-`, and every such href's fragment corresponds to an existing `id` in the archive page (scriptable cross-check over both files). DAN-\d+ occurrences inside `&lt;pre&gt;` are exempt and expected to remain plain text.
+ 6. Chips stay chips: the linkified `.tid` elements retain the chip background/color treatment, and linkified table-cell IDs retain their cell styling (verify the CSS applies to the anchors, not just that anchors exist). No visible wording differs from the pre-linkification v4 document.
+ 7. Firebase Hosting emulator: `GET /blog/tickets/` returns 200 with the archive content; `GET /blog` still returns 200 with title `An Agentic SDLC, End to End`; an SPA deep link (e.g. `GET /some/client/route`) still returns 200 with the SPA shell (fallback intact).
+ 8. `git check-attr linguist-documentation linguist-generated -- app/frontend/public/blog/tickets/index.html` reports both attributes set.
+ 9. `npm run build` in `app/frontend` emits `dist/blog/index.html` and `dist/blog/tickets/index.html` byte-identical to their `public/` sources.
+10. Both test suites green (`app/frontend` Vitest, `app/backend` node:test) — with the blog-lock tester tests re-pinned to the new canonical bytes per Round 2, point 3 (the sole authorized tester-test edit).
+11. Deployed interactive behavior — expand/collapse working and a deep link like `/blog/tickets/#DAN-25` landing on the revealed entry in a real browser — is **user-attested** after merge, per the convention for post-deploy checks.</pre>
+      <h3>Comments (5)</h3>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-10 02:52 UTC</time></div>
+        <pre class="doc">Filing note (product-owner): DAN-31 is deliberately held in **Todo**. It is blocked by DAN-29 (PR #31, blog v4 rewrite of the same file this ticket edits) and DAN-30 (introduces the `.gitattributes` entry the linguist criterion depends on). The main session moves it to Ready for Dev only after both PRs merge — the remote pipeline must not pick it up before then.</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-10 05:08 UTC</time></div>
+        <pre class="doc">**Blocked — moving back to Todo (no PR opened).** The remote developer agent could not implement this ticket as written: **acceptance criterion 5 contradicts scope section 2**, and the conflict can't be resolved without an authoring decision. The archive-page half (`/blog/tickets/`) is fully specified and buildable; the blocker is entirely in the blog-linkification half.
+
+### Primary blocker — criterion 5 vs. scope §2
+
+**§2 authorizes exactly two edit mechanisms** and forbids everything else:
+&gt; The `.tid` chips become links … The plain-text ticket IDs in table cells (`&lt;td class="mono"&gt;DAN-nn&lt;/td&gt;`) become links … **No other blog content changes** — no copy edits, no restructuring. This is the v4 document from DAN-29 with links added and nothing else.
+
+**Criterion 5 requires linkifying *every* rendered match:**
+&gt; In `app/frontend/public/blog/index.html`, zero unlinked DAN-\d+ occurrences remain in rendered text: every match is inside an `&lt;a&gt;` whose `href` starts with `/blog/tickets/#DAN-` …
+
+The current v4 blog (`app/frontend/public/blog/index.html` on `main`, sha256 `3eb06653…bd2a`) contains rendered `DAN-\d+` text that is **neither** a `.tid` chip **nor** a `&lt;td class="mono"&gt;` cell — so the two requirements cannot both hold. Verified instances:
+
+- **Line 286** — prose, inside an italic commit-message quote: `&lt;em&gt;"Replace the manual DAN-11 runbook with Infrastructure as Code"&lt;/em&gt;`.
+- **Lines 390–394** — the "spend, as it happened" table, in `&lt;td class="num"&gt;` / plain `&lt;td&gt;` cells (not `mono`): `…(GraphQL conversion, DAN-25)`, `…(this page at /blog, DAN-26)`, `DAN-27 and DAN-28 both In Progress…`, `DAN-28 verified, merged, deploying; DAN-27 under test`.
+- **Lines 406, 488, …** — the appendix `&lt;summary&gt;` labels: `DAN-25 — Convert the records REST API…`, `DAN-26 — Serve the case-study blog post…`.
+- **Lines 407+, 489+** — the appendix `&lt;details&gt;&lt;pre&gt;…&lt;/pre&gt;&lt;/details&gt;` blocks hold the **verbatim** ticket bodies as raw markdown, so text like `[DAN-22](https://linear.app/…)`, `[DAN-23](…)`, `[DAN-8](…)` renders literally — dozens of rendered `DAN-nn` labels. Injecting `&lt;a&gt;` tags here would corrupt the verbatim exports.
+
+To satisfy criterion 5 I'd have to linkify prose, an italic quote, figure/caption text, non-`mono` table cells, `&lt;summary&gt;` labels, and text inside verbatim `&lt;pre&gt;` blocks — exactly the "copy edits / restructuring / other content changes" §2 forbids. To obey §2 I must leave all of those unlinked, which fails criterion 5's "every match." Two mutually exclusive readings, and I can't pick one for you:
+
+- **(A)** §2 is the spec — linkify only `.tid` chips and `&lt;td class="mono"&gt;` cells; criterion 5 should be **scoped to just those two patterns**.
+- **(B)** criterion 5 is the spec — linkify every rendered DAN reference (prose, captions, `&lt;summary&gt;`, all table cells, `&lt;pre&gt;` bodies), accepting that this overrides §2's "no other blog content changes" and requires editing the verbatim `&lt;pre&gt;` exports.
+
+### Secondary blocker — criterion 10 vs. the checked-in blog-lock tester tests
+
+Any byte change to `app/frontend/public/blog/index.html` breaks **two** checked-in tester tests that pin its exact sha256 (`3eb06653…bd2a`): `app/frontend/src/blog.dan27.tester.test.jsx` and `app/frontend/src/blog.dan29.tester.test.jsx`. Criterion 10 requires "both test suites green," but linkification *must* change those bytes. Repo precedent (`c37540c` "DAN-29: Re-pin the DAN-27 /blog lock to the v4 canonical bytes") shows these locks get re-pinned when the blog legitimately changes — so this is resolvable, **but** the ticket never says to touch tester test files, and CLAUDE.md's division of labor says the developer doesn't own tester tests. Please state explicitly whether re-pinning `blog.dan27.tester.test.jsx` and `blog.dan29.tester.test.jsx` (and any other blog-lock tests) is in scope for this ticket.
+
+### Verified before stopping (prerequisites are met)
+
+- DAN-29 is merged to `main` (`b6c4b26`); `.gitattributes` at repo root carries `app/frontend/public/blog/** linguist-documentation linguist-generated`, so criterion 8's linguist coverage extends to the new file.
+- `gitBranchName` matches the assigned branch: `perezfdanny/dan-31-publish-the-ticket-archive-at-blogtickets-and-turn-every-dan`.
+- The blog's DAN references break down as: 6 `.tid` chips, 25 `&lt;td class="mono"&gt;DAN-nn&lt;/td&gt;` cells, **plus** the non-conforming rendered-text references enumerated above — which is what creates the contradiction.
+
+### Recommendation
+
+Reconcile criterion 5 with scope §2 — most likely by rewording criterion 5 to scope the "no unlinked DAN references" check to exactly the `.tid` chips and `&lt;td class="mono"&gt;` cells §2 authorizes (reading A) — and explicitly state whether re-pinning the DAN-27/DAN-29 blog-lock tester tests is in scope. Then move it back to Ready for Dev.
+
+No branch was pushed and no PR was opened; the working tree is clean on `main`.
+
+— remote developer run (GitHub Actions run 29070373098)</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-10 05:11 UTC</time></div>
+        <pre class="doc">Product-owner, Round 2: correct bounce — the contradiction was real, and the enumeration above is exactly right. The description now carries a **Round 2 amendment** section resolving both blockers:
+
+- **Primary (criterion 5 vs. §2):** neither reading A nor B as stated — the authoring decision is *linkify all rendered text except `&lt;pre&gt;`*. §2 now authorizes anchors on every rendered DAN-\d+ mention (chips, all table cells, prose, `&lt;summary&gt;` labels, figcaptions) with no wording changes; the `&lt;pre&gt;` ticket bodies stay byte-for-byte verbatim. Criterion 5 is rewritten to match: strip `&lt;pre&gt;…&lt;/pre&gt;` blocks, then assert every remaining match is inside an `&lt;a href="/blog/tickets/#DAN-…"&gt;`.
+- **Secondary (blog-lock tests vs. criterion 10):** re-pinning the sha256 locks in `blog.dan27.tester.test.jsx` and `blog.dan29.tester.test.jsx` to the new canonical bytes **is in scope**, per the `c37540c` precedent. That is the only tester-test edit authorized.
+
+Moving back to Ready for Dev.</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-10 05:31 UTC</time></div>
+        <pre class="doc">**Developer — implemented, draft PR open.** Leaving the status on In Progress per the CI flow; move to In Review to hand it to the tester.
+
+Draft PR: https://github.com/dperez4787/linear-example/pull/35
+Branch: `perezfdanny/dan-31-publish-the-ticket-archive-at-blogtickets-and-turn-every-dan`
+
+**Files changed (exactly the expected set):**
+- `app/frontend/public/blog/tickets/index.html` (new — the archive)
+- `app/frontend/public/blog/index.html` (linkification only)
+- `app/frontend/src/blog.dan27.tester.test.jsx`, `app/frontend/src/blog.dan29.tester.test.jsx` (sha256 re-pin only, the sole authorized tester-test edit)
+
+No backend, SPA source, `firebase.json`, or CI changes.
+
+**Archive** — self-contained snapshot of DAN-5..DAN-30 (26 collapsible `&lt;details id="DAN-n"&gt;` entries) with identifier, title, final state, labels, full description (escaped preformatted), and every comment with author + timestamp — tester verdicts included. Inline CSS/JS, no external assets, no runtime API calls. Data exported at build time from Linear over the runner's API key. Privacy scrub holds (`grep -c lin_api&#95;` = 0, `grep -c signature&#61;` = 0).
+
+**Blog** — every `DAN-\d+` in rendered text is now an anchor to `/blog/tickets/#DAN-nn` (chips as `&lt;a class="tid"&gt;`, cells/prose/`&lt;em&gt;`/`&lt;summary&gt;`/figcaptions as normal links), except inside `&lt;pre&gt;` (byte-for-byte verbatim). Anchors wrap the existing text exactly; no visible wording changed.
+
+**Verified on the runner:** all 26 ids present; 0 bare `DAN-\d+` outside `&lt;pre&gt;`/anchors; every deep-link fragment resolves to an archive id; 6 chip anchors, 0 leftover `&lt;span class="tid"&gt;` chips; `&lt;pre&gt;` blocks unchanged; DAN-25 verdict phrase present; `git check-attr` reports both linguist attrs set on the new file; `npm run build` emits both `dist/blog/*` files `cmp`-identical to sources; frontend Vitest 108/108 and backend `node:test` 98/98 green; Firebase emulator `GET /blog/tickets/` 200, `GET /blog` 301→`/blog/` 200 (title correct), SPA deep link 200 (fallback intact).
+
+**Honest notes for the tester:**
+- 5 `DAN-\d+` tokens live inside `&lt;img alt="..."&gt;` screenshot descriptions — not rendered text, and an anchor cannot sit in an attribute. I HTML-encoded their hyphen (`DAN-26` → `DAN&amp;#45;26`) so the alt renders byte-identically while the raw file carries no bare `DAN-\d+` outside an anchor (keeps a raw criterion-5 grep clean). It is the only place alt bytes changed.
+- The `/blog` → `/blog/` 301 is Firebase's standard trailing-slash redirect, unchanged from prior blog deliveries; it resolves 200.
+- Criterion 11 (browser expand/collapse + live deep-link reveal) is **user-attested after merge** per the post-deploy convention. The reveal-on-hash JS is implemented inline; I confirmed the routes serve but did not drive a real browser headlessly.</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-10 08:01 UTC</time></div>
+        <pre class="doc">## Tester verdict: PASS — all agent-checkable criteria verified
+
+Verified on branch `perezfdanny/dan-31-...` @ `8b37990` (dev), tester tests added in `a1856d5` (`app/frontend/src/blog.dan31.tester.test.jsx`). Clean checkout: `npm ci` in both packages, local Mongo service container (`MONGODB_DB=linear_example_test`), and the real Firebase Hosting emulator serving the built `dist/`.
+
+C11 (deployed interactive expand/collapse + live deep link in a browser) stays **user-attested** post-merge, per the convention.
+
+| # | Criterion | Result |
+|---|-----------|--------|
+| 1 | Archive self-contained (no external assets, no runtime API) | PASS |
+| 2 | id="DAN-n" for all n in 5..30, no gaps (26 ids) | PASS |
+| 3 | Title/state/labels/description + all comments (author+timestamp) + snapshot date; DAN-25 verdict phrase present | PASS |
+| 4 | Privacy scrub: `lin_api&#95;`=0, `signature&#61;`=0 | PASS |
+| 5 | Zero unlinked DAN-\d+ outside `&lt;pre&gt;`; fragments resolve to archive ids | PASS |
+| 6 | Chips stay chips (`.tid` on anchors), cell styling kept, no wording change | PASS |
+| 7 | Emulator: `/blog/tickets/` 200, `/blog` 200, SPA fallback 200 | PASS |
+| 8 | `git check-attr` linguist-documentation + linguist-generated set | PASS |
+| 9 | Build emits dist blog files byte-identical to public sources | PASS |
+| 10 | Frontend Vitest (119) + backend node:test (98) green | PASS |
+| 11 | Deployed interactive expand/collapse + deep link | user-attested (post-merge) |
+
+### Evidence highlights
+
+**C2** — `for n in 5..30: grep id="DAN-$n"` → 26 × OK; archive holds exactly 26 ids.
+
+**C3** — `grep -c 'all agent-checkable criteria verified'` → 2; snapshot line `2026-07-10 (UTC) from the private Linear`; comment timestamps like `2026-07-10 00:49 UTC` with author `Daniel Perez`, cross-checked against the live DAN-25 `list_comments` thread.
+
+**C4** — `grep -c 'lin_api&#95;'` → 0; `grep -c 'signature&#61;'` → 0.
+
+**C5** — strip `&lt;pre&gt;…&lt;/pre&gt;`, then every `DAN-\d+` match must sit in an `/blog/tickets/#DAN-` anchor: **82 matches outside `&lt;pre&gt;`, 0 unlinked**. All 25 distinct targets (DAN-5..DAN-29) resolve to an existing archive id. The 5 DAN refs inside `&lt;img alt="…"&gt;` descriptions (cannot hold an anchor) are entity-encoded `DAN&amp;#45;26`, so no bare `DAN-\d+` survives outside an anchor and the alt still reads `DAN-26` — accepted.
+
+**C6** — chips: `&lt;a class="tid" href="/blog/tickets/#DAN-8"&gt;DAN-8&lt;/a&gt;`; `.tid { background: var(--chip-bg); color: var(--accent-ink) }` applies via the class selector; no `&lt;span class="tid"&gt;` remains. Mono cells wrap anchors. Visible text is byte-identical to the pre-linkification v4 on `main` (tags-stripped comparison → identical).
+
+**C7** — Firebase Hosting emulator (serving `app/frontend/dist`):
+```
+GET /blog/tickets/     → 200  &lt;title&gt;Ticket archive · An Agentic SDLC, End to End&lt;/title&gt;
+GET /blog              → 301 → /blog/ → 200  &lt;title&gt;An Agentic SDLC, End to End&lt;/title&gt;
+GET /some/client/route → 200  SPA shell (/assets/ bundle)
+```
+The `/blog`→`/blog/` 301 is Firebase's standard directory-index redirect (pre-existing), resolving to 200 with the required title.
+
+**C8** — `git check-attr … tickets/index.html` → both `linguist-documentation: set` and `linguist-generated: set`.
+
+**C9** — `npm run build`; `cmp`+`sha256sum`: `public/blog/index.html` == `dist/blog/index.html` (`bddf9fcd…`), `public/blog/tickets/index.html` == `dist/blog/tickets/index.html` (`619a0b69…`).
+
+**C10** — `npm ci &amp;&amp; npm test`: frontend **119 passed**, backend **98 pass / 0 fail**. The re-pinned `blog.dan27`/`blog.dan29` locks changed only `CANONICAL_SHA256` → `bddf9fcd…` (the linkified bytes) plus a comment; no lock weakened, all lineage invariants still asserted and green (the sole authorized tester-test edit, Round 2 point 3).
+
+Draft PR #35 lifted (`gh pr ready`); leaving this issue **In Review** for the human to merge.</pre>
+      </article>
+    </div>
+  </details>
+  <details class="ticket" id="DAN-32">
+    <summary><span class="tid">DAN-32</span> <span class="tt">App shell UI polish — header bar, aligned form/filter toolbars, consistent container, typography, and control styling</span> <span class="pill bot">Done</span></summary>
+    <div class="body">
+      <p class="meta"><span class="ml">State</span> Done &nbsp;·&nbsp; <span class="ml">Labels</span> <span class="label">agent-tested</span> &nbsp;·&nbsp; <a class="ext" href="https://linear.app/daniel-perez/issue/DAN-32/app-shell-ui-polish-header-bar-aligned-formfilter-toolbars-consistent">open in Linear</a></p>
+      <h3>Description</h3>
+      <pre class="doc">The table itself reads well after [DAN-28](https://linear.app/daniel-perez/issue/DAN-28/records-table-v2-client-side-column-sorting-namestatus-filtering-and), but the shell around it is unstyled browser defaults. On the live app ([project-d60a83c1-2c60-4d51-ad0.web.app](&lt;http://project-d60a83c1-2c60-4d51-ad0.web.app&gt;), signed in): the user's name, the "Read the case study" link, and the Sign out button run together in the top-left corner with no spacing, flush against the viewport edge; the header row and the content column use different widths; the add-record form is five default-styled controls with no gap rhythm or consistent heights; the two filter groups are misaligned with each other and with the form; there is no vertical rhythm, no typography scale, and links are default blue. This ticket styles the application shell so the whole page reads as one designed surface.
+
+**This is polish of the existing design, not a new design.** `docs/architecture.md` (Records table UI → "CSS: one plain stylesheet") already settled the approach: one plain stylesheet, `app/frontend/src/styles.css`, imported once in `main.jsx` — no component library, no CSS framework, no CSS Modules, no CSS-in-JS, **no new npm dependency of any kind**. This ticket extends that stylesheet and approach from the table to the whole app shell. Class names and exact values remain local choices, not contract. If you believe a genuinely new design decision is required, flag it on this issue — but the intent is application of the recorded decision, not a new one.
+
+## What to build
+
+1. **A proper header bar.** App identity/title, the signed-in user's name, the "Read the case study" link (to `/blog`), and the Sign out control, laid out with deliberate spacing inside a real header landmark, aligned to the same content container as the rest of the page — not flush against the viewport edge.
+2. **Aligned toolbars.** The add-record form (Name, status select, Amount, Notes, Add button) and the filter controls (Filter by name, Filter by status) presented as aligned toolbars: consistent control heights, consistent spacing, deliberate label placement, and the two surfaces aligned with each other and with the table.
+3. **One content container.** A consistent max-width content container shared by header and body, a vertical spacing scale between sections, and a typography hierarchy for the `Records` h1 and `Add a record` h2.
+4. **Consistent, accessible controls.** Buttons, inputs, selects, and links styled consistently, with visible focus states on all interactive controls (`:focus-visible` or equivalent).
+5. **Signed-out view too.** Whatever the signed-out state renders (sign-in control, case-study link) gets the same container, typography, and control treatment.
+
+## Behavior is frozen
+
+No functional changes of any kind. Sorting, filtering, optimistic edit/delete with rollback, create-from-table, the auth gate, sign-out on 401, and the `/blog` link all behave identically before and after. `api.js` is untouched. No `fetch()` inside components. Existing `aria-sort` attributes and ARIA roles are preserved. All existing tests keep passing without weakening — a test edit is allowed only where it asserts on incidental DOM structure that legitimately changes (e.g. a wrapper element the header restructure replaces), and each such edit must be individually justified in the PR body.
+
+## Acceptance criteria
+
+Mechanically checkable (the tester verifies these):
+
+* On a clean checkout, both suites are green: `app/backend` (`node:test` + supertest) and `app/frontend` (Vitest + Testing Library).
+* `git diff main` against the ticket branch touches only `app/frontend/src/` components, `app/frontend/src/styles.css`, and frontend test files. No backend files, no `app/frontend/public/blog/**`, no `firebase.json`, no `package.json` / `package-lock.json` in either package.
+* No new entries appear in `dependencies` or `devDependencies` of either `package.json`.
+* When signed in, the app renders a header landmark (a `&lt;header&gt;` element / `role="banner"`) containing all four of: the app title, the signed-in user's display name, a link with `href="/blog"`, and the Sign out button — assertable with Testing Library (`getByRole('banner')` and queries within it).
+* Focus-visible styling exists for interactive controls: the stylesheet contains focus-state rules (e.g. `:focus-visible`) targeting buttons, inputs, selects, and links, and the components expose the hooks (elements/classes) those rules select. Assert on the presence of the hooks/rules, not on rendered pixels.
+* The signed-out view renders its sign-in control and case-study link inside the same styled container/landmark structure — assertable via roles.
+
+User-attested (per the recorded convention that visual polish is verified by the user on the deployed site, not by the suite):
+
+* Alignment, spacing rhythm, control-height consistency, and typography hierarchy look right on the deployed app, signed in and signed out.
+
+**Note to the tester:** visual quality cannot be mechanically asserted. Verify structure, roles, landmarks, and the diff/dependency constraints above; do not assert on computed styles, class names, or aesthetics — the visual result is the user's call on the deployed site.
+
+## Concurrency — files this ticket must not touch
+
+[DAN-29](https://linear.app/daniel-perez/issue/DAN-29/blog-v4-completed-cost-appendix-final-dan-27dan-28-costs-dollar1610) (in flight) touches only the blog file and one blog lock test; [DAN-31](https://linear.app/daniel-perez/issue/DAN-31/publish-the-ticket-archive-at-blogtickets-and-turn-every-dan-reference) (blocked) touches blog files. To keep all three tickets disjoint, this ticket must not touch `app/frontend/public/blog/**` or any blog-related test file (`blog.dan26.tester.test.jsx`).
+
+## Files expected to change
+
+* `app/frontend/src/styles.css` (the bulk of the work)
+* `app/frontend/src/App.jsx`, `app/frontend/src/AuthGate.jsx` (header/landmark structure, container classes)
+* `app/frontend/src/NewRecordForm.jsx`, `app/frontend/src/RecordTable.jsx` (toolbar classes/markup only — no behavior)
+* Colocated `*.test.jsx` files: new header/landmark assertions; existing edits only where incidental DOM structure legitimately changed, each justified in the PR body</pre>
+      <h3>Comments (2)</h3>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-10 04:05 UTC</time></div>
+        <pre class="doc">Implemented on branch `perezfdanny/dan-32-app-shell-ui-polish-header-bar-aligned-formfilter-toolbars`.
+
+**Draft PR:** https://github.com/dperez4787/linear-example/pull/33
+
+## What changed
+Extended the existing single-stylesheet approach from the table to the whole shell (no new design, no dependency):
+
+- `app/frontend/src/styles.css` — spacing scale (custom properties), a shared `.container` used by both the header and `&lt;main&gt;` so they align to one max-width/left edge, header-bar layout, `h1`/`h2` typography, shared `.control`/`.btn` control heights that line the two toolbars up with each other and the table, and `:focus-visible` rules targeting buttons/inputs/selects/links.
+- `app/frontend/src/AuthGate.jsx` — signed-in view now renders a `&lt;header&gt;` landmark (role `banner`, sibling of `&lt;main&gt;`) holding app identity, user name, the `/blog` link, and Sign out; signed-out view uses the same header+main landmark structure.
+- `app/frontend/src/App.jsx` — `&lt;main className="container"&gt;`.
+- `app/frontend/src/NewRecordForm.jsx` — controls wrapped into one aligned toolbar row (`.field` cells + `.control`/`.btn`). Markup/classes only.
+- `app/frontend/src/RecordTable.jsx` — filter controls get `.control`, Clear-filters gets `.btn`.
+- `app/frontend/src/AuthGate.dan32.test.jsx` (new) — asserts the banner contents (signed-in), the signed-out landmark structure, and the `:focus-visible` hooks in the stylesheet.
+
+## Verified
+- Frontend `npm test`: 18 files, 106 tests pass (103 pre-existing + 3 new); **no existing test edited or weakened**.
+- Frontend `npm run build`: succeeds.
+- Backend `npm test`: 98 pass (backend untouched; both suites green on this branch).
+- `git diff main` touches only `app/frontend/src/` components, `styles.css`, and one new frontend test file — no backend, no `public/blog/**`, no blog test files, no `firebase.json`, no `package.json`/`package-lock.json`. No new deps.
+- Behavior frozen: `api.js` untouched; sort/filter/optimistic edit-delete/create/auth-gate/sign-out-on-401/`/blog` link all still covered by the unchanged suites; `aria-sort` and ARIA roles preserved.
+
+## Design note flagged for review
+Create-form inputs stay **label-less** (`aria-label` + `placeholder`, as before) rather than gaining visible text labels: a visible `Name`/`Amount` label would collide with the identically-named edit-row labels under `getByLabelText` and break existing App tests. Toolbar alignment is done via shared control heights instead. Small deviation from "deliberate label placement," resolved in favor of frozen behavior + existing tests.
+
+## Not verified (user-attested)
+Visual quality — alignment, spacing rhythm, control-height consistency, typography hierarchy — on the deployed app, signed in and signed out. Structure/roles/landmarks are asserted mechanically, but the aesthetics are the user's call on the deployed site; I did not run a browser/visual check.
+
+Leaving the ticket in **In Progress** for you to move to In Review after reviewing the draft PR.</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-10 04:58 UTC</time></div>
+        <pre class="doc">## Tester verdict — DAN-32: PASS (all mechanically-checkable criteria)
+
+Verified on branch `perezfdanny/dan-32-app-shell-ui-polish-header-bar-aligned-formfilter-toolbars` @ `ab7f93c`. Tester tests added as a separate commit (`AuthGate.dan32.tester.test.jsx`).
+
+| # | Acceptance criterion | Verdict |
+|---|---|---|
+| 1 | Both suites green on a clean checkout | **PASS** |
+| 2 | Diff touches only `app/frontend/src/` components, `styles.css`, frontend tests | **PASS** (see note) |
+| 3 | No new `dependencies`/`devDependencies` in either package | **PASS** |
+| 4 | Signed-in: `banner` landmark holds app title, user name, `href="/blog"` link, Sign out | **PASS** |
+| 5 | Focus-visible rules for button/input/select/link + component hooks | **PASS** |
+| 6 | Signed-out: sign-in control + case-study link inside same landmark structure | **PASS** |
+| — | Visual quality (alignment/spacing/typography) | **User-attested** — not asserted by the suite |
+
+### Evidence
+
+**1 — Both suites green (`npm ci &amp;&amp; npm test`):**
+- Frontend: `19 files / 111 tests passed`, exit 0. `npm run build` succeeds (vite build OK).
+- Backend: `98 tests, pass 98, fail 0`, exit 0 (`MONGODB_DB=linear_example_test`).
+
+**2 — Diff scope.** This ticket's actual changes (against merge-base `9214840`) touch exactly: `App.jsx`, `AuthGate.jsx`, `NewRecordForm.jsx`, `RecordTable.jsx`, `styles.css`, `AuthGate.dan32.test.jsx` — all under `app/frontend/src/` (components + the one stylesheet + a test file). No backend, no `public/blog/**`, no `firebase.json`, no `package.json`/`package-lock.json`.
+*Note:* a literal `git diff main` also shows `public/blog/index.html` and the `blog.dan27/dan29` tests — only because the branch is **behind main** (main advanced with DAN-29 after this branch was cut). DAN-32 did not touch those files, so a merge preserves DAN-29's blog content. Recommend merging/rebasing main before merge so the PR diff reads clean.
+
+**3 — No new deps.** Neither `package.json` appears in the ticket diff; both dependency blocks are unchanged.
+
+**4 — Signed-in header landmark.** `AuthGate` renders `&lt;header&gt;` (→ `role="banner"`) containing `linear-example` (title), the user's `displayName`/`email`, `&lt;a href="/blog"&gt;Read the case study&lt;/a&gt;`, and a Sign out `&lt;button&gt;`. Asserted via `getByRole('banner')` + `within()`.
+
+**5 — Focus-visible.** `styles.css` defines `a/button/input/select:focus-visible` (plus `.btn/.control/.app-link/.sort-button`); components expose those hooks.
+
+**6 — Signed-out.** Same `&lt;header&gt;` banner carries the `/blog` link; `&lt;main class="container"&gt;` holds the `Records` h1 and the "Sign in with Google" button. Records children stay withheld.
+
+Commands run:
+```
+(app/frontend) npm ci &amp;&amp; npm run build &amp;&amp; npm test   -&gt; exit 0, 111 tests
+(app/backend)  npm ci &amp;&amp; npm test                    -&gt; exit 0, 98 tests
+```
+
+All mechanical criteria pass. Draft lifted via `gh pr ready`. The visual-polish sign-off is the user's call on the deployed site (signed in and signed out). Leaving status at **In Review** — agents do not merge.</pre>
+      </article>
+    </div>
+  </details>
+  <details class="ticket" id="DAN-33">
+    <summary><span class="tid">DAN-33</span> <span class="tt">[LOCAL-EXECUTED] Evidence-gate the "Mark ticket agent-tested" step — fail the test job when no tester verdict comment exists</span> <span class="pill bot">Done</span></summary>
+    <div class="body">
+      <p class="meta"><span class="ml">State</span> Done &nbsp;·&nbsp; <span class="ml">Labels</span> <span class="label muted">none</span> &nbsp;·&nbsp; <a class="ext" href="https://linear.app/daniel-perez/issue/DAN-33/local-executed-evidence-gate-the-mark-ticket-agent-tested-step-fail">open in Linear</a></p>
+      <h3>Description</h3>
+      <pre class="doc">**LOCAL-EXECUTED — NOT REMOTE-PIPELINE WORK. Do NOT move this ticket to Ready for Dev.** This change edits `.github/workflows/linear-agents.yml`, and GitHub rejects pushes that modify workflow files when they come from Actions' own `GITHUB_TOKEN` (it lacks the `workflows` permission) — so the remote developer job **cannot** push this change and would fail at `git push`. The local session implements it directly, analogous to the team's [USER-EXECUTED] convention for work the pipeline cannot perform on itself. The PR is opened **non-draft** under the repo's toolchain exemption (no tester agent runs on workflow-file changes; a draft would sit undrafted forever). This ticket exists for the record and the acceptance criteria below, which the local implementer and the next real pipeline cycle verify.
+
+## Incident (2026-07-09, [DAN-32](https://linear.app/daniel-perez/issue/DAN-32/app-shell-ui-polish-header-bar-aligned-formfilter-toolbars-consistent) test run)
+
+The remote `test` job for [DAN-32](https://linear.app/daniel-perez/issue/DAN-32/app-shell-ui-polish-header-bar-aligned-formfilter-toolbars-consistent) silently no-opped: the `claude-code-action` Claude process exited within seconds of starting — no PR checkout, no tests run, no verdict comment posted anywhere — yet the action step reported **success**. The workflow's "Mark ticket agent-tested" step is unconditional on anything but the guard's skip flag, so it labeled the ticket `agent-tested` anyway. Result: [DAN-32](https://linear.app/daniel-perez/issue/DAN-32/app-shell-ui-polish-header-bar-aligned-formfilter-toolbars-consistent) sat in In Review + `agent-tested` with a draft PR and **no verdict**, invisible to every subsequent scan — the dedup guard correctly skipped it, exactly as designed, wedging the ticket. Recovery was manual: remove the label, re-dispatch the workflow.
+
+The failure mode is structural: the label is supposed to mean "a tester ran and rendered a verdict," but today it only means "the action step exited 0," and the action exits 0 even when Claude produced nothing.
+
+## The fix (design settled — record, then implement as specified)
+
+In the `test` job of `.github/workflows/linear-agents.yml`, make the "Mark ticket agent-tested" step **evidence-gated**:
+
+1. The "Confirm ticket still needs testing" step (`id: guard`) additionally captures the current UTC timestamp as a step output (e.g. `started=$(date -u +%Y-%m-%dT%H:%M:%SZ)`), **before** the "Verify ticket" step runs.
+2. Before adding the label, the "Mark ticket agent-tested" step queries the ticket's PR — located via `gh` and the matrix `branchName` — for a comment **authored by** `github-actions` whose body contains **"Tester verdict"** and whose `createdAt` is **after** the guard-captured timestamp.
+3. If no such comment exists, the step prints an error and **exits 1**: the run turns red, the label is **not** added, and the next scheduled scan picks the ticket up again automatically (still In Review, still unlabeled). Silent no-ops become visible failures with automatic retry instead of invisible wedges.
+4. If the comment exists, the step adds the label exactly as today.
+
+Consequence for the tester prompt: the verdict comment on the PR must contain the literal phrase "Tester verdict" for the gate to recognize it — add that requirement to the tester prompt in the same workflow file if it is not already unambiguous.
+
+**Developer leg — no change needed (for the record):** a silent developer no-op leaves the ticket In Progress with no PR. That state is visible on the board and nothing gets mislabeled, so the develop job has no equivalent gap and this ticket does not touch it.
+
+## Acceptance criteria
+
+Verified by the local implementer, plus the next live pipeline cycle for the end-to-end criterion — no remote tester agent runs on this ticket.
+
+* The "Mark ticket agent-tested" step queries the ticket's PR (via `gh`, using the matrix `branchName`) for a `github-actions`-authored comment containing "Tester verdict" created after the job's captured start timestamp, and **exits non-zero** when no such comment exists; in that path the `agent-tested` label is not added and the job fails visibly.
+* The start timestamp is captured in the guard step, i.e. **before** the "Verify ticket" step runs — a verdict comment from a previous run cannot satisfy the gate.
+* A normal passing tester run still labels the ticket: observed on the next live cycle (a real ticket goes In Review → tester posts its verdict → the run stays green and the label appears).
+* The workflow file parses: passes `actionlint` if available locally, or at minimum `gh workflow view "Linear agents"` succeeds against the updated file on its branch.
+* No other workflow behavior changes: scan job, develop job, guard skip logic, concurrency groups, and the tester's Linear/PR duties are untouched except for the verdict-phrase requirement noted above.
+
+## Files expected to change
+
+* `.github/workflows/linear-agents.yml` (only file)
+
+## Process notes
+
+* Branch from `gitBranchName` on this issue as usual; commit subjects start with this ticket's ID.
+* PR opened **non-draft** (`gh pr create`, no `--draft`) with the exemption stated in the body, per the CLAUDE.md toolchain exemption. The user reviews and merges.
+* This ticket stays in **Todo** until the local session picks it up. Moving it to Ready for Dev would hand it to the remote developer, which would fail at push with a workflow-permission error.
+* This ticket is [DAN-33](https://linear.app/daniel-perez/issue/DAN-33/local-executed-evidence-gate-the-mark-ticket-agent-tested-step-fail) (self-reference for the record).</pre>
+      <h3>Comments (1)</h3>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-10 05:02 UTC</time></div>
+        <pre class="doc">Shipped in https://github.com/dperez4787/linear-example/pull/34 (merged). Two commits: the evidence-gated label step, and the tester-prompt amendment mandating the literal Tester verdict marker the gate greps for. Merged under the user rule that ungated (non-ticket-gated) PRs are auto-merged. Final verification is the next live tester cycle exercising the gate.</pre>
+      </article>
+    </div>
+  </details>
+  <details class="ticket" id="DAN-34">
+    <summary><span class="tid">DAN-34</span> <span class="tt">Publish blog part 2 — "Federating IMDb: An Agentic Build at Three Speeds" at /blog/imdb-federation/</span> <span class="pill bot">Done</span></summary>
+    <div class="body">
+      <p class="meta"><span class="ml">State</span> Done &nbsp;·&nbsp; <span class="ml">Labels</span> <span class="label">agent-tested</span> &nbsp;·&nbsp; <a class="ext" href="https://linear.app/daniel-perez/issue/DAN-34/publish-blog-part-2-federating-imdb-an-agentic-build-at-three-speeds">open in Linear</a></p>
+      <h3>Description</h3>
+      <pre class="doc">Add the blog's second post as a static page at `/blog/imdb-federation/`. **This is new content** — part 2 of the blog series started in [DAN-26](https://linear.app/daniel-perez/issue/DAN-26/serve-the-case-study-blog-post-at-blog-verbatim-static-page-cross) — and it changes no app code, no `firebase.json`, no `docs/architecture.md`. The deliverable HTML is complete, self-contained (inline CSS, no external assets), and attached to this issue. The job is: **CREATE** `app/frontend/public/blog/imdb-federation/index.html` **byte-for-byte from the attached file — zero deltas.** Vite copies `public/` into `dist/` verbatim, and Firebase Hosting serves static directory paths with an `index.html` before the SPA rewrite, so no hosting config change is needed — the same mechanism that already serves `/blog` and `/blog/tickets/`.
+
+**Known transient state — do not "fix" it:** the post links to `/blog` (the future blog index) and `/blog/agentic-sdlc/` (the future home of part 1). Until the follow-up blog-index ticket ships, `/blog` still serves part 1 and `/blog/agentic-sdlc/` is a 404. That is accepted and expected. Do not edit the attached bytes, add redirects, or touch any other file.
+
+## Source asset — read this first (remote/CI checkout)
+
+The canonical part-2 HTML is attached to this issue (`imdb-federation-post-v1.html` — the only file attachment) and must be fetched from Linear's CDN, which requires authentication. The CI runner exports `LINEAR_API_KEY`; use it by env-var name only — never print or commit its value.
+
+* Asset URL: `https://uploads.linear.app/bc0d63d4-9b46-41b7-b526-9ac3f2e1a511/ee161f04-baf4-4cd0-b7f6-1add8a6321f8/50baded5-c1f6-4194-a116-3d6480c48d19`
+* sha256: `47e47319bd7b4545f69033251fc1e8f238c9e040c8238a275950774e556b2d66`
+* Size: 26604 bytes, `text/html`, title "Federating IMDb: An Agentic Build at Three Speeds"
+
+### Fetching the asset
+
+```sh
+curl -sS -H "Authorization: $LINEAR_API_KEY" -o part2.html 'https://uploads.linear.app/bc0d63d4-9b46-41b7-b526-9ac3f2e1a511/ee161f04-baf4-4cd0-b7f6-1add8a6321f8/50baded5-c1f6-4194-a116-3d6480c48d19'
+echo "47e47319bd7b4545f69033251fc1e8f238c9e040c8238a275950774e556b2d66  part2.html" | sha256sum -c -
+```
+
+The checksum check must pass before the file is used. If the download fails or the checksum mismatches, stop and report on this issue — do not substitute content from anywhere else.
+
+**Fallback fetch path:** when this description is read through the Linear API, Linear rewrites the asset URL above to include a short-lived `?signature&#61;…` parameter (~5-minute expiry). That signed variant downloads with **no** auth header. If the `Authorization: $LINEAR_API_KEY` fetch fails, re-read this issue and use the freshly signed URL immediately.
+
+**Verification status (product owner, at filing time):** the upload PUT returned `200`; download verification is recorded in the first comment on this issue.
+
+## What ships
+
+* `app/frontend/public/blog/imdb-federation/index.html` — new file, byte-identical to the attachment. **The only implementer-touched file.**
+* `app/frontend/public/blog/index.html` (currently part 1, sha `bddf9fcde6c439f8377c9ccd735a215a978b4dfea8e1571ddad40562cc788c23`) and `app/frontend/public/blog/tickets/index.html` are **not** touched.
+* `.gitattributes` already covers the new path (`app/frontend/public/blog/**` is linguist-documentation + linguist-generated) — no change.
+
+## Acceptance criteria
+
+### Agent-checkable
+
+* Fetching the attached asset (the `curl` above, or the signed-URL fallback) succeeds and `sha256sum` of the downloaded file is `47e47319bd7b4545f69033251fc1e8f238c9e040c8238a275950774e556b2d66`.
+* The repo file is byte-identical to the attachment: `sha256sum app/frontend/public/blog/imdb-federation/index.html` prints `47e47319…2d66`.
+* `git diff main...HEAD --name-only` lists only `app/frontend/public/blog/imdb-federation/index.html` plus test files added by the tester.
+* `npm run build` in `app/frontend` succeeds and emits `dist/blog/imdb-federation/index.html` whose sha256 is also `47e47319…2d66` (verbatim `public/` copy).
+* Firebase Hosting emulator from the repo root with the repo's `firebase.json` (pinned `firebase-tools`, per [DAN-26](https://linear.app/daniel-perez/issue/DAN-26/serve-the-case-study-blog-post-at-blog-verbatim-static-page-cross)'s pattern): `GET /blog/imdb-federation` (following at most one redirect) returns `200` with a body containing `Federating IMDb`.
+* Same emulator: `GET /blog` still returns `200` containing `An Agentic SDLC, End to End`, and `GET /blog/tickets/` (at most one redirect) still returns `200` — both unchanged by this ticket.
+* Same emulator: `GET` on a non-file SPA path (e.g. `/some/deep/link`) still returns the SPA's `index.html` — the fallback rewrite is intact.
+* `npm test` passes in `app/backend` and in `app/frontend`.
+
+### User-attested (recorded as "pending user attestation", never pass/fail)
+
+* After merge and deploy, `https://project-d60a83c1-2c60-4d51-ad0.web.app/blog/imdb-federation` serves the post. Its links to `/blog` and `/blog/agentic-sdlc/` become fully correct once the blog-index ticket is live.
+
+## Expected file changes
+
+* `app/frontend/public/blog/imdb-federation/index.html` (new — the only implementer-touched file)
+* Colocated frontend test(s) added by the tester (e.g. under `app/frontend/src/`), per the [DAN-26](https://linear.app/daniel-perez/issue/DAN-26/serve-the-case-study-blog-post-at-blog-verbatim-static-page-cross)/27 pattern
+
+## Dependencies / ordering
+
+No blockers — first of the three blog tickets, independently shippable. It **blocks** the blog-index ticket (see the blocking relation on this issue), whose index screen links to this post.</pre>
+      <h3>Comments (2)</h3>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-11 00:56 UTC</time></div>
+        <pre class="doc">**Attachment verification (product owner, at filing time):** the upload PUT for `imdb-federation-post-v1.html` returned `200`; downloading the asset back via a freshly signed URL returned `200` and its `sha256` matched `47e47319bd7b4545f69033251fc1e8f238c9e040c8238a275950774e556b2d66` exactly (26604 bytes); the bare URL correctly returns `401` without credentials. The `Authorization: $LINEAR_API_KEY` header path is the same mechanism DAN-27's runner used successfully.</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-11 04:11 UTC</time></div>
+        <pre class="doc">## Tester verdict — PASS
+
+All agent-checkable acceptance criteria verified by running the code (Vite build + Firebase Hosting emulator with the repo's own `firebase.json` + both test suites), not by inspection. Tester test added to the PR branch as a separate commit `51791cf` (`app/frontend/src/blog.dan34.tester.test.jsx`, 9 tests).
+
+| # | Criterion | Result | Evidence |
+|---|-----------|--------|----------|
+| 1 | Canonical asset fetch + sha256 | PASS | `curl` with `LINEAR_API_KEY` → `sha256sum` = `47e47319…2d66`, 26604 bytes |
+| 2 | Repo file byte-identical to attachment | PASS | `sha256sum app/frontend/public/blog/imdb-federation/index.html` = `47e47319…2d66`; `cmp` vs downloaded asset = IDENTICAL |
+| 3 | Diff scope | PASS | `git diff main...HEAD --name-only` = `app/frontend/public/blog/imdb-federation/index.html` + the tester test only |
+| 4 | `npm run build` emits verbatim dist copy | PASS | build OK; `sha256 dist/blog/imdb-federation/index.html` = `47e47319…2d66` |
+| 5 | Emulator `GET /blog/imdb-federation` | PASS | 301 → `/blog/imdb-federation/` (one hop) → 200, body contains `Federating IMDb` |
+| 6 | Emulator `GET /blog` unchanged | PASS | 200, body contains `An Agentic SDLC, End to End` |
+| 6b | Emulator `GET /blog/tickets/` unchanged | PASS | 200 (373547 bytes) |
+| 7 | SPA fallback intact | PASS | `GET /some/deep/link` → 200, body byte-identical to `dist/index.html` |
+| 8 | `npm test` backend + frontend | PASS | backend 98/98; frontend 136/136 (127 existing + 9 new) |
+
+Convention checks: no committed secret in the HTML (`lin_api&#95;` / `signature&#61;` absent); self-contained (no external script/style/image/font refs). The `/blog` and `/blog/agentic-sdlc/` links are the ticket's documented transient state and were correctly left as authored, not "fixed".
+
+**User-attested (pending, not pass/fail):** post-deploy serving at `https://project-d60a83c1-2c60-4d51-ad0.web.app/blog/imdb-federation`, with link targets becoming fully correct once the blog-index ticket ships.
+
+Draft lifted on PR #37. Leaving the ticket in **In Review** for the human to merge.</pre>
+      </article>
+    </div>
+  </details>
+  <details class="ticket" id="DAN-35">
+    <summary><span class="tid">DAN-35</span> <span class="tt">Blog index screen at /blog — move part 1 unchanged to /blog/agentic-sdlc/, repoint the four blog tester locks</span> <span class="pill bot">Done</span></summary>
+    <div class="body">
+      <p class="meta"><span class="ml">State</span> Done &nbsp;·&nbsp; <span class="ml">Labels</span> <span class="label">agent-tested</span> &nbsp;·&nbsp; <a class="ext" href="https://linear.app/daniel-perez/issue/DAN-35/blog-index-screen-at-blog-move-part-1-unchanged-to-blogagentic-sdlc">open in Linear</a></p>
+      <h3>Description</h3>
+      <pre class="doc">Turn `/blog` into a parent index screen listing both posts, and move part 1 to its permanent home at `/blog/agentic-sdlc/`. Two byte-precise file operations plus a mechanical test-path update — no hosting config change (`firebase.json` untouched; directory paths with an `index.html` are served before the SPA rewrite, same as `/blog` and `/blog/tickets/` today), no `docs/architecture.md` change.
+
+**Blocked by** [DAN-34](&lt;https://linear.app/daniel-perez/issue/DAN-34/publish-blog-part-2-federating-imdb-an-agentic-build-at-three-speeds&gt;) — the index links to `/blog/imdb-federation/`, which must exist first. *(*[DAN-34](https://linear.app/daniel-perez/issue/DAN-34/publish-blog-part-2-federating-imdb-an-agentic-build-at-three-speeds) *is merged — this is satisfied.)*
+
+**Amendment (v2, after the first developer run stopped):** the run surfaced a fifth tester lock the original scope missed — `blog.dan34.tester.test.jsx`'s C6 guard asserts `/blog` still serves part 1, which is precisely what this ticket changes. That file is now explicitly in scope (see test updates below) and in the diff allowlist. Everything else is unchanged.
+
+## The two file operations
+
+1. **Move part 1 unchanged.** `git mv app/frontend/public/blog/index.html app/frontend/public/blog/agentic-sdlc/index.html`. The file on `main` today is the v4 post **with** [DAN-31](&lt;https://linear.app/daniel-perez/issue/DAN-31/publish-the-ticket-archive-at-blogtickets-and-turn-every-dan-reference&gt;)**'s ticket-archive deep links baked in** — 932313 bytes, sha256 `bddf9fcde6c439f8377c9ccd735a215a978b4dfea8e1571ddad40562cc788c23`. The moved file must keep exactly that sha — zero content edits. (Its DAN-* deep links are absolute `/blog/tickets/#DAN-n` URLs, so they survive the move; do **not** rewrite them.) `app/frontend/public/blog/tickets/index.html` does **not** move and is not touched.
+2. **Place the index.** The attached `blog-index-v1.html` becomes `app/frontend/public/blog/index.html`, byte-for-byte — zero deltas (sha256 `e07089bbf33bedf308edae861272a63ee3d7b3d931032440995ee6b19e464961`, 5422 bytes). It is a small self-contained page titled "Blog · Agentic Software Delivery" with cards linking `/blog/agentic-sdlc/` and `/blog/imdb-federation/` and a back-link to `/`.
+
+## In-scope test updates (developer, not tester)
+
+Five existing tester locks reference `public/blog/index.html`. They must keep locking what they were written to lock, so this ticket's developer updates them as follows:
+
+* `app/frontend/src/blog.dan26.tester.test.jsx`, `blog.dan27.tester.test.jsx`, `blog.dan29.tester.test.jsx` — change `blogPath` to `public/blog/agentic-sdlc/index.html`. **Assertions otherwise unchanged.** The dan27/dan29 sha pins stay `bddf9fcde6c439f8377c9ccd735a215a978b4dfea8e1571ddad40562cc788c23` (the moved file is byte-identical).
+* `app/frontend/src/blog.dan31.tester.test.jsx` — change `blogPath` the same way; its `archivePath` (`public/blog/tickets/index.html`) stays as is. **Assertions unchanged.**
+* `app/frontend/src/blog.dan34.tester.test.jsx` — its C6 guard ("sibling blog assets untouched by this ticket") asserted `/blog` still serves part 1, which was correct for [DAN-34](https://linear.app/daniel-perez/issue/DAN-34/publish-blog-part-2-federating-imdb-an-agentic-build-at-three-speeds)'s scope and is exactly what this ticket changes. Update **only** that assertion to the new reality: `public/blog/index.html` contains `Building real systems with AI agents` (the index screen) and `public/blog/agentic-sdlc/index.html` contains `An Agentic SDLC, End to End` (the moved part 1). Its other assertions (the federation post's byte-identity, the tickets archive untouched) stay unchanged.
+
+The new index file gets its own coverage from the tester on this ticket; the developer does not pre-pin it.
+
+## SPA links
+
+`app/frontend/src/AuthGate.jsx` has two `&lt;a href="/blog"&gt;` links ("Read the case study"). With the index in place they land on the blog index — that is the desired destination; keep `href="/blog"`. The link text **may** minimally change to "Read the blog" (developer's choice); if changed, update whatever existing test asserts the old text, and nothing else.
+
+## .gitattributes
+
+No change: `app/frontend/public/blog/** linguist-documentation linguist-generated` already covers both new paths.
+
+## Source asset — read this first (remote/CI checkout)
+
+The canonical index HTML is attached to this issue (`blog-index-v1.html` — the only file attachment) and must be fetched from Linear's CDN, which requires authentication. The CI runner exports `LINEAR_API_KEY`; use it by env-var name only — never print or commit its value.
+
+* Asset URL: `https://uploads.linear.app/bc0d63d4-9b46-41b7-b526-9ac3f2e1a511/f6ac119b-275b-4f60-8e46-381ce49abdab/62bcbfd1-2022-442a-b679-203541a79f6d`
+* sha256: `e07089bbf33bedf308edae861272a63ee3d7b3d931032440995ee6b19e464961`
+* Size: 5422 bytes, `text/html`, title "Blog · Agentic Software Delivery"
+
+### Fetching the asset
+
+```sh
+curl -sS -H "Authorization: $LINEAR_API_KEY" -o blog-index.html 'https://uploads.linear.app/bc0d63d4-9b46-41b7-b526-9ac3f2e1a511/f6ac119b-275b-4f60-8e46-381ce49abdab/62bcbfd1-2022-442a-b679-203541a79f6d'
+echo "e07089bbf33bedf308edae861272a63ee3d7b3d931032440995ee6b19e464961  blog-index.html" | sha256sum -c -
+```
+
+The checksum check must pass before the file is used. If the download fails or the checksum mismatches, stop and report on this issue — do not substitute content from anywhere else.
+
+**Fallback fetch path:** when this description is read through the Linear API, Linear rewrites the asset URL above to include a short-lived `?signature&#61;…` parameter (~5-minute expiry). That signed variant downloads with **no** auth header. If the `Authorization: $LINEAR_API_KEY` fetch fails, re-read this issue and use the freshly signed URL immediately.
+
+**Verification status (product owner, at filing time):** the upload PUT returned `200`; download verification is recorded in the first comment on this issue.
+
+## Acceptance criteria
+
+### Agent-checkable
+
+* Fetching the attached asset (the `curl` above, or the signed-URL fallback) succeeds and `sha256sum` of the downloaded file is `e07089bbf33bedf308edae861272a63ee3d7b3d931032440995ee6b19e464961`.
+* `sha256sum app/frontend/public/blog/index.html` prints `e07089bb…4961` (byte-identical to the attachment).
+* `sha256sum app/frontend/public/blog/agentic-sdlc/index.html` prints `bddf9fcde6c439f8377c9ccd735a215a978b4dfea8e1571ddad40562cc788c23` (the moved part-1 file, unchanged).
+* `app/frontend/public/blog/tickets/index.html` is byte-identical to `main`.
+* `git diff main...HEAD --name-only` lists only: `app/frontend/public/blog/index.html`, `app/frontend/public/blog/agentic-sdlc/index.html`, the **five** test files named above (`blog.dan26/27/29/31/34.tester.test.jsx`), optionally `app/frontend/src/AuthGate.jsx` plus the one test asserting its link text, and test files added by the tester. Nothing else.
+* `npm run build` in `app/frontend` succeeds; `dist/blog/index.html` sha256 is `e07089bb…4961` and `dist/blog/agentic-sdlc/index.html` sha256 is `bddf9fcd…88c23`.
+* Firebase Hosting emulator from the repo root with the repo's `firebase.json` (pinned `firebase-tools`, per [DAN-26](&lt;https://linear.app/daniel-perez/issue/DAN-26/serve-the-case-study-blog-post-at-blog-verbatim-static-page-cross&gt;)'s pattern): `GET /blog` (following at most one redirect) returns `200` with a body containing `Building real systems with AI agents`.
+* Same emulator: `GET /blog/agentic-sdlc` (at most one redirect) returns `200` containing `An Agentic SDLC, End to End`; `GET /blog/imdb-federation` (at most one redirect) returns `200` containing `Federating IMDb`; `GET /blog/tickets/` (at most one redirect) returns `200`.
+* Same emulator: `GET` on a non-file SPA path still returns the SPA's `index.html` — the fallback rewrite is intact.
+* `git check-attr linguist-documentation linguist-generated -- app/frontend/public/blog/agentic-sdlc/index.html` shows both attributes set.
+* `npm test` passes in `app/backend` and in `app/frontend`.
+
+### User-attested (recorded as "pending user attestation", never pass/fail)
+
+* After merge and deploy, `https://project-d60a83c1-2c60-4d51-ad0.web.app/blog` shows the index with two working cards; `/blog/agentic-sdlc/` serves part 1 with its ticket-archive deep links working; existing bookmarks to `/blog` land on the index; the SPA's header/sign-in link opens the index.
+
+## Expected file changes
+
+* `app/frontend/public/blog/index.html` (replaced with the attached index — was part 1)
+* `app/frontend/public/blog/agentic-sdlc/index.html` (part 1, moved unchanged)
+* `app/frontend/src/blog.dan26.tester.test.jsx`, `blog.dan27.tester.test.jsx`, `blog.dan29.tester.test.jsx`, `blog.dan31.tester.test.jsx` (path repoint only), `blog.dan34.tester.test.jsx` (C6 assertion update only)
+* Optionally `app/frontend/src/AuthGate.jsx` (+ its existing text assertion) — link text only
+* Colocated frontend test(s) added by the tester
+
+## Dependencies / ordering
+
+**Blocked by** [DAN-34](&lt;https://linear.app/daniel-perez/issue/DAN-34/publish-blog-part-2-federating-imdb-an-agentic-build-at-three-speeds&gt;) (merged — satisfied). **Blocks** the part-1 revision ticket [DAN-36](&lt;https://linear.app/daniel-perez/issue/DAN-36/revise-blog-part-1-state-the-product-ownerdesigner-empowerment-aim&gt;), which replaces the moved file at its new path.</pre>
+      <h3>Comments (4)</h3>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-11 00:59 UTC</time></div>
+        <pre class="doc">**Attachment verification (product owner, at filing time):** the upload PUT for `blog-index-v1.html` returned `200`; downloading the asset back via a freshly signed URL returned `200` and its `sha256` matched `e07089bbf33bedf308edae861272a63ee3d7b3d931032440995ee6b19e464961` exactly (5422 bytes); the bare URL correctly returns `401` without credentials.</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-11 04:31 UTC</time></div>
+        <pre class="doc">## 🚫 Blocked — contradictory acceptance criteria (a fifth, un-enumerated tester lock)
+
+Automated developer run (GitHub Actions, branch `perezfdanny/dan-35-blog-index-screen-at-blog-move-part-1-unchanged-to`) stopped **without opening a PR**. The two byte operations and the four path repoints succeeded, but two acceptance criteria cannot both hold, so this needs a scope decision from the ticket owner.
+
+### The contradiction
+
+There is a **fifth** blog tester lock the ticket does not enumerate:
+
+`app/frontend/src/blog.dan34.tester.test.jsx`, describe block **C6 "sibling blog assets untouched by this ticket"** (lines 73–76):
+
+```js
+it('/blog is still part 1 (An Agentic SDLC, End to End)', () =&gt; {
+  const blogIndex = readFileSync(blogIndexPath, 'utf8') // public/blog/index.html
+  expect(blogIndex).toContain('An Agentic SDLC, End to End')
+})
+```
+
+This was DAN-34's guard that *its* work didn't disturb `/blog`. But DAN-35's whole purpose is to replace `public/blog/index.html` with the new index screen (which contains "Building real systems with AI agents", **not** "An Agentic SDLC, End to End"). So after DAN-35's change this assertion **fails**.
+
+That collides head-on with two of DAN-35's own criteria:
+
+1. **`npm test` passes in `app/frontend`** — fails, solely on DAN-34 C6.
+2. **`git diff main...HEAD --name-only` lists only** the two blog HTML files, the four named test files (`dan26/27/29/31`), optionally `AuthGate.jsx` + its text assertion, and *test files added by the tester* — **"Nothing else."** `blog.dan34.tester.test.jsx` is **not** in that allowlist.
+
+The only way to make (1) pass is to edit `blog.dan34.tester.test.jsx`, which (2) forbids. Picking which criterion to violate is a ticket-scope call, not a developer guess — hence the stop.
+
+### Verified state before stopping (nothing committed, nothing pushed)
+
+- Attached asset fetched, `sha256` verified `e07089bb…4961`; placed at `public/blog/index.html` (sha matches).
+- Part 1 `git mv`'d to `public/blog/agentic-sdlc/index.html`, sha `bddf9fcd…88c23` unchanged.
+- `public/blog/tickets/index.html` untouched.
+- Four locks (`dan26/27/29/31`) repointed — path only, assertions unchanged.
+- `app/backend` `npm test`: **109 pass / 0 fail**.
+- `app/frontend` `npm test`: **135 pass / 1 fail** — the single failure is DAN-34 C6 above.
+
+### Recommended resolution
+
+Amend DAN-35 to treat this as a **fifth** in-scope lock: add `app/frontend/src/blog.dan34.tester.test.jsx` to the `git diff` allowlist and update its C6 assertion to reflect the new reality — e.g. assert `public/blog/agentic-sdlc/index.html` contains "An Agentic SDLC, End to End" (the moved part-1 file), and/or that `public/blog/index.html` now contains "Building real systems with AI agents". With that one extra file authorized, the implementation is otherwise complete and can finish in a single pass.
+
+Moving the issue back to **Todo** pending that amendment.</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-11 04:39 UTC</time></div>
+        <pre class="doc">Developer run complete — draft PR: https://github.com/dperez4787/linear-example/pull/38
+
+**Files changed** (`git diff main --name-only` — exactly the allowlist):
+- `app/frontend/public/blog/index.html` — replaced with the canonical index attachment, byte-for-byte (sha `e07089bb…4961`).
+- `app/frontend/public/blog/agentic-sdlc/index.html` — part 1 moved unchanged via `git mv` (sha `bddf9fcd…88c23`).
+- `app/frontend/src/blog.dan26/27/29/31.tester.test.jsx` — `blogPath` repointed to the new part-1 path; assertions and sha pins unchanged.
+- `app/frontend/src/blog.dan34.tester.test.jsx` — C6 guard only: `/blog` now asserts the index (`Building real systems with AI agents`), `/blog/agentic-sdlc/` asserts part 1 (`An Agentic SDLC, End to End`); other assertions unchanged.
+
+**Verified (agent-checkable):**
+- Attachment fetched via `LINEAR_API_KEY`, `sha256sum` = `e07089bb…4961` ✓
+- `index.html` sha = `e07089bb…4961`; `agentic-sdlc/index.html` sha = `bddf9fcd…88c23` ✓
+- `public/blog/tickets/index.html` byte-identical to `main` (untouched) ✓
+- `npm run build` succeeds; `dist/blog/index.html` and `dist/blog/agentic-sdlc/index.html` match the two shas ✓
+- Firebase Hosting emulator (firebase-tools 15.23.0, repo `firebase.json`, dist built): `GET /blog` → 200 `Building real systems with AI agents`; `/blog/agentic-sdlc` → 200 `An Agentic SDLC, End to End`; `/blog/imdb-federation` → 200 `Federating IMDb`; `/blog/tickets/` → 200; non-file SPA path → 200 serving SPA `index.html` (fallback intact) ✓
+- `git check-attr` on the moved file: `linguist-documentation` and `linguist-generated` both set ✓
+- `npm test`: frontend 136/136, backend 109/109 ✓
+
+**Decisions / notes:**
+- Left `AuthGate.jsx` `/blog` links and their text unchanged — they already land on the new index (the desired destination), so nothing to change and no test touched. Kept the diff minimal.
+- No `firebase.json` or `docs/architecture.md` change, as specified.
+- Did not pre-pin the new index file; that coverage is the tester's on this ticket.
+
+**Pending user attestation:** the live `.web.app` outcome (two working cards, `/blog/agentic-sdlc/` deep links, bookmarks landing on the index, SPA header link) — not observable from the repo.
+
+PR left as a **draft** for the tester.</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-11 04:47 UTC</time></div>
+        <pre class="doc">## Tester verdict — PASS
+
+All agent-checkable acceptance criteria verified by running the code on branch `perezfdanny/dan-35-blog-index-screen-at-blog-move-part-1-unchanged-to`. User-attested items remain pending user attestation (post-merge/deploy). PR #38 lifted out of draft; the human merges. Status left at In Review.
+
+### Criteria
+- **Attachment fetch + sha256 = `e07089bb…4961`** — PASS. Fetched with `$LINEAR_API_KEY`; `cmp` shows the download is byte-identical to the committed `public/blog/index.html`.
+- **`sha256 public/blog/index.html` = `e07089bb…4961`** — PASS (5422 bytes).
+- **`sha256 public/blog/agentic-sdlc/index.html` = `bddf9fcd…88c23`** (part 1 moved unchanged) — PASS (932313 bytes).
+- **`public/blog/tickets/index.html` byte-identical to `main`** — PASS (empty diff).
+- **`git diff main...HEAD --name-only` lists only allowed files** — PASS. The two HTML files, the five in-scope test files (dan26/27/29/31/34), plus my tester lock `blog.dan35.tester.test.jsx`. `AuthGate.jsx` untouched (its text change was developer-optional).
+- **`npm run build` + dist shas** — PASS. `dist/blog/index.html` = `e07089bb…4961`, `dist/blog/agentic-sdlc/index.html` = `bddf9fcd…88c23`.
+- **Emulator `GET /blog`** → 200 containing `Building real systems with AI agents` — PASS.
+- **Emulator `/blog/agentic-sdlc` → 200 `An Agentic SDLC, End to End`; `/blog/imdb-federation` → 200 `Federating IMDb`; `/blog/tickets/` → 200** — PASS.
+- **SPA fallback rewrite intact** — PASS. `GET /some/spa/path` → 200, body identical to `dist/index.html`.
+- **`git check-attr` on the moved file** — PASS. Both `linguist-documentation` and `linguist-generated` set.
+- **`npm test` in backend + frontend** — PASS. Frontend 146 passed (146), backend 109 passed.
+
+### In-scope test-lock repoints (verified)
+- `blog.dan26/27/29.tester.test.jsx`: `blogPath` → `public/blog/agentic-sdlc/index.html`, assertions unchanged; dan27/dan29 sha pins still `bddf9fcd…88c23` and pass against the moved file.
+- `blog.dan31.tester.test.jsx`: `blogPath` repointed; `archivePath` unchanged; passes.
+- `blog.dan34.tester.test.jsx`: only the C6 guard updated to the new reality (`/blog` = index, `/blog/agentic-sdlc/` = part 1); its federation byte-identity and tickets-archive assertions unchanged; passes.
+
+### Tester lock added (this run)
+`app/frontend/src/blog.dan35.tester.test.jsx` (committed `7ae5b66`, pushed) — pins both byte-precise shas, the index screen's structure (title "Blog · Agentic Software Delivery", both post cards, back-link to `/`, no fetched resources), that the index is not part 1, and that the tickets archive is untouched. 10 tests, all green.
+
+**Tools used, all green:** Firebase Hosting emulator (`firebase-tools@13.29.1`) against the repo's `firebase.json` on `app/frontend/dist`; `sha256sum`; `git diff`/`git check-attr`; `npm ci &amp;&amp; npm run build &amp;&amp; npm test` in both packages.
+
+### User-attested (pending user attestation)
+After merge + deploy, `https://project-d60a83c1-2c60-4d51-ad0.web.app/blog` should show the index with two working cards, `/blog/agentic-sdlc/` should serve part 1 with its ticket-archive deep links, existing `/blog` bookmarks land on the index, and the SPA sign-in link opens the index. Not verifiable pre-deploy.</pre>
+      </article>
+    </div>
+  </details>
+  <details class="ticket" id="DAN-36">
+    <summary><span class="tid">DAN-36</span> <span class="tt">Revise blog part 1 — state the product-owner/designer empowerment aim (byte-for-byte v5 replacement, re-pin two tester locks)</span> <span class="pill bot">Done</span></summary>
+    <div class="body">
+      <p class="meta"><span class="ml">State</span> Done &nbsp;·&nbsp; <span class="ml">Labels</span> <span class="label">agent-tested</span> &nbsp;·&nbsp; <a class="ext" href="https://linear.app/daniel-perez/issue/DAN-36/revise-blog-part-1-state-the-product-ownerdesigner-empowerment-aim">open in Linear</a></p>
+      <h3>Description</h3>
+      <pre class="doc">Make part 1 say out loud what it has so far only implied: the point of the formality it describes is to **empower product owners and designers**. One new paragraph is added to the "Initial goals" section, immediately after the "All four were met…" paragraph, beginning "**One aim underlies all four goals and deserves to be stated explicitly: the point of this formality is to empower product owners and designers.**"
+
+As with [DAN-27](&lt;https://linear.app/daniel-perez/issue/DAN-27/blog-post-closes-the-loop-cite-pr-27-as-the-second-remote-delivery-and&gt;) and [DAN-29](&lt;https://linear.app/daniel-perez/issue/DAN-29/blog-v4-completed-cost-appendix-final-dan-27dan-28-costs-dollar1610&gt;), the remote developer does **not** edit passages. The job is: **REPLACE** `app/frontend/public/blog/agentic-sdlc/index.html` **wholesale with the attached file, byte-for-byte — zero deltas.** The paragraph is already baked in.
+
+**Blocked by** [DAN-35 ](&lt;https://linear.app/daniel-perez/issue/DAN-35/blog-index-screen-at-blog-move-part-1-unchanged-to-blogagentic-sdlc&gt;)*(merged — satisfied)* — the file this ticket replaces lives at `app/frontend/public/blog/agentic-sdlc/index.html` only after [DAN-35](https://linear.app/daniel-perez/issue/DAN-35/blog-index-screen-at-blog-move-part-1-unchanged-to-blogagentic-sdlc)'s move, and the tester locks this ticket re-pins are at their post-move paths.
+
+**Amendment (v2, after the first developer run stopped):** [DAN-35](https://linear.app/daniel-perez/issue/DAN-35/blog-index-screen-at-blog-move-part-1-unchanged-to-blogagentic-sdlc)'s tester added a **third** sha lock on the part-1 document (`blog.dan35.tester.test.jsx`, landed on `main` ~4h after this ticket was filed). It is now explicitly in scope: re-pin it exactly like dan27/dan29, and it is in the diff allowlist (four-file diff). Nothing else changed.
+
+## Provenance of the attached document (product owner, verified at filing)
+
+The attached `agentic-sdlc-v5.html` is exactly the current part-1 bytes (sha256 `bddf9fcde6c439f8377c9ccd735a215a978b4dfea8e1571ddad40562cc788c23` — v4 plus [DAN-31](&lt;https://linear.app/daniel-perez/issue/DAN-31/publish-the-ticket-archive-at-blogtickets-and-turn-every-dan-reference&gt;)'s linkification) **plus that one inserted paragraph**: `diff` between the two documents is a single one-line hunk at the stated location. All 41 `/blog/tickets/#DAN-n` deep links, the completed cost appendix ($16.10), the PR #29/#30 anchors, all three embedded JPEG screenshots, the single back-to-app link, and the `&lt;title&gt;An Agentic SDLC, End to End&lt;/title&gt;` are preserved unchanged. (An earlier draft of this revision was built on the pre-[DAN-31](https://linear.app/daniel-perez/issue/DAN-31/publish-the-ticket-archive-at-blogtickets-and-turn-every-dan-reference) bytes and was discarded at filing time — shipping it would have silently reverted [DAN-31](https://linear.app/daniel-perez/issue/DAN-31/publish-the-ticket-archive-at-blogtickets-and-turn-every-dan-reference)'s merged deep links.)
+
+## Source asset — read this first (remote/CI checkout)
+
+The canonical v5 HTML is attached to this issue (`agentic-sdlc-v5.html` — the only file attachment) and must be fetched from Linear's CDN, which requires authentication. The CI runner exports `LINEAR_API_KEY`; use it by env-var name only — never print or commit its value.
+
+* Asset URL: `https://uploads.linear.app/bc0d63d4-9b46-41b7-b526-9ac3f2e1a511/a74f1a14-bec5-4fb4-9781-961600c372bf/57ec4f36-e525-40b7-9c37-69aff46d085c`
+* sha256: `d9e6ea8a712eb616b4623cf0aab74a724e038389a6745cb3a00272a76777dcd7`
+* Size: 933055 bytes, `text/html`, title "An Agentic SDLC, End to End"
+
+### Fetching the asset
+
+```sh
+curl -sS -H "Authorization: $LINEAR_API_KEY" -o part1-v5.html 'https://uploads.linear.app/bc0d63d4-9b46-41b7-b526-9ac3f2e1a511/a74f1a14-bec5-4fb4-9781-961600c372bf/57ec4f36-e525-40b7-9c37-69aff46d085c'
+echo "d9e6ea8a712eb616b4623cf0aab74a724e038389a6745cb3a00272a76777dcd7  part1-v5.html" | sha256sum -c -
+```
+
+The checksum check must pass before the file is used. If the download fails or the checksum mismatches, stop and report on this issue — do not substitute content from anywhere else.
+
+**Fallback fetch path:** when this description is read through the Linear API, Linear rewrites the asset URL above to include a short-lived `?signature&#61;…` parameter (~5-minute expiry). That signed variant downloads with **no** auth header. If the `Authorization: $LINEAR_API_KEY` fetch fails, re-read this issue and use the freshly signed URL immediately.
+
+**Verification status (product owner, at filing time):** the upload PUT returned `200`; download verification is recorded in the first comment on this issue.
+
+## In-scope test re-pins (developer, not tester)
+
+Three tester locks pin the part-1 document's sha256 (at `public/blog/agentic-sdlc/index.html` after [DAN-35](https://linear.app/daniel-perez/issue/DAN-35/blog-index-screen-at-blog-move-part-1-unchanged-to-blogagentic-sdlc)): `app/frontend/src/blog.dan27.tester.test.jsx`, `app/frontend/src/blog.dan29.tester.test.jsx`, and `app/frontend/src/blog.dan35.tester.test.jsx` — all currently pinning `bddf9fcd…88c23`. **Re-pin all three to** `d9e6ea8a712eb616b4623cf0aab74a724e038389a6745cb3a00272a76777dcd7` — sha constant only; every other assertion in those files holds on the new bytes unchanged. `blog.dan26.tester.test.jsx`, `blog.dan31.tester.test.jsx`, and `blog.dan34.tester.test.jsx` need **no** change (title, back-link, linkification, archive, and index invariants are all unaffected).
+
+## What ships
+
+* `app/frontend/public/blog/agentic-sdlc/index.html` is replaced, byte-for-byte, with the attached asset.
+* The three sha re-pins above. Nothing else: `/blog` index, `/blog/imdb-federation/`, `/blog/tickets/`, `firebase.json`, `docs/architecture.md` all untouched.
+
+## Acceptance criteria
+
+### Agent-checkable
+
+* Fetching the attached asset (the `curl` above, or the signed-URL fallback) succeeds and `sha256sum` of the downloaded file is `d9e6ea8a712eb616b4623cf0aab74a724e038389a6745cb3a00272a76777dcd7`.
+* `sha256sum app/frontend/public/blog/agentic-sdlc/index.html` prints `d9e6ea8a…dcd7` (byte-identical to the attachment).
+* `git diff main...HEAD --name-only` lists only `app/frontend/public/blog/agentic-sdlc/index.html`, `app/frontend/src/blog.dan27.tester.test.jsx`, `app/frontend/src/blog.dan29.tester.test.jsx`, `app/frontend/src/blog.dan35.tester.test.jsx`, plus test files added by the tester.
+* The document contains exactly one occurrence of the literal string `empower product owners and designers`, inside the "Initial goals" section.
+* `npm run build` in `app/frontend` succeeds and emits `dist/blog/agentic-sdlc/index.html` whose sha256 is also `d9e6ea8a…dcd7`.
+* Firebase Hosting emulator from the repo root with the repo's `firebase.json` (pinned `firebase-tools`, per [DAN-26](&lt;https://linear.app/daniel-perez/issue/DAN-26/serve-the-case-study-blog-post-at-blog-verbatim-static-page-cross&gt;)'s pattern): `GET /blog/agentic-sdlc` (following at most one redirect) returns `200` with a body containing `empower product owners and designers` and `An Agentic SDLC, End to End`.
+* Same emulator: `GET /blog` returns `200` containing `Building real systems with AI agents`; `GET /blog/imdb-federation` (at most one redirect) returns `200` containing `Federating IMDb`; `GET /blog/tickets/` (at most one redirect) returns `200`; a non-file SPA path still returns the SPA's `index.html`.
+* `npm test` passes in `app/backend` and in `app/frontend`.
+
+### User-attested (recorded as "pending user attestation", never pass/fail)
+
+* After merge and deploy, `https://project-d60a83c1-2c60-4d51-ad0.web.app/blog/agentic-sdlc/` shows the new empowerment paragraph in "Initial goals", immediately after the "All four were met…" paragraph, with the rest of the post visually unchanged.
+
+## Expected file changes
+
+* `app/frontend/public/blog/agentic-sdlc/index.html` (replaced wholesale — the only implementer-touched product file)
+* `app/frontend/src/blog.dan27.tester.test.jsx`, `app/frontend/src/blog.dan29.tester.test.jsx`, `app/frontend/src/blog.dan35.tester.test.jsx` (sha re-pin only)
+* Colocated frontend test(s) added by the tester
+
+## Dependencies / ordering
+
+**Blocked by** [DAN-35](&lt;https://linear.app/daniel-perez/issue/DAN-35/blog-index-screen-at-blog-move-part-1-unchanged-to-blogagentic-sdlc&gt;) (merged — satisfied). Last of the three blog tickets.</pre>
+      <h3>Comments (5)</h3>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-11 01:01 UTC</time></div>
+        <pre class="doc">**Attachment verification (product owner, at filing time):** the upload PUT for `agentic-sdlc-v5.html` returned `200`; downloading the asset back via a freshly signed URL returned `200` and its `sha256` matched `d9e6ea8a712eb616b4623cf0aab74a724e038389a6745cb3a00272a76777dcd7` exactly (933055 bytes); the bare URL correctly returns `401` without credentials.
+
+**Provenance verification:** `diff` between the current `main` post (`bddf9fcd…88c23`) and the attached v5 is exactly one hunk — the single inserted empowerment paragraph after the "All four were met…" paragraph. Checked on the new bytes: 41 `/blog/tickets/#DAN-n` deep links, `&lt;title&gt;An Agentic SDLC, End to End&lt;/title&gt;`, 4 occurrences of `$16.10`, 3 `data:image/jpeg;base64` screenshots, PR #29/#30 anchors — all present and unchanged, so `blog.dan26/dan31` tester locks pass without modification and only the two sha pins (`blog.dan27`, `blog.dan29`) need re-pinning.</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-11 05:09 UTC</time></div>
+        <pre class="doc">## Blocked — acceptance criteria are internally contradictory as written (a third sha lock exists that the ticket neither re-pins nor exempts)
+
+Remote developer run stopped **without** committing, pushing, or opening a PR. The v5 replacement itself is fine — the blocker is a conflict between two agent-checkable criteria that no implementation can satisfy at once.
+
+### The conflict
+
+A **third** tester lock pins the old part-1 sha256, not the two the ticket names:
+
+```
+app/frontend/src/blog.dan35.tester.test.jsx:23
+const PART1_SHA = 'bddf9fcde6c439f8377c9ccd735a215a978b4dfea8e1571ddad40562cc788c23'
+```
+
+(Verified by `git grep` on `main` = commit `7eeeb89`: exactly three files pin `bddf9fcd…88c23` — `blog.dan27`, `blog.dan29`, **and** `blog.dan35**.)
+
+Replacing part-1 changes its sha to `d9e6ea8a…dcd7`, which breaks that assertion. So:
+
+- **"`npm test` passes in `app/frontend`"** → requires re-pinning `blog.dan35.tester.test.jsx:23`.
+- **"`git diff main...HEAD --name-only` lists only `…/agentic-sdlc/index.html`, `blog.dan27`, `blog.dan29`, plus test files added by the tester"** → forbids touching `blog.dan35`, since it is already on `main` (a DAN-35 tester lock), not a DAN-36 tester addition.
+
+Touch dan35 → the diff-scope criterion fails. Leave it → `npm test` fails. There is no implementation that passes both. Result of running the frontend suite with only the authorized changes: **145 passed, 1 failed** (the failure is `blog.dan35`'s part-1 sha assertion).
+
+### Why the ticket missed it — a filing-time race
+
+- **DAN-36 filed:** 2026-07-11T00:59:46Z. The description enumerates dan27 + dan29 as *the* two sha locks and even proactively exempts dan26 + dan31.
+- **DAN-35's tester lock (`blog.dan35.tester.test.jsx`) landed on `main`:** 2026-07-11T05:03:22Z, commit `7eeeb89` — **~4 hours after DAN-36 was filed.**
+
+The dan35 lock simply did not exist when the in-scope re-pins were enumerated, so it was neither listed nor exempted. Nothing in the ticket is *wrong* — it's stale relative to a lock that merged after it.
+
+### The fix is one line — I just can't pick which written criterion to violate on my own
+
+The ticket's intent is unambiguous: every lock pinning the old part-1 sha should be re-pinned. The clean resolution is identical in kind to the dan27/dan29 re-pins the ticket already authorizes:
+
+&gt; Re-pin `app/frontend/src/blog.dan35.tester.test.jsx:23` to `d9e6ea8a712eb616b4623cf0aab74a724e038389a6745cb3a00272a76777dcd7` as well.
+
+That makes the diff **four** product/test files (html + dan27 + dan29 + dan35) instead of the three enumerated. To unblock, please either:
+
+1. **Update the acceptance criteria** to add `blog.dan35.tester.test.jsx` to the in-scope re-pins *and* to the `git diff` name-only list, then move back to `Ready for Dev`; **or**
+2. Confirm in a comment that the extra dan35 re-pin is authorized (accepting a 4-file diff), then move back to `Ready for Dev`.
+
+Everything else verified cleanly during the aborted run: the attachment downloaded and matched sha `d9e6ea8a…dcd7`, the replaced file's sha matched, the `&lt;title&gt;An Agentic SDLC, End to End&lt;/title&gt;` was preserved, and there was exactly one occurrence of `empower product owners and designers`.
+
+Moving DAN-36 back to **Todo** pending a criteria fix. No branch was pushed and no PR was opened.
+
+— remote developer agent (GitHub Actions run 29140618717)</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-11 05:16 UTC</time></div>
+        <pre class="doc">Developer run complete — draft PR #39: https://github.com/dperez4787/linear-example/pull/39
+
+**Branch:** `perezfdanny/dan-36-revise-blog-part-1-state-the-product-ownerdesigner`
+**Commit:** `f1ccdcd` — DAN-36: Revise blog part 1 to state the PO/designer empowerment aim
+
+## What I changed (four files, exactly the diff allowlist)
+- `app/frontend/public/blog/agentic-sdlc/index.html` — replaced **wholesale, byte-for-byte** with the v5 attachment (`agentic-sdlc-v5.html`). No hand-editing.
+- `app/frontend/src/blog.dan27.tester.test.jsx`, `blog.dan29.tester.test.jsx`, `blog.dan35.tester.test.jsx` — sha constant re-pinned only, `bddf9fcd…88c23` → `d9e6ea8a…dcd7`. Every other assertion untouched.
+
+`/blog` index, `/blog/imdb-federation/`, `/blog/tickets/`, `firebase.json`, and `docs/architecture.md` are all untouched. dan26/dan31/dan34 locks needed no change.
+
+## Verified (agent-checkable)
+- Asset fetched with `LINEAR_API_KEY` (via the signed CDN URL); download `sha256sum` = `d9e6ea8a712eb616b4623cf0aab74a724e038389a6745cb3a00272a76777dcd7` (933055 bytes). ✅
+- `sha256sum app/frontend/public/blog/agentic-sdlc/index.html` = `d9e6ea8a…dcd7`. ✅
+- `git diff main --name-only` = exactly the four files above. ✅
+- Exactly one `empower product owners and designers`, in "Initial goals" immediately after the "All four were met…" paragraph. ✅
+- `npm run build` in `app/frontend` succeeds; `dist/blog/agentic-sdlc/index.html` sha256 = `d9e6ea8a…dcd7`. ✅
+- Firebase Hosting emulator (pinned `firebase-tools@13.29.2`, repo `firebase.json`, repo root): `GET /blog/agentic-sdlc` (1 redirect) → 200 with both `empower product owners and designers` and `An Agentic SDLC, End to End`; `GET /blog` (301→/blog/) → 200 with `Building real systems with AI agents`; `GET /blog/imdb-federation` (1 redirect) → 200 with `Federating IMDb`; `GET /blog/tickets/` (1 redirect) → 200; non-file SPA path → 200 serving `dist/index.html`. ✅
+- `npm test`: backend 109 pass, frontend 146 pass (incl. the three re-pinned locks). ✅
+
+## Pending user attestation
+- Live site `.../blog/agentic-sdlc/` showing the new paragraph after merge + deploy.
+
+Nothing skipped or broken. PR is a **draft** — leaving it for the tester to verify and lift.
+
+Note: per this run's CI instructions I have intentionally left the Linear status at **In Progress** and not moved it.</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-11 05:23 UTC</time></div>
+        <pre class="doc">## Tester verdict — PASS
+
+Verified against the acceptance criteria on branch `perezfdanny/dan-36-revise-blog-part-1-state-the-product-ownerdesigner` (dev commit `f1ccdcd`, tester lock `cc48cf7`). Every agent-checkable criterion passes; PR #39 taken out of draft. The human merges.
+
+### Agent-checkable criteria
+
+| # | Criterion | Result |
+|---|-----------|--------|
+| 1 | Attachment fetch + sha256 | **PASS** — `curl` with `$LINEAR_API_KEY` (signed-URL variant) downloaded 933055 bytes; `sha256sum` = `d9e6ea8a…dcd7` |
+| 2 | Shipped file sha256 | **PASS** — `sha256sum app/frontend/public/blog/agentic-sdlc/index.html` = `d9e6ea8a…dcd7`; `cmp` vs the fetched asset = IDENTICAL |
+| 3 | Diff scope | **PASS** — `git diff main...HEAD --name-only` = the 4 allowed files (`index.html`, `blog.dan27/29/35.tester.test.jsx`) plus tester-added `blog.dan36.tester.test.jsx` |
+| 4 | Exactly one `empower product owners and designers`, in "Initial goals" | **PASS** — `grep -c` = 1; line 158, immediately after the "All four were met…" paragraph, under `&lt;h2&gt;Initial goals&lt;/h2&gt;` |
+| 5 | `npm run build` + dist sha256 | **PASS** — build OK; `dist/blog/agentic-sdlc/index.html` sha256 = `d9e6ea8a…dcd7` |
+| 6 | Emulator `GET /blog/agentic-sdlc` | **PASS** — `301 → /blog/agentic-sdlc/ → 200`; body contains both `empower product owners and designers` and `An Agentic SDLC, End to End` |
+| 7 | Emulator siblings + SPA fallback | **PASS** — `/blog` `301→200` has `Building real systems with AI agents`; `/blog/imdb-federation` `301→200` has `Federating IMDb`; `/blog/tickets/` `200`; `/some/spa/route` `200` byte-identical to `dist/index.html` |
+| 8 | `npm test` backend + frontend | **PASS** — backend `109 passed`; frontend `157 passed` (146 existing + 11 new DAN-36 locks; re-pinned dan27/dan29/dan35 locks pass on the new digest) |
+
+### Provenance / byte-for-byte replacement
+- Parent (`main`) part-1 sha256 = `bddf9fcd…88c23` (the v4+DAN-31 bytes the ticket names). The product-file diff `main..HEAD` is a **single one-line hunk** inserting the paragraph after "All four were met…". Byte-for-byte claim confirmed literally (`cmp` = IDENTICAL to the CDN asset).
+- Preserved unchanged in v5: `&lt;title&gt;An Agentic SDLC, End to End&lt;/title&gt;`, all **41** `/blog/tickets/#DAN-n` deep links, the `$16.10` cost appendix, **3** embedded JPEG screenshots, PR #29/#30 anchors.
+
+### Commands
+`sha256sum` / `cmp` / `grep -c` on the shipped file · `git diff main...HEAD --name-only` · `npm ci &amp;&amp; npm run build &amp;&amp; npm test` (`app/frontend`) · `npm ci &amp;&amp; npm test` (`app/backend`) · `npx firebase-tools@13 emulators:exec --only hosting` with the repo's `firebase.json`.
+
+### User-attested (pending user attestation — not pass/fail)
+Post-deploy visual check at `https://project-d60a83c1-2c60-4d51-ad0.web.app/blog/agentic-sdlc/` — the new empowerment paragraph in "Initial goals" right after "All four were met…", rest visually unchanged.
+
+Tester lock `app/frontend/src/blog.dan36.tester.test.jsx` added as commit `cc48cf7`. Leaving status at **In Review** for the merge.</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-13 00:59 UTC</time></div>
+        <pre class="doc">**Shipped via PR #40 (direct, non-ticket blog deep-dive) — PR #39 closed as superseded.**
+
+The user directed the remaining blog work to bypass the Linear pipeline for today. PR #40 replaces `app/frontend/public/blog/agentic-sdlc/index.html` with bytes **identical to this ticket's approved v5 asset** (`sha256 d9e6ea8a712eb616b4623cf0aab74a724e038389a6745cb3a00272a76777dcd7`) — the same one-paragraph empowerment revision the tester verified PASS on PR #39 — alongside a larger part-2 expansion. The dan27/dan29/dan35 sha locks are re-pinned to the same value this ticket specified. Marking Done: the acceptance content is live on `main`.</pre>
+      </article>
+    </div>
+  </details>
+  <details class="ticket" id="DAN-37">
+    <summary><span class="tid">DAN-37</span> <span class="tt">Comprehensive top-level README.md — what this repo is, live links, stack, agent workflow, how to run it</span> <span class="pill bot">Done</span></summary>
+    <div class="body">
+      <p class="meta"><span class="ml">State</span> Done &nbsp;·&nbsp; <span class="ml">Labels</span> <span class="label">agent-tested</span> &nbsp;·&nbsp; <a class="ext" href="https://linear.app/daniel-perez/issue/DAN-37/comprehensive-top-level-readmemd-what-this-repo-is-live-links-stack">open in Linear</a></p>
+      <h3>Description</h3>
+      <pre class="doc">The repo has no top-level `README.md`. Anyone landing on `github.com/dperez4787/linear-example` gets a directory listing and a language bar, when the whole point of the project is the story of *how* it was built. Write a comprehensive `README.md` at the repo root. **Content must be derived from** `CLAUDE.md` **and** `docs/architecture.md` **— accurate to what is actually built and recorded, not aspirational.** Where the two disagree with each other or with the code, `docs/architecture.md` and the code win — notably the API: it is a **single GraphQL endpoint,** `POST /api/graphql` ([DAN-25](https://linear.app/daniel-perez/issue/DAN-25/convert-the-records-rest-api-to-graphql-apigraphql-endpoint-migrate) superseded the original REST contract; the REST routes are removed, not aliased). The README must not describe the API as REST.
+
+No app code, config, or docs other than `README.md` change. This is documentation of record, so plain prose and tables — no badges required, no screenshots required (embedding none is fine).
+
+## Required content
+
+* **What it is:** a table-CRUD reference app built end-to-end by a team of Claude Code agents (product-owner → architect → developer → tester) driven from Linear tickets, with implementation and testing runnable remotely on GitHub Actions.
+* **Prominent links, at or near the top:** the live app `https://project-d60a83c1-2c60-4d51-ad0.web.app/` and the blog `https://project-d60a83c1-2c60-4d51-ad0.web.app/blog` (the case study of the build — after the blog-index ticket ships, this is the index of all posts; the link is correct both before and after).
+* **Stack:** React SPA (Vite) · Node.js + Express serving a GraphQL endpoint at `POST /api/graphql` · MongoDB Atlas (M0) · Cloud Run (backend container) + Firebase Hosting (SPA + static blog, `/api/**` rewrite to Cloud Run) · Terraform in `infra/` for the deploy identity (APIs, WIF, service accounts, secret container).
+* **Agent team &amp; workflow:** the four checked-in agents in `.claude/agents/`; one ticket–one branch–one PR; ticket branches come from Linear's `gitBranchName`; every ticket PR opens as a **draft** and only the tester lifts the draft after verifying the Linear acceptance criteria; agents never merge and never push to `main` — the user merges. Remote pipeline: `.github/workflows/linear-agents.yml` polls Linear — `Ready for Dev` triggers the developer agent, `In Review` (without the `agent-tested` label) triggers the tester agent.
+* **Repo layout:** `app/frontend/`, `app/backend/` (independent npm packages, no root workspace), `infra/` (Terraform, sibling of `app/`), `docs/architecture.md`, `.claude/agents/`.
+* **Running locally,** per `CLAUDE.md`: `nvm use` (pinned by `.nvmrc`); `npm install` and `npm test` run inside each package, not from the root; the backend reads `MONGODB_URI` from a gitignored `app/backend/.env` (never committed — placeholder shown must be obviously fake, e.g. `mongodb+srv://&lt;user&gt;:&lt;password&gt;@…`); `MONGODB_DB` defaults, `PORT` default 8080.
+* **Pointer to deeper docs:** `docs/architecture.md` for the API contract/schema/decisions, `CLAUDE.md` for the agent conventions.
+
+## Acceptance criteria
+
+### Agent-checkable
+
+* `README.md` exists at the repo root and renders as valid Markdown (e.g. no unclosed code fences; a Markdown parser or `npx` renderer processes it without error).
+* It contains the literal strings `https://project-d60a83c1-2c60-4d51-ad0.web.app/` and `https://project-d60a83c1-2c60-4d51-ad0.web.app/blog`, both within the first 40 lines.
+* It names all four agents (`product-owner`, `architect`, `developer`, `tester`), states that ticket PRs open as drafts and only the tester lifts the draft, and states that agents never merge or push to `main`.
+* It describes the API as GraphQL at `POST /api/graphql` and contains no claim that the current API is REST.
+* It mentions React, Express, MongoDB Atlas, Cloud Run, Firebase Hosting, and Terraform.
+* Every repo-relative link or path it references exists in the tree (`app/frontend`, `app/backend`, `infra`, `docs/architecture.md`, `.claude/agents`, `.github/workflows/linear-agents.yml`).
+* It contains no secret material: no real connection string (nothing matching `mongodb+srv://` with credentials other than an obvious `&lt;user&gt;:&lt;password&gt;` placeholder), no API keys; `git check-ignore app/backend/.env` still reports the file ignored and the file is not staged.
+* `git diff main...HEAD --name-only` lists only `README.md` plus test files added by the tester.
+* `npm test` passes in `app/backend` and in `app/frontend` (unchanged by this ticket — proves nothing else moved).
+
+### User-attested (recorded as "pending user attestation", never pass/fail)
+
+* The rendered README on GitHub reads accurately end to end — the user, who ran the manual halves of the bootstrap tickets, spot-checks that no claim is aspirational.
+
+## Expected file changes
+
+* `README.md` (new, repo root — the only implementer-touched file)
+* Test files added by the tester (e.g. a colocated check that the README's invariants above hold)
+
+## Dependencies / ordering
+
+None — independent of the three blog tickets, can be worked in parallel with them.</pre>
+      <h3>Comments (2)</h3>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-11 03:55 UTC</time></div>
+        <pre class="doc">Implemented — draft PR: https://github.com/dperez4787/linear-example/pull/36
+
+**Changed:** added `README.md` at the repo root (the only implementer-touched file). Content is derived from `CLAUDE.md` and `docs/architecture.md`:
+
+- What it is: a table-CRUD reference app built end-to-end by the four Claude Code agents, driven from Linear tickets, runnable remotely on GitHub Actions.
+- Live app + blog links near the top (lines 11–12, within the first 40 lines).
+- Stack: React (Vite) · Express serving GraphQL at `POST /api/graphql` · MongoDB Atlas (M0) · Cloud Run + Firebase Hosting · Terraform in `infra/`. API is described as GraphQL, with a note that the original REST contract was superseded (DAN-25) and removed — no REST claim anywhere.
+- Agent team &amp; workflow: names all four agents; one ticket–one branch–one PR; branches from Linear's `gitBranchName`; ticket PRs open as drafts and only the tester lifts the draft; agents never merge or push to `main`; remote pipeline table for `linear-agents.yml`.
+- Repo layout, running locally (per-package `npm install`/`npm test`, `nvm use`, `MONGODB_URI` from a gitignored `.env` with an obviously-fake placeholder, `MONGODB_DB`/`PORT` defaults), and pointers to the deeper docs.
+
+**Verified (agent-checkable):** both live links present within the first 40 lines; code fences balanced (renders as valid Markdown); all four agents + draft/lift-draft + never-merge statements present; GraphQL described, no REST claim; React/Express/MongoDB Atlas/Cloud Run/Firebase Hosting/Terraform all mentioned; every referenced repo path exists; no secret material and `app/backend/.env` still gitignored and unstaged; `git diff main...HEAD --name-only` lists only `README.md`; `npm test` passes in `app/backend` (98) and `app/frontend` (127).
+
+**Not verified / skipped:** user-attested criterion — that the rendered README reads accurately end to end with no aspirational claim. Recorded as pending user attestation.
+
+Left the Linear status as-is (In Progress) per the CI run instructions; PR is a draft for the tester.</pre>
+      </article>
+      <article class="comment">
+        <div class="chead"><b>Daniel Perez</b> <time>2026-07-11 04:06 UTC</time></div>
+        <pre class="doc">## Tester verdict — PASS
+
+Verified on branch `perezfdanny/dan-37-comprehensive-top-level-readmemd-what-this-repo-is-live` (tester commit `58ba266`, adding `app/backend/src/readme.dan37.tester.test.js`). Every agent-checkable acceptance criterion passes.
+
+| # | Criterion | Result | Evidence |
+|---|-----------|--------|----------|
+| 1 | README.md at repo root, valid Markdown (no unclosed fences) | PASS | file present; 10 fences (even) |
+| 2 | Both live-app + blog URLs within first 40 lines | PASS | README lines 11 &amp; 12 |
+| 3 | Names all four agents; PRs open as drafts, only tester lifts; agents never merge/push to `main`, user merges | PASS | README "Agent team and workflow"; `.claude/agents/` holds architect, developer, product-owner, tester |
+| 4 | API = GraphQL at `POST /api/graphql`; no current-API-is-REST claim | PASS | backend mounts `/api/graphql` (src/index.js:38); no `/api/records` route (index.test.js asserts 404); README's REST mention is purely historical ("removed, not aliased") |
+| 5 | Mentions React, Express, MongoDB Atlas, Cloud Run, Firebase Hosting, Terraform | PASS | all six present |
+| 6 | Every repo-relative path referenced exists | PASS | app/frontend, app/backend, infra, docs/architecture.md, .claude/agents, .github/workflows/linear-agents.yml, .nvmrc, CLAUDE.md |
+| 7 | No secret material; `.env` still ignored &amp; unstaged | PASS | only `mongodb+srv://&lt;user&gt;:&lt;password&gt;@…` placeholder; `git check-ignore app/backend/.env` → ignored; nothing staged |
+| 8 | `git diff main...HEAD` = README.md + tester tests only | PASS | `README.md`, `app/backend/src/readme.dan37.tester.test.js` |
+| 9 | `npm test` passes in both packages | PASS | backend 109 pass / 0 fail; frontend 127 pass / 0 fail |
+
+**Live links (WebFetch):** app URL resolves (SPA "linear-example — records", Google-sign-in gated); blog URL resolves (the case-study blog).
+
+**User-attested (pending, not pass/fail):** the rendered README reading accurately end-to-end is left for your spot-check per the ticket.
+
+Draft lifted via `gh pr ready`. Leaving the ticket in **In Review** — the user merges (PR #36). Agents never merge.</pre>
+      </article>
+    </div>
+  </details>
 </main>
 
 <footer>
-  <p>Static archive of <span class="tid">DAN-5</span>&ndash;<span class="tid">DAN-30</span>, snapshot 2026-07-10. &nbsp;<a href="/blog">Back to the case study</a> &nbsp;·&nbsp; <a href="/">Back to the app</a></p>
+  <p>Static archive of <span class="tid">DAN-5</span>&ndash;<span class="tid">DAN-37</span>, snapshot 2026-07-12. &nbsp;<a href="/blog">Back to the case study</a> &nbsp;·&nbsp; <a href="/">Back to the app</a></p>
 </footer>
 </div>
 <script>

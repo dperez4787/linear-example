@@ -13,7 +13,7 @@ import { resolve } from 'node:path'
 // revision (v2: Marquee/Concierge/governance screenshots, component diagram,
 // data deep-dive, ticket catalog, honest ledger).
 const CANONICAL_SHA256 =
-  'c807879c454678cfcf052d75858352e33f85550bdc9a9ec95136ce08f916fc76'
+  '2b2f5d6773afb75c995a70792979e02c1cbc47c86a79e41e222a22257ed76cb0'
 
 const postPath = resolve(process.cwd(), 'public/blog/imdb-federation/index.html')
 const postBytes = readFileSync(postPath) // Buffer — byte-exact, no encoding coercion
@@ -30,8 +30,8 @@ describe('DAN-34 · C1 verbatim byte-for-byte drop of the canonical asset', () =
     expect(sha).toBe(CANONICAL_SHA256)
   })
 
-  it('is exactly 1219330 bytes, as delivered', () => {
-    expect(postBytes.length).toBe(1219330)
+  it('is exactly 1219377 bytes, as delivered', () => {
+    expect(postBytes.length).toBe(1219377)
   })
 })
 

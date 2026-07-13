@@ -32,14 +32,14 @@ describe('DAN-31 · C1 archive is self-contained', () => {
   })
 })
 
-describe('DAN-31 · C2 all 26 ticket ids present, no gaps', () => {
-  it('has id="DAN-n" for every n in 5..30', () => {
+describe('DAN-31 · C2 all 33 ticket ids present, no gaps', () => {
+  it('has id="DAN-n" for every n in 5..37', () => {
     const missing = []
-    for (let n = 5; n <= 30; n++) {
+    for (let n = 5; n <= 37; n++) {
       if (!archive.includes(`id="DAN-${n}"`)) missing.push(`DAN-${n}`)
     }
     expect(missing).toEqual([])
-    expect(archiveIds.size).toBe(26)
+    expect(archiveIds.size).toBe(33)
   })
 })
 
