@@ -32,8 +32,10 @@ const blog = blogBytes.toString('utf8')
 // cannot syntactically hold an anchor) necessarily changes the blog's bytes. Per DAN-31
 // Round 2 point 3 this lock now tracks the new canonical bytes; every DAN-27 lineage
 // invariant below (PR #27 anchor, live URLs, three screenshots) survives linkification.
+// Re-pinned again (v5): one empowerment paragraph added to "Initial goals" — the
+// product-owner/designer aim stated explicitly. All lineage invariants survive.
 const CANONICAL_SHA256 =
-  'bddf9fcde6c439f8377c9ccd735a215a978b4dfea8e1571ddad40562cc788c23'
+  'd9e6ea8a712eb616b4623cf0aab74a724e038389a6745cb3a00272a76777dcd7'
 
 describe('DAN-27 · /blog is the canonical (v4) document', () => {
   it('is byte-identical to the pinned v4 asset (sha256)', () => {
