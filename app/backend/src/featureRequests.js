@@ -376,6 +376,125 @@ export async function approveFeatureRequestPlan(uid, id, linearClient) {
   return toFeatureRequest(await collection().findOne({ _id, uid }))
 }
 
+// --- featureRequestProgress: live per-ticket build status (DAN-52) ---
+
+// The five wire states the watch-it-build view renders. Mapping from Linear's
+// workflow state (state.type + state.name):
+//
+//   type "completed"                     -> DONE
+//   type "started", name "In Review"     -> IN_REVIEW  (see below)
+//   type "started", any other name       -> IN_PROGRESS
+//   anything else, PR attachment present -> BOUNCED    (sent back after review)
+//   anything else, no PR attachment      -> BACKLOG
+//
+// "In Review" is special-cased BY NAME: in this team it is a started-type
+// state named "In Review", indistinguishable from "In Progress" by type alone.
+// The name match is case-insensitive so a rename to "in review" doesn't
+// silently demote every reviewing ticket to IN_PROGRESS.
+//
+// "Anything else" covers Linear's backlog/unstarted/triage types — and any
+// type this code doesn't know (e.g. canceled) — so the wire state is always
+// one of the five, never a passthrough of Linear's vocabulary. A ticket
+// sitting in a backlog-family state WITH a PR attached is one that review
+// bounced back to the developer: work exists, but it is queued again.
+const IN_REVIEW_STATE_NAME = 'in review'
+
+function toTicketBuildState(state, hasPrAttachment) {
+  if (state?.type === 'completed') return 'DONE'
+  if (state?.type === 'started') {
+    return (state.name ?? '').trim().toLowerCase() === IN_REVIEW_STATE_NAME
+      ? 'IN_REVIEW'
+      : 'IN_PROGRESS'
+  }
+  return hasPrAttachment ? 'BOUNCED' : 'BACKLOG'
+}
+
+// The issue's PR attachment, or null. Linear's GitHub integration attaches
+// the pull request to the issue; the attachment carries the PR's url and a
+// sourceType. Either signal identifies it (DAN-52): a url containing
+// github.com/…/pull/ OR a sourceType mentioning github. First match wins —
+// an issue in this workflow has one PR.
+function findPrAttachment(attachments) {
+  const nodes = attachments?.nodes ?? []
+  return (
+    nodes.find(
+      (a) =>
+        (typeof a?.url === 'string' && /github\.com\/.+\/pull\//.test(a.url)) ||
+        (typeof a?.sourceType === 'string' && a.sourceType.toLowerCase().includes('github')),
+    ) ?? null
+  )
+}
+
+// A ~10-second in-memory cache over the Linear read, keyed by promptId — the
+// watch-it-build view polls, and every viewer of a session re-reading Linear
+// on each poll would hammer their API for data that changes on a human
+// timescale. Deliberately simple: a Map of { at, nodes } with timestamps, no
+// eviction (one entry per watched session, process lifetime). Only the LINEAR
+// fetch is cached — the session read (and with it the uid scoping and
+// NOT_FOUND behavior) runs on every call, so the cache can never leak one
+// user's view to another. Clearable, and `now` is injectable, for tests.
+export const PROGRESS_CACHE_TTL_MS = 10_000
+const progressCache = new Map()
+
+export function clearFeatureRequestProgressCache() {
+  progressCache.clear()
+}
+
+// Live per-ticket build status for the caller's session, read from Linear on
+// demand through the injected client (DAN-52). One node per filed ticket, in
+// the order the tickets were filed:
+//   { issueId, identifier, title, state, issueUrl, prUrl, blockedBy }
+//
+// A session that has not been approved yet has no filed tickets and returns
+// [] without touching Linear — progress is approved-only data. An unknown
+// promptId (or another user's session, or a malformed id) is the same
+// NotFoundError as everywhere else in this module.
+//
+// A filed ticket Linear no longer returns (deleted by hand in Linear) is
+// skipped rather than fabricated — better a missing row than an invented one.
+export async function featureRequestProgress(uid, id, linearClient, now = Date.now) {
+  const _id = toObjectId(id)
+  const doc = await collection().findOne({ _id, uid })
+  if (!doc) {
+    throw new NotFoundError('feature request not found')
+  }
+
+  const tickets = doc.tickets ?? []
+  if (tickets.length === 0) return []
+
+  const cached = progressCache.get(id)
+  if (cached && now() - cached.at < PROGRESS_CACHE_TTL_MS) {
+    return cached.nodes
+  }
+
+  const issues = await linearClient.issuesProgress(tickets.map((t) => t.linearIssueId))
+  const issuesById = new Map(issues.map((issue) => [issue.id, issue]))
+
+  const nodes = []
+  for (const ticket of tickets) {
+    const issue = issuesById.get(ticket.linearIssueId)
+    if (!issue) continue
+    const prAttachment = findPrAttachment(issue.attachments)
+    nodes.push({
+      issueId: issue.id,
+      identifier: issue.identifier,
+      title: issue.title,
+      state: toTicketBuildState(issue.state, prAttachment !== null),
+      issueUrl: issue.url,
+      prUrl: prAttachment?.url ?? null,
+      // The issues this one is blocked by: inverseRelations are the relations
+      // where this issue is the target, so a "blocks" entry's `issue` is the
+      // blocker. Non-blocks relation types (relates, duplicates) are ignored.
+      blockedBy: (issue.inverseRelations?.nodes ?? [])
+        .filter((rel) => rel?.type === 'blocks' && rel.issue?.id)
+        .map((rel) => rel.issue.id),
+    })
+  }
+
+  progressCache.set(id, { at: now(), nodes })
+  return nodes
+}
+
 // Post a user message to the caller's session and run one orchestration round:
 // the product owner replies, then the architect, each through the injected AI
 // gateway client with the checked-in role prompt as system message; finally the
