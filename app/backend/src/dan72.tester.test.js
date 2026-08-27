@@ -175,14 +175,13 @@ test('criterion 1: one exchange makes exactly four calls carrying max_tokens 150
   // The single exported constant agrees with the ticket, so the suites that
   // anchor on the constant cannot drift from what production sends.
   //
-  // DAN-90 added a FIFTH role, the titler, which runs at APPROVAL time rather
-  // than in an exchange — this criterion's subject (the four calls one
-  // exchange sends) is unchanged, and the wire assertions above still bound it
-  // exactly. So the constant is checked entry-by-entry against the ticket's
-  // budgets instead of as a whole-object snapshot that any new role breaks.
-  for (const [role, budget] of Object.entries(TICKET_BUDGETS)) {
-    assert.equal(MAX_TOKENS_BY_ROLE[role], budget, `exported budget for ${role}`)
-  }
+  // DAN-90 added a FIFTH role, the titler (40 tokens), which runs at APPROVAL
+  // time rather than in an exchange — this criterion's subject, the four calls
+  // one exchange sends, is unchanged and the wire assertions above still bound
+  // it exactly. The new role is added to the EXPECTED OBJECT rather than
+  // relaxing the assertion into a per-entry loop: whole-object equality is what
+  // catches an unreviewed budget change to ANY role, extra keys included.
+  assert.deepEqual(MAX_TOKENS_BY_ROLE, { ...TICKET_BUDGETS, titler: 40 })
 })
 
 // --- criterion 2: the planner's dedicated cheap model ---

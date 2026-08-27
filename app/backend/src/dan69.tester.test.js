@@ -387,15 +387,14 @@ test('criterion 3: one exchange sends four calls whose bodies carry max_tokens 1
   // And the exported constant matches the ticket, so tests and code cannot
   // drift apart silently.
   //
-  // DAN-90 added a FIFTH role, the titler — but it runs at APPROVAL time, not
-  // in an exchange, so this criterion's subject (the four calls one exchange
-  // sends) is unchanged and the wire assertions above still bound it exactly.
-  // The constant is therefore checked entry-by-entry against the ticket rather
-  // than as a whole-object snapshot, which would fail every time a role is
-  // added elsewhere in the system.
-  for (const [role, budget] of Object.entries(expected)) {
-    assert.equal(MAX_TOKENS_BY_ROLE[role], budget, `exported budget for ${role}`)
-  }
+  // DAN-90 added a FIFTH role, the titler (40 tokens), which runs at APPROVAL
+  // time rather than in an exchange — so this criterion's subject, the four
+  // calls one exchange sends, is unchanged and the wire assertions above still
+  // bound it exactly. The new role is added to the EXPECTED OBJECT rather than
+  // relaxing the assertion into a per-entry loop: whole-object equality is what
+  // catches an unreviewed budget change to ANY role, extra keys included, and
+  // this is the only place in the repo that pins the table as a whole.
+  assert.deepEqual(MAX_TOKENS_BY_ROLE, { ...expected, titler: 40 })
 })
 
 test('criterion 3: a second exchange on the same session sends the same per-role budgets (not a first-call artifact)', async () => {
