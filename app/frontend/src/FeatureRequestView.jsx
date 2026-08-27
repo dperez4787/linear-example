@@ -7,6 +7,7 @@ import {
   startFeatureRequest,
 } from './api.js'
 import { renderMarkdown } from './markdown.jsx'
+import MyRequests from './MyRequests.jsx'
 import WatchBuild from './WatchBuild.jsx'
 
 // The "Request a feature" chat pane (DAN-53), extended by DAN-54 with the model
@@ -197,6 +198,27 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
   // Approval succeeded: the server flipped the request to "building", which
   // hands the view off (the build DAG view itself is DAN-55).
   const building = request?.status === 'building'
+
+  // DAN-74: reopen a past session from the "My requests" list. Adopting the
+  // fetched FeatureRequest as `request` is the whole trick — every downstream
+  // surface already renders from it: a gathering session gets its transcript,
+  // gates, and live composer; a building one flips `building` above, so
+  // WatchBuild mounts and polls with this id. Two seams need explicit care:
+  //  - revealedRef is REPLACED (synchronously, before the setState renders)
+  //    with every index of the reopened transcript, so historical agent
+  //    replies render complete instead of replaying DAN-79's typewriter —
+  //    the same "present at first render" rule, re-applied at reopen.
+  //  - the locked picker adopts the session's model, so the disabled radios
+  //    show what the conversation was actually started with.
+  function handleOpenExisting(existing) {
+    revealedRef.current = new Set(
+      (existing.messages ?? []).map((_, index) => index),
+    )
+    if (SELECTABLE_MODELS.includes(existing.model)) {
+      setSelectedModel(existing.model)
+    }
+    setRequest(existing)
+  }
 
   // Refresh the quota meter. A failed read never blocks the chat — the meter
   // just keeps its last value — but a QUOTA_EXHAUSTED rejection flips the same
@@ -581,6 +603,13 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
             The team reads and replies — this can take a minute.
           </p>
         </>
+      )}
+      {!sessionStarted && pendingMessages.length === 0 && (
+        // DAN-74: past sessions, reopenable. Only until a session is active —
+        // starting or reopening one (or even having a first message in
+        // flight) unmounts the list, so the default start-a-new-request flow
+        // above always stays the prominent action.
+        <MyRequests onOpen={handleOpenExisting} />
       )}
     </>
   )
