@@ -66,8 +66,10 @@ connection latency.
 | `MONGODB_URI` | `.env` locally, Secret Manager in Cloud Run |
 | `MONGODB_DB`  | `linear_example` (app), `linear_example_test` (test runs only) |
 | `PORT`        | Cloud Run injects this; default `8080` locally |
-| `AI_GATEWAY_URL` | AI gateway base URL (DAN-48) — `.env` locally; read lazily, boot works without it |
-| `AI_GATEWAY_KEY` | AI gateway bearer key (DAN-48) — `.env` locally, Secret Manager in Cloud Run; never a provider API key |
+| `AI_GATEWAY_URL` | AI gateway base URL (DAN-48) — `.env` locally, `--set-env-vars` on the Cloud Run deploy (DAN-60); read lazily, boot works without it |
+| `AI_GATEWAY_KEY` | AI gateway virtual key (DAN-48) — `.env` locally, Secret Manager in Cloud Run; sent as `x-gateway-key` (DAN-60), never a provider API key |
+| `AI_GATEWAY_IAM` | set to `off` to skip the Cloud Run IAM id-token fetch (DAN-60 escape hatch); unset everywhere by default |
+| `LINEAR_API_KEY` | Linear API key for the backend (DAN-60) — `.env` locally, Secret Manager in Cloud Run |
 
 ## GCP
 

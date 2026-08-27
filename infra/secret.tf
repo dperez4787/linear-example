@@ -23,3 +23,43 @@ resource "google_secret_manager_secret_iam_member" "runtime_accessor" {
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.runtime.email}"
 }
+
+# The AI gateway virtual key (DAN-60). Same rule as MONGODB_URI: container only,
+# NO google_secret_manager_secret_version — a human adds the version out of band
+# so the value never touches a .tf file or Terraform state.
+resource "google_secret_manager_secret" "ai_gateway_key" {
+  project   = local.project_id
+  secret_id = "AI_GATEWAY_KEY"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.enabled]
+}
+
+resource "google_secret_manager_secret_iam_member" "ai_gateway_key_runtime_accessor" {
+  project   = google_secret_manager_secret.ai_gateway_key.project
+  secret_id = google_secret_manager_secret.ai_gateway_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime.email}"
+}
+
+# The Linear API key (DAN-60). Container only, NO version, same reasoning.
+resource "google_secret_manager_secret" "linear_api_key" {
+  project   = local.project_id
+  secret_id = "LINEAR_API_KEY"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.enabled]
+}
+
+resource "google_secret_manager_secret_iam_member" "linear_api_key_runtime_accessor" {
+  project   = google_secret_manager_secret.linear_api_key.project
+  secret_id = google_secret_manager_secret.linear_api_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime.email}"
+}

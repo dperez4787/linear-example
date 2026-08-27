@@ -104,7 +104,7 @@ after(async () => {
 
 // --- criterion 1: independent captured-transport assertion ---
 
-test('tester: chat() request shape — URL, POST, bearer key, exact metadata object', async (t) => {
+test('tester: chat() request shape — URL, POST, x-gateway-key, exact metadata object', async (t) => {
   setGatewayEnv(t)
   const fetch = scriptedFetch([{ status: 200, body: completion(10) }])
   const gateway = createAiGateway({ fetch, recordUsage: async () => {} })
@@ -121,7 +121,11 @@ test('tester: chat() request shape — URL, POST, bearer key, exact metadata obj
   const { url, init } = fetch.calls[0]
   assert.equal(url, `${T_URL}/v1/chat/completions`)
   assert.equal(init.method, 'POST')
-  assert.equal(init.headers.Authorization, `Bearer ${T_KEY}`)
+  // DAN-60 updated the key transport: the virtual key rides in x-gateway-key,
+  // and Authorization is reserved for the Cloud Run IAM id token (absent here —
+  // no K_SERVICE in the test environment).
+  assert.equal(init.headers['x-gateway-key'], T_KEY)
+  assert.equal(init.headers.Authorization, undefined)
   const body = JSON.parse(init.body)
   assert.deepEqual(body.metadata, {
     on_behalf_of: 'uid-carol-dan48',
