@@ -25,6 +25,7 @@ import {
   listFeatureRequests,
   getFeatureRequest,
   sendFeatureRequestMessage,
+  approveFeatureRequestPlan,
   unevaluatedEntranceCriteria,
   isApprovable,
 } from './featureRequests.js'
@@ -115,6 +116,14 @@ export const schema = buildSchema(`
     noBlockedDependencies: EntranceCriterion!
   }
 
+  # DAN-51: a plan ticket filed in Linear on approval — the Linear-assigned
+  # identity the frontend links to. Present only once the session is approved.
+  type FiledTicket {
+    key: String!
+    identifier: String!
+    url: String!
+  }
+
   type FeatureRequest {
     id: ID!
     status: String!
@@ -124,6 +133,9 @@ export const schema = buildSchema(`
     plan: Plan
     entranceCriteria: EntranceCriteria!
     approvable: Boolean!
+    # DAN-51: nullable — set when approval files the Linear project/tickets.
+    linearProjectId: String
+    tickets: [FiledTicket!]
   }
 
   input StartFeatureRequestInput {
@@ -144,6 +156,7 @@ export const schema = buildSchema(`
     deleteRecord(id: ID!): ID!
     startFeatureRequest(input: StartFeatureRequestInput!): FeatureRequest!
     sendFeatureRequestMessage(id: ID!, content: String!): FeatureRequest!
+    approveFeatureRequestPlan(id: ID!): FeatureRequest!
   }
 `)
 
@@ -277,6 +290,13 @@ export const rootValue = {
   // data layer owns the orchestration and every Mongo call.
   sendFeatureRequestMessage: contextResolver(async ({ id, content }, { uid, aiGateway }) =>
     toWireFeatureRequest(await sendFeatureRequestMessage(uid, id, content, aiGateway)),
+  ),
+  // DAN-51: the linearClient comes from the GraphQL context (injected through
+  // createApp, see index.js) — same seam as the aiGateway; no test reaches
+  // real Linear. `linearProjectId` and `tickets` need no wire conversion:
+  // they are plain strings all the way down.
+  approveFeatureRequestPlan: contextResolver(async ({ id }, { uid, linearClient }) =>
+    toWireFeatureRequest(await approveFeatureRequestPlan(uid, id, linearClient)),
   ),
   records: resolver(async () => (await listRecords()).map(toWire)),
   // DAN-48: the caller's usage totals — zeros for a fresh user, never null.
