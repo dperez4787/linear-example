@@ -18,18 +18,26 @@ const GATEWAY_URL = 'https://gateway.test'
 const GATEWAY_KEY = 'stub-gateway-key'
 
 // Each test states its own env explicitly and restores whatever was there, so
-// the suite is immune to an ambient AI_GATEWAY_* from the shell.
-function withEnv(t, { url, key }) {
-  const saved = { url: process.env.AI_GATEWAY_URL, key: process.env.AI_GATEWAY_KEY }
-  if (url === undefined) delete process.env.AI_GATEWAY_URL
-  else process.env.AI_GATEWAY_URL = url
-  if (key === undefined) delete process.env.AI_GATEWAY_KEY
-  else process.env.AI_GATEWAY_KEY = key
+// the suite is immune to an ambient AI_GATEWAY_* / K_SERVICE from the shell.
+// K_SERVICE and AI_GATEWAY_IAM (DAN-60) default to unset — the local path.
+function withEnv(t, { url, key, kService, iam }) {
+  const wanted = {
+    AI_GATEWAY_URL: url,
+    AI_GATEWAY_KEY: key,
+    K_SERVICE: kService,
+    AI_GATEWAY_IAM: iam,
+  }
+  const saved = {}
+  for (const [name, value] of Object.entries(wanted)) {
+    saved[name] = process.env[name]
+    if (value === undefined) delete process.env[name]
+    else process.env[name] = value
+  }
   t.after(() => {
-    if (saved.url === undefined) delete process.env.AI_GATEWAY_URL
-    else process.env.AI_GATEWAY_URL = saved.url
-    if (saved.key === undefined) delete process.env.AI_GATEWAY_KEY
-    else process.env.AI_GATEWAY_KEY = saved.key
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[name]
+      else process.env[name] = value
+    }
   })
 }
 
@@ -90,7 +98,7 @@ const CHAT_ARGS = {
 
 // --- criterion 1: the captured request ---
 
-test('chat() POSTs to ${AI_GATEWAY_URL}/v1/chat/completions with the bearer key and attribution metadata', async (t) => {
+test('chat() POSTs to ${AI_GATEWAY_URL}/v1/chat/completions with x-gateway-key and attribution metadata', async (t) => {
   withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY })
   const fetch = stubFetch()
   const recordUsage = stubRecordUsage()
@@ -102,7 +110,9 @@ test('chat() POSTs to ${AI_GATEWAY_URL}/v1/chat/completions with the bearer key 
   const { url, init } = fetch.calls[0]
   assert.equal(url, `${GATEWAY_URL}/v1/chat/completions`)
   assert.equal(init.method, 'POST')
-  assert.equal(init.headers.Authorization, `Bearer ${GATEWAY_KEY}`)
+  // DAN-60: the virtual key rides in x-gateway-key — never in Authorization.
+  assert.equal(init.headers['x-gateway-key'], GATEWAY_KEY)
+  assert.equal(init.headers.Authorization, undefined, 'no Authorization is invented off Cloud Run')
   assert.equal(init.headers['Content-Type'], 'application/json')
 
   const body = JSON.parse(init.body)
@@ -122,14 +132,14 @@ test('chat() POSTs to ${AI_GATEWAY_URL}/v1/chat/completions with the bearer key 
   assert.deepEqual(result, successFixture, 'the parsed gateway response is returned')
 })
 
-test('no provider API key: the request carries ONLY the gateway bearer key', async (t) => {
+test('no provider API key: the request carries ONLY the gateway virtual key (in x-gateway-key)', async (t) => {
   withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY })
   const fetch = stubFetch()
   const gateway = createAiGateway({ fetch, recordUsage: stubRecordUsage() })
   await gateway.chat(CHAT_ARGS)
   const { init } = fetch.calls[0]
-  assert.deepEqual(Object.keys(init.headers).sort(), ['Authorization', 'Content-Type'])
-  assert.equal(init.headers.Authorization, `Bearer ${GATEWAY_KEY}`)
+  assert.deepEqual(Object.keys(init.headers).sort(), ['Content-Type', 'x-gateway-key'])
+  assert.equal(init.headers['x-gateway-key'], GATEWAY_KEY)
 })
 
 // --- criterion 4 (the gateway side): usage recorded on success only ---
@@ -263,4 +273,169 @@ test('any other gateway failure maps to INTERNAL without leaking gateway details
   assert.ok(!wire.includes('503'), 'the gateway status must not leak')
   assert.ok(!/gateway/i.test(wire), 'gateway details must not leak')
   assert.ok(errors.mock.callCount() >= 1, 'the real error is logged server-side')
+})
+
+// --- DAN-60, end to end over HTTP: metadata failure on Cloud Run ---
+
+test('metadata fetch failure on Cloud Run surfaces as INTERNAL over the wire — no crash, no token, no metadata detail', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY, kService: 'linear-example-backend' })
+  const errors = t.mock.method(console, 'error', () => {})
+  const gateway = createAiGateway({
+    fetch: stubCloudTransport({ metadata: { status: 403, token: '' } }),
+    recordUsage: stubRecordUsage(),
+  })
+  const res = await request(probeApp(gateway)).post('/graphql').send({ query: '{ probe }' })
+
+  assert.equal(res.status, 200, 'a metadata failure is a domain error, not a crash or 5xx')
+  assert.equal(res.body.errors[0].extensions.code, 'INTERNAL')
+  assert.equal(res.body.errors[0].message, 'Internal Server Error')
+  const wire = JSON.stringify(res.body)
+  assert.ok(!/metadata/i.test(wire), 'metadata-server details must not leak')
+  assert.ok(!wire.includes('403'), 'the metadata status must not leak')
+  assert.ok(errors.mock.callCount() >= 1, 'the real error is logged server-side')
+})
+
+test('a gateway 5xx on Cloud Run never leaks the fetched id token onto the wire', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY, kService: 'linear-example-backend' })
+  t.mock.method(console, 'error', () => {})
+  const gateway = createAiGateway({
+    fetch: stubCloudTransport({ gateway: serverErrorFixture }),
+    recordUsage: stubRecordUsage(),
+  })
+  const res = await request(probeApp(gateway)).post('/graphql').send({ query: '{ probe }' })
+
+  assert.equal(res.status, 200)
+  assert.equal(res.body.errors[0].extensions.code, 'INTERNAL')
+  const wire = JSON.stringify(res.body)
+  assert.ok(!wire.includes(ID_TOKEN), 'the id token must never reach the client')
+})
+
+// --- DAN-60: IAM id-token wiring for the Cloud Run path ---
+//
+// On Cloud Run (K_SERVICE set, AI_GATEWAY_IAM not 'off') chat() first fetches a
+// Google identity token from the metadata server — through the SAME injectable
+// fetch, so nothing here touches a network — and sends it as Authorization
+// alongside x-gateway-key. Off Cloud Run there is no metadata call at all.
+
+const ID_TOKEN = 'stub-google-id-token.abc123'
+const METADATA_PREFIX =
+  'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity'
+
+// An injected fetch that routes: metadata-server URLs get a plain-text token
+// response, everything else gets the canned gateway response.
+function stubCloudTransport({
+  gateway = { status: 200, body: successFixture },
+  metadata = { status: 200, token: ID_TOKEN },
+} = {}) {
+  const calls = []
+  const fn = async (url, init) => {
+    calls.push({ url, init })
+    if (url.startsWith('http://metadata.google.internal/')) {
+      if (metadata.networkError) throw new Error(metadata.networkError)
+      return {
+        ok: metadata.status >= 200 && metadata.status < 300,
+        status: metadata.status,
+        text: async () => metadata.token,
+      }
+    }
+    return {
+      ok: gateway.status >= 200 && gateway.status < 300,
+      status: gateway.status,
+      json: async () => gateway.body,
+    }
+  }
+  fn.calls = calls
+  fn.metadataCalls = () => calls.filter((c) => c.url.startsWith('http://metadata.google.internal/'))
+  fn.gatewayCalls = () => calls.filter((c) => !c.url.startsWith('http://metadata.google.internal/'))
+  return fn
+}
+
+test('on Cloud Run: chat() fetches an id token for the gateway ORIGIN and sends it as Authorization, with x-gateway-key', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY, kService: 'linear-example-backend' })
+  const fetch = stubCloudTransport()
+  const gateway = createAiGateway({ fetch, recordUsage: stubRecordUsage() })
+
+  await gateway.chat(CHAT_ARGS)
+
+  // First the metadata server, then the gateway — two calls, in that order.
+  assert.equal(fetch.calls.length, 2)
+  const meta = fetch.metadataCalls()
+  assert.equal(meta.length, 1)
+  assert.ok(meta[0].url.startsWith(`${METADATA_PREFIX}?audience=`), 'identity endpoint with an audience')
+  assert.equal(
+    new URL(meta[0].url).searchParams.get('audience'),
+    new URL(GATEWAY_URL).origin,
+    'the audience is the AI_GATEWAY_URL origin',
+  )
+  assert.equal(meta[0].init.headers['Metadata-Flavor'], 'Google')
+
+  const [{ init }] = fetch.gatewayCalls()
+  assert.equal(init.headers['x-gateway-key'], GATEWAY_KEY, 'the virtual key still rides in x-gateway-key')
+  assert.equal(init.headers.Authorization, `Bearer ${ID_TOKEN}`, 'the id token is the ONLY Authorization')
+})
+
+test('on Cloud Run: the id token is cached — a second chat() makes no second metadata call', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY, kService: 'linear-example-backend' })
+  const fetch = stubCloudTransport()
+  const gateway = createAiGateway({ fetch, recordUsage: stubRecordUsage() })
+
+  await gateway.chat(CHAT_ARGS)
+  await gateway.chat(CHAT_ARGS)
+
+  assert.equal(fetch.metadataCalls().length, 1, 'one token fetch serves both calls')
+  assert.equal(fetch.gatewayCalls().length, 2)
+  for (const { init } of fetch.gatewayCalls()) {
+    assert.equal(init.headers.Authorization, `Bearer ${ID_TOKEN}`)
+  }
+})
+
+test('on Cloud Run: the cached token expires after ~50 minutes and is re-fetched', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY, kService: 'linear-example-backend' })
+  t.mock.timers.enable({ apis: ['Date'] })
+  const fetch = stubCloudTransport()
+  const gateway = createAiGateway({ fetch, recordUsage: stubRecordUsage() })
+
+  await gateway.chat(CHAT_ARGS)
+  t.mock.timers.tick(49 * 60 * 1000)
+  await gateway.chat(CHAT_ARGS)
+  assert.equal(fetch.metadataCalls().length, 1, 'still cached at 49 minutes')
+
+  t.mock.timers.tick(2 * 60 * 1000) // now 51 minutes after the fetch
+  await gateway.chat(CHAT_ARGS)
+  assert.equal(fetch.metadataCalls().length, 2, 're-fetched once the ~50-minute TTL passes')
+})
+
+test('AI_GATEWAY_IAM=off on Cloud Run: no metadata call, no Authorization, x-gateway-key still sent', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY, kService: 'linear-example-backend', iam: 'off' })
+  const fetch = stubCloudTransport()
+  const gateway = createAiGateway({ fetch, recordUsage: stubRecordUsage() })
+
+  await gateway.chat(CHAT_ARGS)
+
+  assert.equal(fetch.metadataCalls().length, 0)
+  const [{ init }] = fetch.gatewayCalls()
+  assert.equal(init.headers.Authorization, undefined)
+  assert.equal(init.headers['x-gateway-key'], GATEWAY_KEY)
+})
+
+test('metadata server non-2xx: chat() throws GatewayError, never calls the gateway, records nothing', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY, kService: 'linear-example-backend' })
+  const recordUsage = stubRecordUsage()
+  const fetch = stubCloudTransport({ metadata: { status: 500, token: '' } })
+  const gateway = createAiGateway({ fetch, recordUsage })
+
+  await assert.rejects(gateway.chat(CHAT_ARGS), GatewayError)
+  assert.equal(fetch.gatewayCalls().length, 0, 'no gateway request without a token')
+  assert.equal(recordUsage.calls.length, 0)
+})
+
+test('metadata server network failure: chat() throws GatewayError, records nothing', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY, kService: 'linear-example-backend' })
+  const recordUsage = stubRecordUsage()
+  const fetch = stubCloudTransport({ metadata: { networkError: 'EHOSTUNREACH metadata.google.internal' } })
+  const gateway = createAiGateway({ fetch, recordUsage })
+
+  await assert.rejects(gateway.chat(CHAT_ARGS), GatewayError)
+  assert.equal(fetch.gatewayCalls().length, 0)
+  assert.equal(recordUsage.calls.length, 0)
 })

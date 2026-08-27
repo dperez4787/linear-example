@@ -63,6 +63,10 @@ jobs:
         # (no service-agent identity to grant run.invoker to), so a private service
         # would 403 both that rewrite and /health. The service is public by design —
         # the SPA already calls the API anonymously and there is no auth layer.
+        # AI_GATEWAY_KEY and LINEAR_API_KEY (DAN-60) mount exactly like
+        # MONGODB_URI: Secret Manager containers whose versions a human added out
+        # of band, read at runtime as the runtime SA. AI_GATEWAY_URL is plain
+        # config, not a secret, so it travels as an env var.
         run: |
           gcloud run deploy "$SERVICE" \
             --image "$IMAGE" \
@@ -71,7 +75,8 @@ jobs:
             --min-instances=1 \
             --cpu-boost \
             --service-account="$RUNTIME_SA" \
-            --set-secrets=MONGODB_URI=MONGODB_URI:latest \
+            --set-secrets=MONGODB_URI=MONGODB_URI:latest,AI_GATEWAY_KEY=AI_GATEWAY_KEY:latest,LINEAR_API_KEY=LINEAR_API_KEY:latest \
+            --set-env-vars=AI_GATEWAY_URL=https://ai-gateway-dkuqnmldta-uc.a.run.app \
             --allow-unauthenticated
 
   frontend:
