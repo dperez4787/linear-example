@@ -276,7 +276,13 @@ describe('DAN-53 tester · in-flight state', () => {
 })
 
 describe('DAN-53 tester · API rejection', () => {
-  it('shows an alert, re-enables the input, and keeps the unsent draft', async () => {
+  // DAN-67 (developer edit, flagged in the PR): the failure contract this test
+  // locked — "the unsent draft survives in the composer" — is superseded by
+  // DAN-67's optimistic transcript. The composer now clears at Send and the
+  // message survives *in the transcript*, marked "not delivered" with a retry
+  // control. The spirit of the original assertion (the app did not eat the
+  // input) is preserved; only where the input survives moved.
+  it('shows an alert, re-enables the input, and keeps the message in the transcript as not delivered', async () => {
     authMock.user = { displayName: 'Ada Lovelace' }
     vi.mocked(startFeatureRequest).mockResolvedValue(makeRequest())
     const d = deferred()
@@ -294,8 +300,14 @@ describe('DAN-53 tester · API rejection', () => {
     expect(alert).toHaveTextContent('Internal Server Error')
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(composerInput()).toBeEnabled()
-    // The draft survived the failure — the app did not eat the input.
-    expect(composerInput()).toHaveValue('Add CSV export')
+    // The message survived the failure — the app did not eat the input. It
+    // stays in the transcript, flagged undelivered, with a retry control.
+    const transcript = screen.getByRole('list', { name: 'Conversation' })
+    const item = within(transcript).getByRole('listitem')
+    expect(item).toHaveTextContent('Add CSV export')
+    expect(item).toHaveTextContent('not delivered')
+    expect(within(item).getByRole('button', { name: 'retry' })).toBeEnabled()
+    expect(composerInput()).toHaveValue('')
   })
 })
 

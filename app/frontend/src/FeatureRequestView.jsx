@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import {
   approveFeatureRequestPlan,
@@ -14,17 +14,23 @@ import WatchBuild from './WatchBuild.jsx'
 // the records view — App owns which view is showing (state-based switching, no
 // router); this component owns the conversation.
 //
-// The transcript is whatever the server last returned: submitting a message
-// resolves to the updated FeatureRequest whose messages array already contains
-// the user's message plus the role-labeled replies, so the transcript is set
-// from the response rather than assembled locally. Not optimistic on purpose —
-// unlike the records table (where a rollback restores a value the user can
-// still see), a chat message that silently vanished on failure would read as
-// the app eating input, so the message stays in the composer until the server
-// accepts it. The checklist and the Approve gate ride the same wave: they are
-// pure renderings of the last FeatureRequest the server returned
-// (entranceCriteria / approvable), so they update after every exchange with no
-// extra fetch.
+// The canonical transcript is whatever the server last returned: submitting a
+// message resolves to the updated FeatureRequest whose messages array already
+// contains the user's message plus the role-labeled replies. DAN-67 layers a
+// client-side pending list on top of that: on Send the user's message renders
+// immediately (the round takes four model calls, 30-60s — a bare spinner reads
+// as the app being broken), the composer clears at once, and an animated
+// "product-owner is thinking…" status holds the reply's place. When the server
+// transcript arrives it already contains the delivered message, so the pending
+// copy is dropped in the same update — the canonical row replaces the
+// optimistic one with no duplicate. DAN-53's original worry (a chat message
+// silently vanishing on failure would read as the app eating input) is met the
+// chat-grade way instead of the composer-keeps-the-draft way: a failed
+// message *stays* in the transcript, marked "not delivered" with a retry
+// control that resends the same content. The checklist and the Approve gate
+// are unchanged: pure renderings of the last FeatureRequest the server
+// returned (entranceCriteria / approvable), updating after every exchange with
+// no extra fetch.
 //
 // The first submit lazily starts the conversation: startFeatureRequest(model),
 // then sendFeatureRequestMessage with the new id. The started request is stored
@@ -66,6 +72,16 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState(null)
+  // The optimistic layer (DAN-67): user messages the server has not confirmed
+  // yet, each { id, content, status: 'sending' | 'failed' }. Appended to the
+  // canonical transcript in order; an entry is dropped the moment the server
+  // transcript containing it arrives, and kept (marked failed, with a retry
+  // control) when the round rejects.
+  const [pendingMessages, setPendingMessages] = useState([])
+  const nextPendingId = useRef(0)
+  // Sentinel under the transcript; each append (and the thinking indicator)
+  // scrolls it into view so the newest message is always visible.
+  const transcriptEndRef = useRef(null)
   // The `model` prop (the seam DAN-53 left) is now the picker's initial
   // selection rather than the sent-forever value.
   const [selectedModel, setSelectedModel] = useState(model)
@@ -105,11 +121,32 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function handleSubmit(event) {
-    event.preventDefault()
-    const content = draft.trim()
-    if (!content || sending) return
+  const transcriptLength = messages.length + pendingMessages.length
+  useEffect(() => {
+    // Auto-scroll to the newest message on every transcript append, and again
+    // when the thinking indicator mounts, so the reply's placeholder is on
+    // screen. The optional call keeps jsdom happy — it does not implement
+    // scrollIntoView; tests stub it on Element.prototype and assert the call.
+    // Smoothness (and its prefers-reduced-motion opt-out) lives in CSS
+    // scroll-behavior, not here.
+    transcriptEndRef.current?.scrollIntoView?.({ block: 'end' })
+  }, [transcriptLength, sending])
+
+  // One round trip for one optimistic entry: mark it sending (creating it if
+  // this is its first attempt), run the DAN-53 start-then-send sequence, and
+  // reconcile. On success the server transcript already contains the delivered
+  // message, so dropping the pending entry in the same update swaps the
+  // optimistic copy for the canonical one with no duplicate. On failure the
+  // entry stays, marked failed, so the transcript never eats the message.
+  async function deliver(entryId, content) {
     setError(null)
+    setPendingMessages((prev) =>
+      prev.some((p) => p.id === entryId)
+        ? prev.map((p) =>
+            p.id === entryId ? { ...p, status: 'sending' } : p,
+          )
+        : [...prev, { id: entryId, content, status: 'sending' }],
+    )
     setSending(true)
     try {
       let id = request?.id
@@ -120,10 +157,13 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
       }
       const updated = await sendFeatureRequestMessage(id, content)
       setRequest(updated)
-      setDraft('')
+      setPendingMessages((prev) => prev.filter((p) => p.id !== entryId))
       // Every exchange spends AI budget, so the meter refreshes after each one.
       await refreshUsage()
     } catch (err) {
+      setPendingMessages((prev) =>
+        prev.map((p) => (p.id === entryId ? { ...p, status: 'failed' } : p)),
+      )
       if (isQuotaExhausted(err)) {
         setQuotaExhausted(true)
       } else {
@@ -132,6 +172,28 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
     } finally {
       setSending(false)
     }
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    const content = draft.trim()
+    if (!content || sending) return
+    // Optimistic: the composer clears the moment the message enters the
+    // transcript, exactly like a chat app.
+    setDraft('')
+    const entryId = nextPendingId.current++
+    await deliver(entryId, content)
+  }
+
+  // The "not delivered — retry" control: resend the same content against the
+  // same conversation (or re-attempt the start if the first round never got
+  // that far — the started request is stored before the send, so a retry can
+  // never create a second conversation).
+  async function handleRetry(entryId) {
+    if (sending) return
+    const entry = pendingMessages.find((p) => p.id === entryId)
+    if (!entry) return
+    await deliver(entryId, entry.content)
   }
 
   // Approve the plan. Only enabled when the server said approvable — the
@@ -248,25 +310,56 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
           <p className="empty-state">Usage not loaded yet.</p>
         )}
       </section>
-      {messages.length === 0 ? (
+      {transcriptLength === 0 ? (
         <p className="empty-state">
           Describe the feature you would like. The product owner and architect
           will reply here.
         </p>
       ) : (
-        <ul className="chat-transcript" aria-label="Conversation">
-          {messages.map((message, index) => (
-            <li
-              key={index}
-              className={`chat-message chat-message--${message.role}`}
-            >
-              <span className="chat-message__role">{message.role}</span>
-              <p className="chat-message__content">{message.content}</p>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="chat-transcript" aria-label="Conversation">
+            {messages.map((message, index) => (
+              <li
+                key={`server-${index}`}
+                className={`chat-message chat-message--${message.role}`}
+              >
+                <span className="chat-message__role">{message.role}</span>
+                <p className="chat-message__content">{message.content}</p>
+              </li>
+            ))}
+            {pendingMessages.map((entry) => (
+              <li
+                key={`pending-${entry.id}`}
+                className="chat-message chat-message--user"
+              >
+                <span className="chat-message__role">user</span>
+                <p className="chat-message__content">{entry.content}</p>
+                {entry.status === 'failed' && (
+                  <p className="chat-message__undelivered">
+                    not delivered —{' '}
+                    <button
+                      className="chat-message__retry"
+                      type="button"
+                      disabled={sending || quotaExhausted}
+                      onClick={() => handleRetry(entry.id)}
+                    >
+                      retry
+                    </button>
+                  </p>
+                )}
+              </li>
+            ))}
+            {sending && (
+              <li className="chat-message chat-message--thinking">
+                <p className="chat-message__content chat-thinking" role="status">
+                  product-owner is thinking…
+                </p>
+              </li>
+            )}
+          </ul>
+          <div ref={transcriptEndRef} aria-hidden="true" />
+        </>
       )}
-      {sending && <p role="status">Sending…</p>}
       {quotaExhausted ? (
         <section className="quota-exhausted" role="alert">
           <h2>You’re out of AI quota</h2>
