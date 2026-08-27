@@ -436,12 +436,18 @@ test('metadata server non-2xx: chat() throws GatewayError, never calls the gatew
 // Same injectable fetch, so every request below is captured in-process and no
 // test reaches a real gateway.
 
+// The live response shape (verified against ai-gateway/src/usage.js): rows
+// keyed by `group`, camelCase fields, a `total` rollup. usage() returns it
+// as-is — the filtering lives in featureRequests.js, not here.
 const usageFixture = {
-  object: 'usage',
-  data: [
-    { prompt_id: 'prompt-abc', calls: 4, tokens_in: 120, tokens_out: 260, cost_usd: 0.0134 },
-    { prompt_id: 'prompt-other', calls: 9, tokens_in: 999, tokens_out: 111, cost_usd: 0.5 },
+  persona: 'linear-example-backend',
+  window: '30d',
+  group_by: 'prompt_id',
+  rows: [
+    { group: 'prompt-abc', calls: 4, tokensIn: 120, tokensOut: 260, costUsd: 0.0134 },
+    { group: 'prompt-other', calls: 9, tokensIn: 999, tokensOut: 111, costUsd: 0.5 },
   ],
+  total: { calls: 13, tokensIn: 1119, tokensOut: 371, costUsd: 0.5134 },
 }
 
 test('usage() GETs ${AI_GATEWAY_URL}/v1/usage?group_by=prompt_id with x-gateway-key and returns the parsed body', async (t) => {

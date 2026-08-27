@@ -28,16 +28,23 @@ const { GatewayError } = await import('./aiGateway.js')
 
 // --- fixtures ---
 
-// One usage row per prompt, the shape /v1/usage?group_by=prompt_id serves.
-// `forPrompt` builds the fixture around the session id under test, alongside
-// a decoy row that must never bleed into the answer.
+// The live response shape of GET /v1/usage?group_by=prompt_id, verified
+// against the gateway's source (ai-gateway/src/usage.js): rows keyed by
+// `group` (the promptId, or null for unattributed calls), camelCase number
+// fields, costUsd rounded server-side, plus a `total` rollup. `usageBody`
+// builds the fixture around the session id under test, alongside a decoy row
+// and a null-group row that must never bleed into the answer.
 function usageBody(promptId) {
   return {
-    object: 'usage',
-    data: [
-      { prompt_id: 'prompt-decoy', calls: 99, tokens_in: 9999, tokens_out: 8888, cost_usd: 12.34 },
-      { prompt_id: promptId, calls: 4, tokens_in: 120, tokens_out: 260, cost_usd: 0.0134 },
+    persona: 'linear-example-backend',
+    window: '30d',
+    group_by: 'prompt_id',
+    rows: [
+      { group: 'prompt-decoy', calls: 99, tokensIn: 9999, tokensOut: 8888, costUsd: 12.34 },
+      { group: promptId, calls: 4, tokensIn: 120, tokensOut: 260, costUsd: 0.0134 },
+      { group: null, calls: 3, tokensIn: 50, tokensOut: 60, costUsd: 0.002 },
     ],
+    total: { calls: 106, tokensIn: 10169, tokensOut: 9208, costUsd: 12.3554 },
   }
 }
 
@@ -46,7 +53,7 @@ const ZERO_COST = { calls: 0, tokensIn: 0, tokensOut: 0, costUsd: 0 }
 
 // The recording fake: usage() pushes its args and returns the canned body
 // (or throws the scripted error). chat is present but must never be called.
-function fakeAiGateway({ body = { object: 'usage', data: [] }, error } = {}) {
+function fakeAiGateway({ body = usageBody('prompt-nobody-asked-about'), error } = {}) {
   const calls = []
   return {
     calls,
@@ -131,7 +138,8 @@ test('featureRequestCost returns the gateway row for exactly the session promptI
 
 test('a session the gateway has no row for costs zeros — never null, never an error', async () => {
   const id = await seedSession()
-  // The decoy row alone: nothing matches this session's promptId.
+  // Decoy, foreign, and null-group rows only: nothing matches this session's
+  // promptId, and the null-group (unattributed) row must not be picked up.
   const gateway = fakeAiGateway({ body: usageBody('prompt-someone-else') })
 
   const res = await gql(makeApp(gateway), ALICE, COST, { promptId: id })
@@ -142,7 +150,15 @@ test('a session the gateway has no row for costs zeros — never null, never an 
 
 test('an empty gateway ledger costs zeros', async () => {
   const id = await seedSession()
-  const gateway = fakeAiGateway({ body: { object: 'usage', data: [] } })
+  const gateway = fakeAiGateway({
+    body: {
+      persona: 'linear-example-backend',
+      window: '30d',
+      group_by: 'prompt_id',
+      rows: [],
+      total: { calls: 0, tokensIn: 0, tokensOut: 0, costUsd: 0 },
+    },
+  })
 
   const res = await gql(makeApp(gateway), ALICE, COST, { promptId: id })
 
