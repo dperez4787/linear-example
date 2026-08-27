@@ -240,6 +240,142 @@ function parsePlan(content) {
   return { tickets: clean }
 }
 
+// --- approveFeatureRequestPlan: file the Linear project and tickets (DAN-51) ---
+
+// The agent harness each session model maps to, for the `agent:<harness>`
+// label on every filed issue. The ONE place this mapping lives; an unknown
+// model falls back to the claude harness — every model the session validator
+// accepts today runs on it anyway.
+export const HARNESS_BY_MODEL = { 'claude-opus-5': 'claude' }
+const DEFAULT_HARNESS = 'claude'
+
+// Project names derive from the session's first user message, truncated so a
+// long opening message doesn't become an unreadable project title.
+const PROJECT_NAME_PREFIX = 'paf: '
+const PROJECT_NAME_MAX = 80
+
+function projectName(doc) {
+  const first = doc.messages.find((m) => m.role === 'user')?.content ?? doc._id.toString()
+  const base = first.length > PROJECT_NAME_MAX ? `${first.slice(0, PROJECT_NAME_MAX - 1)}…` : first
+  return `${PROJECT_NAME_PREFIX}${base}`
+}
+
+// Approve the caller's session: file one Linear project plus one issue per
+// plan ticket (labels, blocked-by relations, Ready for Dev for unblocked
+// tickets), then persist status "building", the project id, and the filed
+// ticket identities. Returns the updated session.
+//
+// Ordering is the crash-consistency story: every Linear call happens BEFORE
+// the session document is touched, so a Linear failure mid-creation
+// propagates (→ INTERNAL) while the session stays "gathering" and a retry
+// remains possible. Partial cleanup of whatever Linear work did land is
+// explicitly out of scope for DAN-51 — a retry may file a duplicate project,
+// and that is the accepted trade-off, stated here rather than hidden.
+export async function approveFeatureRequestPlan(uid, id, linearClient) {
+  const _id = toObjectId(id)
+  const doc = await collection().findOne({ _id, uid })
+  if (!doc) {
+    // Same rule as getFeatureRequest: another user's session is
+    // indistinguishable from a nonexistent one.
+    throw new NotFoundError('feature request not found')
+  }
+  if (doc.status !== 'gathering') {
+    throw new ValidationError('feature request already approved')
+  }
+
+  // The three hard gates (DAN-50). A session that has never been evaluated
+  // exposes the synthesized all-failed gates, so it is not approvable either.
+  const entranceCriteria = doc.entranceCriteria ?? unevaluatedEntranceCriteria()
+  if (!isApprovable(entranceCriteria)) {
+    const failing = ENTRANCE_GATES.filter((gate) => entranceCriteria[gate]?.pass !== true)
+    throw new ValidationError(
+      `feature request is not approvable: failing gate(s): ${failing.join(', ')}`,
+    )
+  }
+
+  const plan = doc.plan
+  if (!plan?.tickets?.length) {
+    // Gates can pass without a converged plan — there is nothing to file yet.
+    throw new ValidationError('feature request has no plan to approve')
+  }
+
+  // Everything below talks to Linear through the injected client only. The
+  // client's config (team, Ready for Dev state) is env-driven and read
+  // lazily; a missing value throws a LinearError → INTERNAL, nothing leaked.
+  const { teamId, readyForDevStateId } = linearClient.config()
+
+  const harness = HARNESS_BY_MODEL[doc.model] ?? DEFAULT_HARNESS
+  const labelNames = [`agent:${harness}`, `prompt:${id}`]
+  const labelIdsByName = await linearClient.findOrCreateLabels(labelNames)
+  const labelIds = labelNames.map((name) => labelIdsByName[name])
+
+  const project = await linearClient.createProject({
+    name: projectName(doc),
+    teamId,
+    description: `Filed by prompt-a-feature from session ${id}.`,
+  })
+
+  // One issue per plan ticket, in plan order. "No blockers → Ready for Dev"
+  // is set at CREATE time via stateId; blocked tickets omit stateId and land
+  // in the team's default state (Backlog).
+  const issuesByKey = new Map()
+  for (const ticket of plan.tickets) {
+    const issue = await linearClient.createIssue({
+      teamId,
+      projectId: project.id,
+      title: ticket.title,
+      description: ticket.description,
+      labelIds,
+      stateId: ticket.dependsOn.length === 0 ? readyForDevStateId : undefined,
+    })
+    issuesByKey.set(ticket.key, issue)
+  }
+
+  // Blocked-by relations, exactly the plan's dependsOn edges: for each edge
+  // "T depends on D", the blocker D `blocks` the dependent T (Linear renders
+  // the inverse "blocked by" on T automatically).
+  for (const ticket of plan.tickets) {
+    for (const dependencyKey of ticket.dependsOn) {
+      const blocker = issuesByKey.get(dependencyKey)
+      if (!blocker) {
+        // A dangling key would file a silently incomplete dependency graph;
+        // fail loudly instead (→ INTERNAL, session stays "gathering").
+        throw new Error(
+          `plan ticket ${ticket.key} depends on unknown key ${dependencyKey}`,
+        )
+      }
+      await linearClient.createRelation({
+        issueId: blocker.id,
+        relatedIssueId: issuesByKey.get(ticket.key).id,
+        type: 'blocks',
+      })
+    }
+  }
+
+  // Only now — every Linear call succeeded — does the session move to
+  // "building", carrying the project id and each filed ticket's identity.
+  await collection().updateOne(
+    { _id, uid },
+    {
+      $set: {
+        status: 'building',
+        linearProjectId: project.id,
+        tickets: plan.tickets.map((ticket) => {
+          const issue = issuesByKey.get(ticket.key)
+          return {
+            key: ticket.key,
+            linearIssueId: issue.id,
+            identifier: issue.identifier,
+            url: issue.url,
+          }
+        }),
+      },
+    },
+  )
+
+  return toFeatureRequest(await collection().findOne({ _id, uid }))
+}
+
 // Post a user message to the caller's session and run one orchestration round:
 // the product owner replies, then the architect, each through the injected AI
 // gateway client with the checked-in role prompt as system message; finally the
