@@ -57,11 +57,29 @@ const stateChange = (createdAt, from, to) => ({
 
 const comment = (createdAt, body, url) => ({ body, createdAt, url })
 
-const prAttachment = (createdAt, { draft, url = 'https://github.com/dperez4787/linear-example/pull/99' } = {}) => ({
+// The metadata shape VERIFIED against real Linear data (DAN-83 follow-up):
+// GitHub PR attachments carry BOTH a boolean `draft` and a lowercase `status`
+// lifecycle string (open/merged/closed — a draft PR's status is NOT "draft"),
+// plus mergedAt/closedAt timestamps once those states apply.
+const prAttachment = (
+  createdAt,
+  {
+    draft = false,
+    status = 'open',
+    mergedAt,
+    closedAt,
+    url = 'https://github.com/dperez4787/linear-example/pull/99',
+  } = {},
+) => ({
   url,
   sourceType: 'github',
   createdAt,
-  metadata: draft === undefined ? {} : { status: draft ? 'draft' : 'open' },
+  metadata: {
+    draft,
+    status,
+    ...(mergedAt !== undefined && { mergedAt }),
+    ...(closedAt !== undefined && { closedAt }),
+  },
 })
 
 // The recording fake: issuesActivity pushes its argument onto `calls` and
@@ -320,7 +338,7 @@ test('state events carry from→to summaries; history rows without both states (
 
 // --- pr events: url, draft state, PR detection ---
 
-test('the pr event reports draft vs open from the attachment metadata, including the boolean `draft` form; non-PR attachments emit nothing', async () => {
+test('the pr event narrates the verified metadata lifecycle: draft boolean → draft, status merged/closed → merged/closed at their own timestamps, else opened; non-PR attachments emit nothing', async () => {
   const linear = fakeLinearClient([
     linearIssue({
       id: 'issue-1',
@@ -328,8 +346,10 @@ test('the pr event reports draft vs open from the attachment metadata, including
       attachments: [
         // A non-PR attachment (Figma) must not become a pr event.
         { url: 'https://www.figma.com/file/abc', sourceType: 'figma', createdAt: '2026-08-26T09:00:00.000Z' },
+        // The verified draft shape: draft: true, status still "open".
         prAttachment('2026-08-26T10:00:00.000Z', {
           draft: true,
+          status: 'open',
           url: 'https://github.com/dperez4787/linear-example/pull/7',
         }),
       ],
@@ -339,52 +359,106 @@ test('the pr event reports draft vs open from the attachment metadata, including
       identifier: 'DAN-102',
       attachments: [
         prAttachment('2026-08-26T11:00:00.000Z', {
-          draft: false,
           url: 'https://github.com/dperez4787/linear-example/pull/8',
         }),
       ],
     }),
+    // Merged: the event's ts is metadata.mergedAt — the finale sorts where it
+    // happened, not back at the moment the PR was attached.
     linearIssue({
       id: 'issue-3',
       identifier: 'DAN-103',
       attachments: [
-        // The older metadata shape: a boolean `draft`, no `status` string.
-        {
+        prAttachment('2026-08-26T12:00:00.000Z', {
+          status: 'merged',
+          mergedAt: '2026-08-26T15:00:00.000Z',
           url: 'https://github.com/dperez4787/linear-example/pull/9',
-          sourceType: 'github',
-          createdAt: '2026-08-26T12:00:00.000Z',
-          metadata: { draft: true },
-        },
+        }),
       ],
     }),
-    // No metadata at all: still a pr event, reported as open (never an error).
+    // Closed without merging: ts is metadata.closedAt.
     linearIssue({
       id: 'issue-4',
       identifier: 'DAN-104',
       attachments: [
-        {
+        prAttachment('2026-08-26T13:00:00.000Z', {
+          status: 'closed',
+          closedAt: '2026-08-26T16:00:00.000Z',
           url: 'https://github.com/dperez4787/linear-example/pull/10',
+        }),
+      ],
+    }),
+    // No metadata at all: still a pr event, reported as open (never an error).
+    linearIssue({
+      id: 'issue-5',
+      identifier: 'DAN-105',
+      attachments: [
+        {
+          url: 'https://github.com/dperez4787/linear-example/pull/11',
           sourceType: 'github',
-          createdAt: '2026-08-26T13:00:00.000Z',
+          createdAt: '2026-08-26T14:00:00.000Z',
+        },
+      ],
+    }),
+    // The harmless fallback for older shapes: status "draft", no boolean.
+    linearIssue({
+      id: 'issue-6',
+      identifier: 'DAN-106',
+      attachments: [
+        {
+          url: 'https://github.com/dperez4787/linear-example/pull/12',
+          sourceType: 'github',
+          createdAt: '2026-08-26T14:30:00.000Z',
+          metadata: { status: 'draft' },
         },
       ],
     }),
   ])
   const app = makeApp(linear)
   const id = await seedSession({
-    tickets: [1, 2, 3, 4].map((n) => ticketRef(`T${n}`, `issue-${n}`, `DAN-10${n}`)),
+    tickets: [1, 2, 3, 4, 5, 6].map((n) => ticketRef(`T${n}`, `issue-${n}`, `DAN-10${n}`)),
   })
 
   const res = await gql(app, ALICE, ACTIVITY, { promptId: id })
 
+  // Sorted globally by ts — the merged (15:00) and closed (16:00) finales land
+  // AFTER the later-attached open PRs, proving mergedAt/closedAt drive ts.
   assert.deepEqual(
-    res.body.data.featureRequestActivity.map((e) => [e.summary, e.url]),
+    res.body.data.featureRequestActivity.map((e) => [e.summary, e.ts, e.url]),
     [
-      ['draft PR opened for DAN-101', 'https://github.com/dperez4787/linear-example/pull/7'],
-      ['PR opened for DAN-102', 'https://github.com/dperez4787/linear-example/pull/8'],
-      ['draft PR opened for DAN-103', 'https://github.com/dperez4787/linear-example/pull/9'],
-      ['PR opened for DAN-104', 'https://github.com/dperez4787/linear-example/pull/10'],
+      ['draft PR opened for DAN-101', '2026-08-26T10:00:00.000Z', 'https://github.com/dperez4787/linear-example/pull/7'],
+      ['PR opened for DAN-102', '2026-08-26T11:00:00.000Z', 'https://github.com/dperez4787/linear-example/pull/8'],
+      ['PR opened for DAN-105', '2026-08-26T14:00:00.000Z', 'https://github.com/dperez4787/linear-example/pull/11'],
+      ['draft PR opened for DAN-106', '2026-08-26T14:30:00.000Z', 'https://github.com/dperez4787/linear-example/pull/12'],
+      ['PR merged for DAN-103', '2026-08-26T15:00:00.000Z', 'https://github.com/dperez4787/linear-example/pull/9'],
+      ['PR closed for DAN-104', '2026-08-26T16:00:00.000Z', 'https://github.com/dperez4787/linear-example/pull/10'],
     ],
+  )
+})
+
+test('a merged PR whose metadata lacks mergedAt falls back to the attachment createdAt for ts', async () => {
+  const linear = fakeLinearClient([
+    linearIssue({
+      id: 'issue-1',
+      identifier: 'DAN-101',
+      attachments: [
+        {
+          url: 'https://github.com/dperez4787/linear-example/pull/7',
+          sourceType: 'github',
+          createdAt: '2026-08-26T10:00:00.000Z',
+          metadata: { draft: false, status: 'merged' },
+        },
+      ],
+    }),
+  ])
+  const app = makeApp(linear)
+  const id = await seedSession({ tickets: [ticketRef('T1', 'issue-1', 'DAN-101')] })
+
+  const res = await gql(app, ALICE, ACTIVITY, { promptId: id })
+
+  assert.deepEqual(
+    res.body.data.featureRequestActivity.map((e) => [e.summary, e.ts]),
+    [['PR merged for DAN-101', '2026-08-26T10:00:00.000Z']],
   )
 })
 

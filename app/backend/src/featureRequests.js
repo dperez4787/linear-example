@@ -659,14 +659,34 @@ function commentAuthorLabel(body) {
   return 'agent'
 }
 
-// Whether the PR attachment describes a draft, read defensively from Linear's
-// free-form attachment metadata: the GitHub integration has carried the draft
-// bit both as a boolean `draft` and as a `status` string across versions, so
-// either signal counts and anything else means "not a draft" — never an error.
-function isDraftPr(attachment) {
+// The pr event's verb and timestamp, from the attachment's metadata — the
+// shape VERIFIED against real Linear data (DAN-83 follow-up): GitHub PR
+// attachments carry BOTH `metadata.draft` (boolean — the authoritative draft
+// bit) and `metadata.status` (lowercase lifecycle string: "open" / "merged" /
+// "closed"; a DRAFT PR's status is NOT "draft" — draft-ness lives only in the
+// boolean), with `mergedAt` / `closedAt` ISO timestamps alongside once the PR
+// reaches those states. So:
+//   draft: true      -> "draft PR opened", ts = attachment createdAt
+//   status "merged"  -> "PR merged",       ts = metadata.mergedAt (see below)
+//   status "closed"  -> "PR closed",       ts = metadata.closedAt (see below)
+//   anything else    -> "PR opened",       ts = attachment createdAt
+// Merged/closed events prefer their own mergedAt/closedAt timestamp — the
+// finale should sort where it happened in the story, not back at the moment
+// the PR was first attached — and fall back to the attachment's createdAt
+// when the timestamp is absent. The `status === "draft"` branch survives only
+// as a harmless fallback for any older metadata shape. Everything reads
+// defensively: unknown or missing metadata is an open PR, never an error.
+function prEventParts(attachment) {
   const meta = attachment?.metadata ?? {}
-  if (meta.draft === true) return true
-  return typeof meta.status === 'string' && meta.status.trim().toLowerCase() === 'draft'
+  const status = typeof meta.status === 'string' ? meta.status.trim().toLowerCase() : ''
+  const tsOr = (candidate) =>
+    typeof candidate === 'string' && candidate !== '' ? candidate : attachment.createdAt
+  if (meta.draft === true || status === 'draft') {
+    return { verb: 'draft PR opened', ts: attachment.createdAt }
+  }
+  if (status === 'merged') return { verb: 'PR merged', ts: tsOr(meta.mergedAt) }
+  if (status === 'closed') return { verb: 'PR closed', ts: tsOr(meta.closedAt) }
+  return { verb: 'PR opened', ts: attachment.createdAt }
 }
 
 // Same cache story as featureRequestProgress, one Map over: the narration view
@@ -691,8 +711,10 @@ export function clearFeatureRequestActivityCache() {
 //     skipped, as is the creation row (a to-state with no from-state): the
 //     feed narrates changes, and filing is already the feed's implicit start;
 //   - one "pr" event for the issue's PR attachment (same detection as
-//     featureRequestProgress), summary naming its draft/open state, timestamped
-//     by the attachment's createdAt — the moment the PR reached Linear.
+//     featureRequestProgress), summary naming its lifecycle state — draft /
+//     opened / merged / closed, see prEventParts — timestamped by the
+//     attachment's createdAt (the moment the PR reached Linear) except for
+//     merged/closed PRs, which prefer their own mergedAt/closedAt.
 //
 // An unapproved session has no filed tickets and returns [] without touching
 // Linear; a foreign, unknown, or malformed promptId is the same NotFoundError
@@ -752,11 +774,12 @@ export async function featureRequestActivity(uid, id, linearClient, now = Date.n
 
     const prAttachment = findPrAttachment(issue.attachments)
     if (prAttachment?.createdAt) {
+      const { verb, ts } = prEventParts(prAttachment)
       events.push({
-        ts: prAttachment.createdAt,
+        ts,
         ticketIdentifier: identifier,
         kind: 'pr',
-        summary: `${isDraftPr(prAttachment) ? 'draft PR' : 'PR'} opened for ${identifier}`,
+        summary: `${verb} for ${identifier}`,
         body: null,
         url: prAttachment.url ?? null,
       })

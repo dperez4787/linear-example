@@ -201,8 +201,11 @@ export function createLinearClient({ fetch: fetchImpl = globalThis.fetch } = {})
   // presentation.
   //
   // `metadata` is Linear's JSON blob on the attachment; for GitHub PR
-  // attachments it carries the PR's live status (draft included) — the data
-  // layer reads it defensively, this module just passes it through.
+  // attachments it carries the PR's live lifecycle — verified against real
+  // Linear data: a boolean `draft`, a lowercase `status` string
+  // (open/merged/closed), and `mergedAt`/`closedAt` timestamps once those
+  // apply. The data layer reads it defensively (prEventParts in
+  // featureRequests.js); this module just passes it through whole.
   async function issuesActivity(issueIds) {
     const data = await gql(
       `query ($ids: [ID!]!) {
