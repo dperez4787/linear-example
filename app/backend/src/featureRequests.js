@@ -625,6 +625,150 @@ export async function featureRequestProgress(uid, id, linearClient, now = Date.n
   return nodes
 }
 
+// --- featureRequestActivity: the build narrated from the ticket trail (DAN-83) ---
+
+// The agents already narrate the build into Linear — issue comments, workflow
+// state changes — and GitHub (the PR attachment). featureRequestActivity
+// aggregates that trail per session into one chronological feed of
+// ActivityEvents: { ts, ticketIdentifier, kind, summary, body?, url? } with
+// kind one of "comment" | "state" | "pr".
+
+// Comment bodies are display data, not archives: the feed truncates them so
+// one long tester verdict doesn't dominate the wire payload. The full text
+// lives one click away at the event's url.
+export const ACTIVITY_COMMENT_BODY_MAX = 500
+
+function truncateCommentBody(body) {
+  if (body.length <= ACTIVITY_COMMENT_BODY_MAX) return body
+  return `${body.slice(0, ACTIVITY_COMMENT_BODY_MAX - 1)}…`
+}
+
+// Best-effort author label for a narrated comment, by simple content
+// heuristics (DAN-83). The agents post through shared identities (the CI
+// workflow's Linear key, the local MCP session), so the comment's Linear user
+// doesn't say which AGENT spoke — but the agents' own vocabulary does: the
+// tester talks verdicts and acceptance criteria (CLAUDE.md: it "comments the
+// verdict on the issue"), the developer talks branches, implementation, and
+// its draft PR. Tester wins ties (its verdicts often quote the developer's
+// work); anything neither pattern claims is the generic "agent". A display
+// label only — nothing authorizes off it.
+function commentAuthorLabel(body) {
+  const text = body.toLowerCase()
+  if (/\btester\b|\bverdict\b|acceptance criteri|\btested\b/.test(text)) return 'tester'
+  if (/\bdeveloper\b|draft pr|pull request|\bimplement|\bbranch\b/.test(text)) return 'developer'
+  return 'agent'
+}
+
+// Whether the PR attachment describes a draft, read defensively from Linear's
+// free-form attachment metadata: the GitHub integration has carried the draft
+// bit both as a boolean `draft` and as a `status` string across versions, so
+// either signal counts and anything else means "not a draft" — never an error.
+function isDraftPr(attachment) {
+  const meta = attachment?.metadata ?? {}
+  if (meta.draft === true) return true
+  return typeof meta.status === 'string' && meta.status.trim().toLowerCase() === 'draft'
+}
+
+// Same cache story as featureRequestProgress, one Map over: the narration view
+// polls, Linear changes on a human timescale, and only the LINEAR fetch is
+// cached — the uid-scoped session read runs on every call, so a warm cache can
+// never leak one user's trail to another. Clearable, injectable `now`.
+export const ACTIVITY_CACHE_TTL_MS = 10_000
+const activityCache = new Map()
+
+export function clearFeatureRequestActivityCache() {
+  activityCache.clear()
+}
+
+// The session's narrated activity, merged chronologically across all filed
+// tickets (DAN-83), read from Linear on demand through the injected client in
+// ONE query per (cache-missing) refresh. Per ticket:
+//   - one "comment" event per issue comment, body truncated to
+//     ACTIVITY_COMMENT_BODY_MAX, summary carrying the heuristic author label;
+//   - one "state" event per workflow-state transition in the issue history,
+//     summary "DAN-101: Backlog → In Progress". History rows that are not
+//     state transitions (assignments, label edits — no from/to state) are
+//     skipped, as is the creation row (a to-state with no from-state): the
+//     feed narrates changes, and filing is already the feed's implicit start;
+//   - one "pr" event for the issue's PR attachment (same detection as
+//     featureRequestProgress), summary naming its draft/open state, timestamped
+//     by the attachment's createdAt — the moment the PR reached Linear.
+//
+// An unapproved session has no filed tickets and returns [] without touching
+// Linear; a foreign, unknown, or malformed promptId is the same NotFoundError
+// as everywhere else in this module. A filed ticket Linear no longer returns
+// is skipped, not fabricated. Events sort ascending by timestamp; the build
+// order (ticket order, then comments/states/pr per ticket) breaks exact ties
+// deterministically because Array.prototype.sort is stable.
+export async function featureRequestActivity(uid, id, linearClient, now = Date.now) {
+  const _id = toObjectId(id)
+  const doc = await collection().findOne({ _id, uid })
+  if (!doc) {
+    throw new NotFoundError('feature request not found')
+  }
+
+  const tickets = doc.tickets ?? []
+  if (tickets.length === 0) return []
+
+  const cached = activityCache.get(id)
+  if (cached && now() - cached.at < ACTIVITY_CACHE_TTL_MS) {
+    return cached.events
+  }
+
+  const issues = await linearClient.issuesActivity(tickets.map((t) => t.linearIssueId))
+  const issuesById = new Map(issues.map((issue) => [issue.id, issue]))
+
+  const events = []
+  for (const ticket of tickets) {
+    const issue = issuesById.get(ticket.linearIssueId)
+    if (!issue) continue
+    const identifier = issue.identifier
+
+    for (const comment of issue.comments?.nodes ?? []) {
+      if (typeof comment?.body !== 'string' || !comment.createdAt) continue
+      events.push({
+        ts: comment.createdAt,
+        ticketIdentifier: identifier,
+        kind: 'comment',
+        summary: `${commentAuthorLabel(comment.body)} commented on ${identifier}`,
+        body: truncateCommentBody(comment.body),
+        url: comment.url ?? issue.url ?? null,
+      })
+    }
+
+    for (const row of issue.history?.nodes ?? []) {
+      const from = row?.fromState?.name
+      const to = row?.toState?.name
+      if (!from || !to || !row.createdAt) continue
+      events.push({
+        ts: row.createdAt,
+        ticketIdentifier: identifier,
+        kind: 'state',
+        summary: `${identifier}: ${from} → ${to}`,
+        body: null,
+        url: issue.url ?? null,
+      })
+    }
+
+    const prAttachment = findPrAttachment(issue.attachments)
+    if (prAttachment?.createdAt) {
+      events.push({
+        ts: prAttachment.createdAt,
+        ticketIdentifier: identifier,
+        kind: 'pr',
+        summary: `${isDraftPr(prAttachment) ? 'draft PR' : 'PR'} opened for ${identifier}`,
+        body: null,
+        url: prAttachment.url ?? null,
+      })
+    }
+  }
+
+  events.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts))
+
+  activityCache.set(id, { at: now(), events })
+  return events
+}
+
 // --- featureRequestCost: per-session AI spend, read from the gateway (DAN-80) ---
 
 // One usage row as the wire expects it: non-null numbers, zeros when the
