@@ -371,13 +371,25 @@ export const HARNESS_BY_MODEL = {
 const DEFAULT_HARNESS = 'claude'
 
 // Project names derive from the session's first user message, truncated so a
-// long opening message doesn't become an unreadable project title.
+// long opening message doesn't become an unreadable project title. Linear
+// rejects projectCreate names longer than 80 characters (DAN-88), so the cap
+// applies to the WHOLE name — prefix, base, and ellipsis included: the base is
+// bounded at PROJECT_NAME_MAX − prefix − 1, leaving room for the '…'.
 const PROJECT_NAME_PREFIX = 'paf: '
 const PROJECT_NAME_MAX = 80
 
-function projectName(doc) {
+export function projectName(doc) {
   const first = doc.messages.find((m) => m.role === 'user')?.content ?? doc._id.toString()
-  const base = first.length > PROJECT_NAME_MAX ? `${first.slice(0, PROJECT_NAME_MAX - 1)}…` : first
+  const max = PROJECT_NAME_MAX - PROJECT_NAME_PREFIX.length
+  let base = first
+  if (first.length > max) {
+    let cut = first.slice(0, max - 1)
+    // Never end the cut on a high surrogate — that would split an emoji or
+    // other astral character and leave a broken pair before the ellipsis.
+    const last = cut.charCodeAt(cut.length - 1)
+    if (last >= 0xd800 && last <= 0xdbff) cut = cut.slice(0, -1)
+    base = `${cut}…`
+  }
   return `${PROJECT_NAME_PREFIX}${base}`
 }
 

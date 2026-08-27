@@ -142,13 +142,14 @@ async function seedSession({
   model = 'claude-opus-5',
   plan = PLAN,
   entranceCriteria = gates(),
+  firstMessage = 'Please add a CSV export of the records table',
 } = {}) {
   const doc = {
     uid,
     status,
     model,
     messages: [
-      { role: 'user', content: 'Please add a CSV export of the records table', createdAt: new Date() },
+      { role: 'user', content: firstMessage, createdAt: new Date() },
       { role: 'product-owner', content: 'Refined scope.', createdAt: new Date() },
       { role: 'architect', content: 'Feasible.', createdAt: new Date() },
     ],
@@ -285,6 +286,29 @@ test('approving an approvable session files one project, one issue per plan tick
     { issueId: 'issue-id-1', relatedIssueId: 'issue-id-3', type: 'blocks' },
     { issueId: 'issue-id-2', relatedIssueId: 'issue-id-3', type: 'blocks' },
   ])
+})
+
+// DAN-88: a long first message must still yield a Linear-valid project name —
+// at most 80 chars INCLUDING the 'paf: ' prefix and the ellipsis. The old code
+// truncated to 80 and then prepended the prefix (85 total), so Linear's
+// projectCreate rejected the name and approve returned INTERNAL every time.
+test('approving a session with a very long first message caps the project name at 80 chars including the prefix', async () => {
+  const linear = fakeLinearClient()
+  const app = makeApp(linear)
+  const id = await seedSession({
+    firstMessage:
+      'Please build a fully-featured CSV and Excel export pipeline for the records table with filters, saved views, and scheduled email delivery to stakeholders',
+  })
+
+  const res = await gql(app, ALICE, APPROVE, { id })
+  assert.equal(res.body.errors, undefined, 'approve succeeds — no INTERNAL')
+
+  const projects = linear.callsTo('createProject')
+  assert.equal(projects.length, 1)
+  const name = projects[0].args.name
+  assert.ok(name.length <= 80, `project name is ${name.length} chars, exceeds Linear's 80-char cap`)
+  assert.ok(name.startsWith('paf: '), 'prefix survives')
+  assert.ok(name.endsWith('…'), 'truncation is marked with an ellipsis')
 })
 
 // --- criterion 4: persistence + the returned FeatureRequest ---
