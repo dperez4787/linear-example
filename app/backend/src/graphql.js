@@ -146,6 +146,13 @@ export const schema = buildSchema(`
     # existed, serve null.
     linearProjectUrl: String
     tickets: [FiledTicket!]
+    # DAN-90: the AI-generated snake_case slug naming this session, generated
+    # once at approval time and persisted. Matches ^[a-z0-9]+(_[a-z0-9]+)*$ and
+    # is at most 50 characters. Nullable, and null is ordinary: an unapproved
+    # session has no title yet, a session approved before this field existed
+    # has none, and an approval whose titler call failed fell back to the
+    # truncated project name and stored none either.
+    title: String
   }
 
   input StartFeatureRequestInput {
@@ -308,6 +315,9 @@ function toWireFeatureRequest(featureRequest) {
     })),
     entranceCriteria,
     approvable: isApprovable(entranceCriteria, featureRequest.plan),
+    // DAN-90: explicit rather than relying on the spread, so a legacy session
+    // (no such field) serves an unambiguous null instead of undefined.
+    title: featureRequest.title ?? null,
   }
 }
 
@@ -357,8 +367,13 @@ export const rootValue = {
   // createApp, see index.js) — same seam as the aiGateway; no test reaches
   // real Linear. `linearProjectId` and `tickets` need no wire conversion:
   // they are plain strings all the way down.
-  approveFeatureRequestPlan: contextResolver(async ({ id }, { uid, linearClient }) =>
-    toWireFeatureRequest(await approveFeatureRequestPlan(uid, id, linearClient)),
+  // DAN-90: approval also takes the aiGateway — the SAME context-injected
+  // client sendFeatureRequestMessage uses — for the titler call, so the
+  // titler's tokens are metered on this session's promptId like every other
+  // role. A gateway failure here does not fail the approval (see
+  // generateTitle in featureRequests.js).
+  approveFeatureRequestPlan: contextResolver(async ({ id }, { uid, linearClient, aiGateway }) =>
+    toWireFeatureRequest(await approveFeatureRequestPlan(uid, id, linearClient, aiGateway)),
   ),
   // DAN-52: same linearClient seam. The data layer returns wire-ready plain
   // strings/nulls/arrays — no toWire conversion needed. Any Linear failure

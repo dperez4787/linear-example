@@ -152,6 +152,39 @@ Rules:
 - "pass" is a boolean verdict for that gate; "reason" is one short sentence justifying it.
 - Judge only what the transcript actually says. When in doubt, fail the gate.`
 
+// --- session title: one snake_case slug per feature request (DAN-90) ---
+
+// The third internal role, a sibling of the planner and the evaluator. Like
+// them its prompt is a code constant rather than a checked-in roles/*.md file:
+// the output is a machine contract (one slug, consumed by code and sanitized
+// before use), not a voice anyone tunes. loadRolePrompt() deliberately refuses
+// names outside CONVERSATION_ROLES, so this role has no file to load.
+const TITLER_ROLE = 'titler'
+
+// The titler's dedicated model, the exact pattern of PLANNER_MODEL and
+// ENTRANCE_CRITERIA_MODEL: naming a request in five words is not work that
+// needs the session's conversation model, and approval should not get more
+// expensive because the user chose opus. The ONE place this id lives;
+// exported so tests assert the captured request against the constant.
+export const TITLE_MODEL = 'claude-haiku-4-5'
+
+// The slug shape the whole feature is defined by: lowercase alphanumeric words
+// joined by single underscores, no leading/trailing/doubled underscores. Every
+// persisted title matches this — sanitizeTitle returns null rather than
+// anything that does not — so `title` on the wire is either null or a slug,
+// never a half-cleaned model artifact.
+export const TITLE_PATTERN = /^[a-z0-9]+(_[a-z0-9]+)*$/
+export const TITLE_MAX_WORDS = 5
+export const TITLE_MAX_CHARS = 50
+
+const TITLE_PROMPT = `You name feature-request sessions. Read the transcript and reply with ONE short snake_case slug naming the change the user is asking for.
+
+Rules:
+- Respond with the slug and NOTHING else: no prose, no explanation, no quotes, no markdown, no code fences, no label, no trailing punctuation.
+- Use lowercase ASCII letters and digits only, with words joined by single underscores. Example: change_buttons_to_green
+- At most 5 words and at most 50 characters.
+- Name the change being requested, not the conversation about it.`
+
 // Explicit output budget per role (DAN-69). Without max_tokens the gateway
 // falls back to its provider default (anthropic: 1024), which truncated
 // architect replies mid-sentence in the live dry-run. The ONE place these
@@ -171,6 +204,12 @@ export const MAX_TOKENS_BY_ROLE = {
   architect: 1500,
   [PLANNER_ROLE]: 2500,
   [EVALUATOR_ROLE]: 500,
+  // DAN-90: the titler emits one short slug and nothing else. 40 tokens is
+  // several times the longest legal answer (5 words / 50 chars), so a
+  // well-behaved reply is never truncated, while a model that ignores the
+  // "slug only" instruction and starts rambling is cut off cheaply — the
+  // sanitizer then salvages a slug from the fragment or falls back.
+  [TITLER_ROLE]: 40,
 }
 
 // The planner's dedicated model (DAN-72), the exact pattern of
@@ -393,6 +432,102 @@ export function projectName(doc) {
   return `${PROJECT_NAME_PREFIX}${base}`
 }
 
+// DAN-90's structural guarantee against DAN-88's cap, checked once at module
+// load rather than asserted per approval: a title is bounded at
+// TITLE_MAX_CHARS, so `paf: ` + any title is bounded at 55 — comfortably
+// inside Linear's 80. If someone later raises TITLE_MAX_CHARS past the point
+// where that holds, the process refuses to start instead of filing project
+// names Linear rejects at approval time.
+if (PROJECT_NAME_PREFIX.length + TITLE_MAX_CHARS > PROJECT_NAME_MAX) {
+  throw new Error(
+    `title budget ${TITLE_MAX_CHARS} + prefix ${PROJECT_NAME_PREFIX.length} exceeds the ${PROJECT_NAME_MAX}-char Linear project-name cap`,
+  )
+}
+
+// A leading label the model may prepend despite being told not to
+// ("Title: foo", "slug - foo", "**Name:** foo"). Stripped narrowly: only at
+// the very start, only these words, only when a separator follows.
+const TITLE_LABEL_PREAMBLE = /^[\s"'`*_#>[(-]*(?:the\s+)?(?:title|slug|name|answer|output)\s*[:\-–—]+\s*/i
+
+// Anything that separates words: whitespace, ASCII hyphen, and the unicode
+// dash family (an em-dash between words must not glue them together once the
+// strip step below removes it).
+const TITLE_SEPARATORS = /[\s\u2010-\u2015-]+/g
+
+// Turn whatever the titler actually emitted into a slug matching
+// TITLE_PATTERN, or null when nothing usable survives. MANDATORY on every
+// model reply — the prompt asks for a bare slug, but the model's formatting is
+// never trusted, exactly as the internal JSON roles never trust theirs
+// (extractJsonObject). Null is not an error: the caller falls back to
+// projectName() and the approval proceeds.
+//
+// Steps, in order: unwrap a markdown fence; drop a "Title:"-style label; keep
+// only the first non-empty line (a model that adds an explanation puts it on a
+// later line, and the slug is the part we want); lowercase; separators → '_';
+// strip everything outside [a-z0-9_]; collapse repeated '_'; trim leading and
+// trailing '_'; cap at TITLE_MAX_WORDS words and TITLE_MAX_CHARS characters,
+// dropping WHOLE trailing words so the result never ends mid-word.
+export function sanitizeTitle(raw) {
+  if (typeof raw !== 'string') return null
+
+  let text = raw
+  const fence = text.match(/```[a-z]*\s*\r?\n?([\s\S]*?)```/i)
+  if (fence) text = fence[1]
+  text = text.trim().replace(TITLE_LABEL_PREAMBLE, '')
+  text = text.split(/\r?\n/).map((line) => line.trim()).find((line) => line !== '') ?? ''
+
+  text = text
+    .toLowerCase()
+    .replace(TITLE_SEPARATORS, '_')
+    .replace(/[^a-z0-9_]+/g, '')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+
+  const words = text.split('_').filter((word) => word !== '').slice(0, TITLE_MAX_WORDS)
+  while (words.length > 1 && words.join('_').length > TITLE_MAX_CHARS) {
+    words.pop()
+  }
+  // A single word longer than the cap has no whole-word boundary to fall back
+  // to, so it is cut — the only place a title can end mid-word.
+  const slug = words.join('_').slice(0, TITLE_MAX_CHARS).replace(/_+$/, '')
+
+  return TITLE_PATTERN.test(slug) ? slug : null
+}
+
+// Ask the titler for this session's slug, or return null when it cannot be
+// had. EVERY failure mode collapses to null: a gateway error, a quota refusal
+// (QuotaExhaustedError — deliberately NOT re-thrown here, unlike in the
+// conversational turns), a missing/oddly-shaped completion, or model output
+// that sanitizes to nothing. A title is a nicety; the approval the user just
+// asked for is not, so nothing this function does can fail an approval or
+// surface an error to the client.
+//
+// The call goes through the SAME injected gateway client as every other role,
+// carrying this session's promptId — so the titler's tokens land on the usual
+// ledger under the usual attribution and featureRequestCost sees them. There
+// is no side channel.
+async function generateTitle(uid, id, doc, aiGateway) {
+  if (typeof aiGateway?.chat !== 'function') return null
+  try {
+    const completion = await aiGateway.chat({
+      uid,
+      promptId: id,
+      role: TITLER_ROLE,
+      model: TITLE_MODEL,
+      max_tokens: MAX_TOKENS_BY_ROLE[TITLER_ROLE],
+      messages: [
+        { role: 'system', content: TITLE_PROMPT },
+        { role: 'user', content: transcriptAsText(doc.messages ?? []) },
+      ],
+    })
+    return sanitizeTitle(completion?.choices?.[0]?.message?.content)
+  } catch {
+    // Swallowed deliberately — see above. Approval continues on the DAN-88
+    // truncated name.
+    return null
+  }
+}
+
 // Approve the caller's session: file one Linear project plus one issue per
 // plan ticket (labels, blocked-by relations, Ready for Dev for unblocked
 // tickets), then persist status "building", the project id, and the filed
@@ -404,7 +539,11 @@ export function projectName(doc) {
 // remains possible. Partial cleanup of whatever Linear work did land is
 // explicitly out of scope for DAN-51 — a retry may file a duplicate project,
 // and that is the accepted trade-off, stated here rather than hidden.
-export async function approveFeatureRequestPlan(uid, id, linearClient) {
+//
+// DAN-90 adds one AI call to this flow: the titler, run just before
+// createProject, whose slug becomes the project name and is persisted as
+// `title`. It is strictly best-effort — see generateTitle.
+export async function approveFeatureRequestPlan(uid, id, linearClient, aiGateway) {
   const _id = toObjectId(id)
   const doc = await collection().findOne({ _id, uid })
   if (!doc) {
@@ -446,8 +585,18 @@ export async function approveFeatureRequestPlan(uid, id, linearClient) {
   const labelIdsByName = await linearClient.findOrCreateLabels(labelNames)
   const labelIds = labelNames.map((name) => labelIdsByName[name])
 
+  // The session's title (DAN-90), generated ONCE here and persisted below, so
+  // it is stable for the life of the session and never regenerated on a read.
+  // null means the titler was unavailable or emitted nothing usable, and the
+  // project falls back to DAN-88's truncated-first-message name — the approval
+  // itself is never at risk. Both branches are bounded by PROJECT_NAME_MAX:
+  // projectName() enforces it directly, and the title branch by construction
+  // (see the module-load check next to projectName).
+  const title = await generateTitle(uid, id, doc, aiGateway)
+  const name = title === null ? projectName(doc) : `${PROJECT_NAME_PREFIX}${title}`
+
   const project = await linearClient.createProject({
-    name: projectName(doc),
+    name,
     teamId,
     description: `Filed by prompt-a-feature from session ${id}.`,
   })
@@ -491,29 +640,32 @@ export async function approveFeatureRequestPlan(uid, id, linearClient) {
 
   // Only now — every Linear call succeeded — does the session move to
   // "building", carrying the project id and each filed ticket's identity.
-  await collection().updateOne(
-    { _id, uid },
-    {
-      $set: {
-        status: 'building',
-        linearProjectId: project.id,
-        // DAN-80: the project's Linear URL, captured from projectCreate at
-        // approval time so the frontend can link straight to the project.
-        // Sessions approved before this field existed simply lack it and
-        // serve null — never an error.
-        linearProjectUrl: project.url ?? null,
-        tickets: plan.tickets.map((ticket) => {
-          const issue = issuesByKey.get(ticket.key)
-          return {
-            key: ticket.key,
-            linearIssueId: issue.id,
-            identifier: issue.identifier,
-            url: issue.url,
-          }
-        }),
-      },
-    },
-  )
+  //
+  // DAN-90: `title` is written ONLY when a slug was actually produced. A
+  // fallback approval leaves the field absent, so a stored `title` always
+  // matches TITLE_PATTERN — the wire contract is "null or a slug", never a
+  // truncated sentence masquerading as one.
+  const update = {
+    status: 'building',
+    linearProjectId: project.id,
+    // DAN-80: the project's Linear URL, captured from projectCreate at
+    // approval time so the frontend can link straight to the project.
+    // Sessions approved before this field existed simply lack it and
+    // serve null — never an error.
+    linearProjectUrl: project.url ?? null,
+    tickets: plan.tickets.map((ticket) => {
+      const issue = issuesByKey.get(ticket.key)
+      return {
+        key: ticket.key,
+        linearIssueId: issue.id,
+        identifier: issue.identifier,
+        url: issue.url,
+      }
+    }),
+  }
+  if (title !== null) update.title = title
+
+  await collection().updateOne({ _id, uid }, { $set: update })
 
   return toFeatureRequest(await collection().findOne({ _id, uid }))
 }

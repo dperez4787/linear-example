@@ -206,17 +206,19 @@ test('criterion 1: the cheap model id lives in exactly one non-test source file 
   assert.deepEqual(hits, ['featureRequests.js'], 'the id is a single constant, not scattered')
   const source = readFileSync(`${srcDir}/featureRequests.js`, 'utf8')
   // DAN-72 added a second named constant on the same cheap model
-  // (PLANNER_MODEL, the planner's dedicated model). The criterion's intent —
-  // named constants, never hardcodes at call sites — still holds: the id
-  // appears exactly twice in that file, once per exported constant
-  // definition, and nowhere else in non-test source.
+  // (PLANNER_MODEL, the planner's dedicated model), and DAN-90 a third
+  // (TITLE_MODEL, the titler's). The criterion's intent — named constants,
+  // never hardcodes at call sites — still holds: the id appears exactly three
+  // times in that file, once per exported constant definition, and nowhere
+  // else in non-test source.
   assert.equal(
     source.split('claude-haiku-4-5').length - 1,
-    2,
-    'the id appears exactly twice in that file: ENTRANCE_CRITERIA_MODEL and PLANNER_MODEL (DAN-72)',
+    3,
+    'the id appears exactly three times: ENTRANCE_CRITERIA_MODEL, PLANNER_MODEL (DAN-72), TITLE_MODEL (DAN-90)',
   )
   assert.match(source, /export const ENTRANCE_CRITERIA_MODEL = 'claude-haiku-4-5'/)
   assert.match(source, /export const PLANNER_MODEL = 'claude-haiku-4-5'/)
+  assert.match(source, /export const TITLE_MODEL = 'claude-haiku-4-5'/)
 })
 
 // --- criterion 2: structured JSON requested; result persists on the session ---
