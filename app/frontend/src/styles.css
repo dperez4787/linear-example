@@ -893,3 +893,125 @@ tbody tr:hover {
   color: var(--color-muted);
   font-size: 0.875rem;
 }
+
+/* --- DAN-84: live activity timeline beside the build DAG ------------------ */
+
+/* The build view's body is a two-pane row: the DAG takes the wider share, the
+   activity timeline sits beside it. Panes wrap to a single column when the
+   viewport can't fit both — same fluid approach as the rest of the app, no
+   media queries needed. */
+.watch-build__body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.watch-build__dag {
+  flex: 2 1 24rem;
+  min-width: 0;
+}
+
+.activity-timeline {
+  flex: 1 1 16rem;
+  min-width: 16rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  padding: var(--space-3);
+}
+
+.activity-timeline__title {
+  margin: 0 0 var(--space-2);
+  font-size: 1rem;
+}
+
+/* The feed scrolls inside a fixed-height viewport; the component pins it to
+   the newest (bottom) entry only while the reader is already at the bottom. */
+.activity-timeline__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 24rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.activity-event {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-subtle);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.activity-event:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.activity-event__time {
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The ticket badge is the same pill language as the DAG's issue links, kept
+   compact so rows scan as time · ticket · what happened. */
+.activity-event__badge {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-subtle);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Per-kind accent on the badge border only — the event's meaning always lives
+   in the summary text, never in color alone. */
+.activity-event--comment .activity-event__badge {
+  border-color: var(--color-accent);
+}
+
+.activity-event--pr .activity-event__badge {
+  border-color: var(--color-primary);
+}
+
+/* The expand/collapse control is a real button styled as a link, matching the
+   app's inline affordances without adding a second button language. */
+.activity-event__toggle {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--color-accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.activity-event__toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius);
+}
+
+/* An expanded comment body: quiet inset panel, markdown-rendered (DAN-79). */
+.activity-event__body {
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-border);
+  background: var(--color-subtle);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+
+.activity-event__body > :first-child {
+  margin-top: 0;
+}
+
+.activity-event__body > :last-child {
+  margin-bottom: 0;
+}
