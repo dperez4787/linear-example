@@ -131,7 +131,10 @@ describe('FeatureRequestView while a send is in flight', () => {
 })
 
 describe('FeatureRequestView on API rejection', () => {
-  it('shows the error, re-enables the input, and keeps the unsent draft', async () => {
+  // DAN-67: the failure contract changed from "the draft survives in the
+  // composer" to "the optimistic message survives in the transcript with a
+  // retry control" — the chat-grade version of not eating the input.
+  it('shows the error, re-enables the input, and keeps the message in the transcript marked not delivered', async () => {
     vi.mocked(startFeatureRequest).mockResolvedValue(makeRequest())
     vi.mocked(sendFeatureRequestMessage).mockRejectedValue(new Error('Internal Server Error'))
     render(<FeatureRequestView onBack={() => {}} />)
@@ -141,7 +144,14 @@ describe('FeatureRequestView on API rejection', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Internal Server Error')
     expect(screen.getByLabelText('Message')).toBeEnabled()
-    expect(screen.getByLabelText('Message')).toHaveValue('Please add CSV export')
+    // The composer cleared on Send and stays clear; the message lives on in
+    // the transcript instead, flagged undelivered with a retry control.
+    expect(screen.getByLabelText('Message')).toHaveValue('')
+    const transcript = screen.getByRole('list', { name: 'Conversation' })
+    const item = within(transcript).getByRole('listitem')
+    expect(item).toHaveTextContent('Please add CSV export')
+    expect(item).toHaveTextContent('not delivered')
+    expect(within(item).getByRole('button', { name: 'retry' })).toBeEnabled()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
@@ -154,12 +164,21 @@ describe('FeatureRequestView on API rejection', () => {
     await screen.findByRole('alert')
 
     vi.mocked(sendFeatureRequestMessage).mockResolvedValue(makeRequest(firstExchange))
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    // DAN-67: the resend goes through the failed message's retry control.
+    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
 
-    await screen.findByRole('list', { name: 'Conversation' })
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('list', { name: 'Conversation' })).getAllByRole('listitem'),
+      ).toHaveLength(3),
+    )
     // The conversation was started exactly once; the retry reused its id.
     expect(startFeatureRequest).toHaveBeenCalledTimes(1)
     expect(sendFeatureRequestMessage).toHaveBeenLastCalledWith('fr1', 'Please add CSV export')
+    // The delivered message appears once — the canonical copy replaced the
+    // optimistic one.
+    expect(screen.getAllByText('Please add CSV export')).toHaveLength(1)
+    expect(screen.queryByText('not delivered')).not.toBeInTheDocument()
   })
 
   it('surfaces a startFeatureRequest failure the same way', async () => {

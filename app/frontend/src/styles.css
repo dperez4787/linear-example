@@ -590,3 +590,78 @@ tbody tr:hover {
     transform: rotate(360deg);
   }
 }
+
+/* -- DAN-67: chat-grade sending experience ----------------------------------- */
+
+/* Chat layout: messages become bubbles — the user's right-aligned, the
+   product-owner/architect replies left-aligned, role labels unchanged. Appended
+   overrides only; the DAN-53 block above is untouched. As ever, class names and
+   values are a local choice, not contract — tests assert roles and accessible
+   text, never styles. */
+.chat-message {
+  max-width: min(85%, 40rem);
+  align-self: flex-start;
+}
+
+.chat-message--user {
+  align-self: flex-end;
+  background: #ddf4ff;
+  border-color: #b6e3ff;
+}
+
+/* The failed-delivery affordance under an undelivered user message: small,
+   quiet, in the danger colorway, with the retry control reading as a link. */
+.chat-message__undelivered {
+  margin: var(--space-2) 0 0;
+  font-size: 0.8125rem;
+  color: var(--color-danger);
+}
+
+.chat-message__retry {
+  border: none;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--color-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.chat-message__retry:disabled {
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+/* The thinking indicator: an ellipsis pulse while the round's model calls run.
+   The animation is decorative; the accessible signal is the role="status" text. */
+.chat-message--thinking {
+  color: var(--color-muted);
+}
+
+.chat-thinking {
+  animation: chat-thinking-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes chat-thinking-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Auto-scroll to the newest message animates only for users who have not asked
+   for reduced motion; the thinking pulse likewise goes static for them. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-thinking {
+    animation: none;
+  }
+}
