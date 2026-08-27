@@ -358,6 +358,28 @@ tbody tr:hover {
   color: var(--color-muted);
 }
 
+/* DAN-71: the composer is a multi-line textarea. .control's fixed height is
+   for one-line inputs, so it is overridden here: 3 rows minimum, autosized by
+   the component up to ~8 rows (the max-height), scrolling past that. */
+.chat-composer__textarea {
+  width: 100%;
+  height: auto;
+  min-height: calc(3 * 1.5em + 2 * var(--space-2));
+  max-height: calc(8 * 1.5em + 2 * var(--space-2));
+  padding: var(--space-2) var(--space-3);
+  line-height: 1.5;
+  resize: none;
+  overflow-y: auto;
+}
+
+/* DAN-71: expectation-setting hint under the composer — a reply round takes
+   several model calls, so the wait should read as normal, not as a hang. */
+.chat-composer__hint {
+  margin: var(--space-2) 0 0;
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
 /* -- DAN-54: model picker, gates checklist, quota meter, approve -------------- */
 
 /* The model picker: a bordered fieldset whose rows read as a compact list.

@@ -32,6 +32,11 @@ import WatchBuild from './WatchBuild.jsx'
 // returned (entranceCriteria / approvable), updating after every exchange with
 // no extra fetch.
 //
+// DAN-71 turns the composer into a multi-line textarea (3 rows, autosizing to
+// ~8 before scrolling): Enter inserts a newline, Cmd/Ctrl+Enter submits, and
+// the Send button still submits. A hint under the composer sets the
+// expectation that replies take up to a minute.
+//
 // The first submit lazily starts the conversation: startFeatureRequest(model),
 // then sendFeatureRequestMessage with the new id. The started request is stored
 // before the send, so a failed first send retries against the same conversation
@@ -82,6 +87,9 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
   // Sentinel under the transcript; each append (and the thinking indicator)
   // scrolls it into view so the newest message is always visible.
   const transcriptEndRef = useRef(null)
+  // The composer textarea (DAN-71), for autosizing between its 3-row floor
+  // and the CSS max-height (~8 rows) as the draft grows.
+  const composerRef = useRef(null)
   // The `model` prop (the seam DAN-53 left) is now the picker's initial
   // selection rather than the sent-forever value.
   const [selectedModel, setSelectedModel] = useState(model)
@@ -174,8 +182,10 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
     }
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault()
+  // One submit path for the three ways to send (the Send button, the form's
+  // native submit, and Cmd/Ctrl+Enter): empty drafts and in-flight rounds are
+  // no-ops regardless of which entry point fired.
+  async function submitDraft() {
     const content = draft.trim()
     if (!content || sending) return
     // Optimistic: the composer clears the moment the message enters the
@@ -184,6 +194,31 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
     const entryId = nextPendingId.current++
     await deliver(entryId, content)
   }
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    await submitDraft()
+  }
+
+  // DAN-71: the composer is multi-line, so plain Enter keeps its default —
+  // inserting a newline — and Cmd/Ctrl+Enter is the keyboard submit.
+  function handleComposerKeyDown(event) {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault()
+      submitDraft()
+    }
+  }
+
+  useEffect(() => {
+    // Autosize the composer between its 3-row floor and the CSS max-height
+    // (~8 rows; past that it scrolls). Resetting to auto first lets the box
+    // shrink back when lines are deleted. jsdom reports scrollHeight as 0,
+    // so tests exercise the handler without the style mattering.
+    const el = composerRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    if (el.scrollHeight > 0) el.style.height = `${el.scrollHeight}px`
+  }, [draft, building, quotaExhausted])
 
   // The "not delivered — retry" control: resend the same content against the
   // same conversation (or re-attempt the start if the first round never got
@@ -377,25 +412,32 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
         // request's id is the promptId the build view polls progress for.
         <WatchBuild promptId={request.id} />
       ) : (
-        <form className="chat-composer" onSubmit={handleSubmit}>
-          <label className="chat-composer__field field--grow">
-            Message
-            <input
-              className="control"
-              type="text"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+        <>
+          <form className="chat-composer" onSubmit={handleSubmit}>
+            <label className="chat-composer__field field--grow">
+              Message
+              <textarea
+                ref={composerRef}
+                className="control chat-composer__textarea"
+                rows={3}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={handleComposerKeyDown}
+                disabled={sending || quotaExhausted}
+              />
+            </label>
+            <button
+              className="btn btn--primary"
+              type="submit"
               disabled={sending || quotaExhausted}
-            />
-          </label>
-          <button
-            className="btn btn--primary"
-            type="submit"
-            disabled={sending || quotaExhausted}
-          >
-            Send
-          </button>
-        </form>
+            >
+              Send
+            </button>
+          </form>
+          <p className="chat-composer__hint">
+            The team reads and replies — this can take a minute.
+          </p>
+        </>
       )}
     </>
   )
