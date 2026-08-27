@@ -129,6 +129,19 @@ export const schema = buildSchema(`
 
   type FeatureRequest {
     id: ID!
+    # gathering -> building -> shipped. A String, not an enum, for the same
+    # reason Record.status is: featureRequests.js is the single enforcement
+    # point, and an enum here would be a second copy of the list that can
+    # drift. "gathering" is the conversation, "building" is approved with
+    # tickets filed, and "shipped" (DAN-94) is terminal — reached when a
+    # progress read observes every ticket DONE, and never left.
+    #
+    # Migration: no backfill. Sessions that shipped before DAN-94 are still
+    # stored as "building" and heal themselves the first time anyone opens
+    # their build view, because that view's existing progress poll is what
+    # performs the flip. A shipped-and-never-reopened session keeps saying
+    # "building" until someone looks at it — which is precisely when the wrong
+    # word would have been read.
     status: String!
     model: String!
     createdAt: String!
