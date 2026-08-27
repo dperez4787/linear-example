@@ -13,6 +13,9 @@ RUN npm ci --omit=dev
 
 # Application code goes in its own layer, after the dependency layer above.
 COPY src ./src
+# Role system prompts (DAN-49) are read from disk at runtime, so the container
+# needs them next to src exactly as the repo lays them out.
+COPY roles ./roles
 
 # Drop root: run as the unprivileged `node` user baked into the base image.
 USER node
