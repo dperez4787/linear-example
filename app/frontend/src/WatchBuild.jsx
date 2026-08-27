@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 
-import { featureRequestCost, featureRequestProgress } from './api.js'
+import ActivityTimeline from './ActivityTimeline.jsx'
+import {
+  featureRequestActivity,
+  featureRequestCost,
+  featureRequestProgress,
+} from './api.js'
 
 // The watch-it-build DAG view (DAN-55): once a feature request is approved,
 // FeatureRequestView hands off to this component, which polls
@@ -32,6 +37,14 @@ import { featureRequestCost, featureRequestProgress } from './api.js'
 // the poll stops. A failed cost read degrades silently: the stat keeps its
 // last good value (or stays absent before the first success) and never marks
 // the DAG stale — staleness remains the progress poll's signal alone.
+//
+// DAN-84 adds the live activity pane (ActivityTimeline) beside the DAG. Its
+// featureRequestActivity read rides the same tick the same way the cost read
+// does: fetched alongside the progress poll, awaited before the next hop is
+// scheduled — one timer total — and it starts and stops with the poll (all
+// tickets DONE stops everything; unmount stops everything). Its failures are
+// equally soft: the last good event list stays rendered and the DAG is never
+// marked stale by an activity blip.
 export const POLL_INTERVAL_MS = 5000
 
 // Accessible per-state markers. Spinners are role="status" with distinct labels
@@ -135,19 +148,31 @@ export default function WatchBuild({ promptId, linearProjectUrl = null }) {
   // costUsd }), or null before the first successful read. Same
   // never-blank-on-failure rule as the DAG (DAN-81).
   const [cost, setCost] = useState(null)
+  // The last good activity feed (ActivityEvent[], ascending by ts), or null
+  // before the first successful read. Same never-blank-on-failure rule as the
+  // DAG and the cost stat (DAN-84).
+  const [events, setEvents] = useState(null)
 
   useEffect(() => {
     let cancelled = false
     let timer = null
 
     async function poll() {
-      // Both reads share the one tick (DAN-81): the cost fetch starts alongside
-      // the progress fetch and is awaited before the next hop is scheduled, so
-      // there is exactly one timer no matter how many stats ride it. Its own
-      // catch keeps a cost blip from ever touching the DAG or the stale note.
+      // All reads share the one tick (DAN-81/DAN-84): the cost and activity
+      // fetches start alongside the progress fetch and are awaited before the
+      // next hop is scheduled, so there is exactly one timer no matter how
+      // many reads ride it. Each side read's own catch keeps its blips from
+      // ever touching the DAG or the stale note.
       const costPromise = (async () => {
         try {
           return await featureRequestCost(promptId)
+        } catch {
+          return null
+        }
+      })()
+      const activityPromise = (async () => {
+        try {
+          return await featureRequestActivity(promptId)
         } catch {
           return null
         }
@@ -164,8 +189,10 @@ export default function WatchBuild({ promptId, linearProjectUrl = null }) {
         setStale(true)
       }
       const nextCost = await costPromise
+      const nextEvents = await activityPromise
       if (cancelled) return
       if (nextCost) setCost(nextCost)
+      if (nextEvents) setEvents(nextEvents)
       if (!done) timer = setTimeout(poll, POLL_INTERVAL_MS)
     }
 
@@ -217,53 +244,58 @@ export default function WatchBuild({ promptId, linearProjectUrl = null }) {
           : 'Plan approved — the team is building this feature.'}
         {stale && ' Live view stale — retrying.'}
       </p>
-      {tickets === null ? (
-        <p className="empty-state">Loading build progress…</p>
-      ) : tickets.length === 0 ? (
-        <p className="empty-state">No tickets filed yet.</p>
-      ) : (
-        <ol className="dag" aria-label="Build stages">
-          {layers.map((layer, i) => (
-            <li key={i} className="dag__layer">
-              <h3 className="dag__layer-name">Stage {i + 1}</h3>
-              <ul className="dag__nodes">
-                {layer.map((ticket) => {
-                  const blockers = unresolvedBlockers(ticket, tickets)
-                  return (
-                    <li
-                      key={ticket.issueId}
-                      className={
-                        ticket.state === 'BACKLOG'
-                          ? 'dag-node dag-node--backlog'
-                          : 'dag-node'
-                      }
-                    >
-                      <a className="dag-node__issue" href={ticket.issueUrl}>
-                        {ticket.identifier}
-                      </a>{' '}
-                      <span className="dag-node__title">{ticket.title}</span>{' '}
-                      <StateMarker state={ticket.state} />
-                      {ticket.prUrl && (
-                        <>
-                          {' '}
-                          <a className="dag-node__pr" href={ticket.prUrl}>
-                            PR
-                          </a>
-                        </>
-                      )}
-                      {blockers.length > 0 && (
-                        <p className="dag-node__blocked">
-                          blocked by {blockers.join(', ')}
-                        </p>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-            </li>
-          ))}
-        </ol>
-      )}
+      <div className="watch-build__body">
+        <div className="watch-build__dag">
+          {tickets === null ? (
+            <p className="empty-state">Loading build progress…</p>
+          ) : tickets.length === 0 ? (
+            <p className="empty-state">No tickets filed yet.</p>
+          ) : (
+            <ol className="dag" aria-label="Build stages">
+              {layers.map((layer, i) => (
+                <li key={i} className="dag__layer">
+                  <h3 className="dag__layer-name">Stage {i + 1}</h3>
+                  <ul className="dag__nodes">
+                    {layer.map((ticket) => {
+                      const blockers = unresolvedBlockers(ticket, tickets)
+                      return (
+                        <li
+                          key={ticket.issueId}
+                          className={
+                            ticket.state === 'BACKLOG'
+                              ? 'dag-node dag-node--backlog'
+                              : 'dag-node'
+                          }
+                        >
+                          <a className="dag-node__issue" href={ticket.issueUrl}>
+                            {ticket.identifier}
+                          </a>{' '}
+                          <span className="dag-node__title">{ticket.title}</span>{' '}
+                          <StateMarker state={ticket.state} />
+                          {ticket.prUrl && (
+                            <>
+                              {' '}
+                              <a className="dag-node__pr" href={ticket.prUrl}>
+                                PR
+                              </a>
+                            </>
+                          )}
+                          {blockers.length > 0 && (
+                            <p className="dag-node__blocked">
+                              blocked by {blockers.join(', ')}
+                            </p>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+        <ActivityTimeline events={events} />
+      </div>
     </section>
   )
 }

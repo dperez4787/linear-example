@@ -257,6 +257,32 @@ export async function featureRequestCost(promptId) {
   return data.featureRequestCost ?? null
 }
 
+// --- Live activity (DAN-84) ---------------------------------------------------
+
+// The ActivityEvent selection set (DAN-83): one entry per planning/build event,
+// shaped { ts, ticketIdentifier, kind, summary, body, url }, where ts is an
+// ISO-8601 string, kind is "comment" | "state" | "pr", body is the comment text
+// (null for state/pr events), and url is nullable. Formatting is a local
+// choice, not contract.
+const ACTIVITY_EVENT_FIELDS = 'ts ticketIdentifier kind summary body url'
+
+// The live activity feed for an approved feature request -> ActivityEvent[],
+// ascending by ts. Resolves to a plain array (never null) so the timeline can
+// always map over it. Read by the build view's activity pane on the same tick
+// as the progress poll — never on a timer of its own (the DAN-81 cost-read
+// pattern). An unapproved session resolves []; a foreign/unknown promptId is
+// an execution-level NOT_FOUND, which throws. NOTE: the backend query ships in
+// DAN-83 (PR #72); this calls the operation name and shape agreed there —
+// featureRequestActivity(promptId) returning [ActivityEvent!]! — so no
+// frontend change is needed when it lands.
+export async function featureRequestActivity(promptId) {
+  const data = await gql(
+    `query ($promptId: ID!) { featureRequestActivity(promptId: $promptId) { ${ACTIVITY_EVENT_FIELDS} } }`,
+    { promptId },
+  )
+  return data.featureRequestActivity ?? []
+}
+
 // Approve the plan of a feature request whose gates all pass -> the updated
 // FeatureRequest, whose status is "building". NOTE: the backend mutation ships
 // in DAN-51; this calls the operation name and shape agreed there —
