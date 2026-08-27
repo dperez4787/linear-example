@@ -151,6 +151,71 @@ Rules:
 - "pass" is a boolean verdict for that gate; "reason" is one short sentence justifying it.
 - Judge only what the transcript actually says. When in doubt, fail the gate.`
 
+// Explicit output budget per role (DAN-69). Without max_tokens the gateway
+// falls back to its provider default (anthropic: 1024), which truncated
+// architect replies mid-sentence in the live dry-run. The ONE place these
+// budgets live; exported so tests assert the captured requests against the
+// constants rather than re-hardcoding the numbers.
+export const MAX_TOKENS_BY_ROLE = {
+  'product-owner': 3000,
+  architect: 3000,
+  [PLANNER_ROLE]: 1500,
+  [EVALUATOR_ROLE]: 500,
+}
+
+// --- lenient JSON extraction for the internal roles (DAN-69) ---
+
+// The first balanced {...} object in `text`, string-aware (braces inside JSON
+// strings don't count), or null when none closes.
+function firstBalancedObject(text) {
+  const start = text.indexOf('{')
+  if (start === -1) return null
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === '"') inString = false
+    } else if (ch === '"') inString = true
+    else if (ch === '{') depth += 1
+    else if (ch === '}') {
+      depth -= 1
+      if (depth === 0) return text.slice(start, i + 1)
+    }
+  }
+  return null
+}
+
+// Leniently extract the one JSON object from an internal role's reply, or null
+// when there is none. Both internal roles are prompted for strict JSON, but in
+// the live dry-run claude-haiku wrapped its (valid) JSON in markdown fences and
+// the strict JSON.parse rejected it, sticking the gates at "evaluation
+// unavailable". Shared by the planner and the evaluator: strip whitespace;
+// unwrap a markdown fence (```json ... ``` or ``` ... ```, a preamble before it
+// tolerated); otherwise take the first balanced {...} object in the text (which
+// tolerates a prose preamble before bare JSON); JSON.parse the result.
+// Genuinely malformed content still returns null — each caller's existing
+// failure handling is unchanged.
+function extractJsonObject(content) {
+  if (typeof content !== 'string') return null
+  let text = content.trim()
+  const fence = text.match(/```(?:json)?\s*\r?\n?([\s\S]*?)```/i)
+  if (fence) text = fence[1].trim()
+  if (!(text.startsWith('{') && text.endsWith('}'))) {
+    const balanced = firstBalancedObject(text)
+    if (balanced === null) return null
+    text = balanced
+  }
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
 // All three gates failed with one shared reason — the shape stored when the
 // evaluation itself could not produce a verdict.
 function failedEntranceCriteria(reason) {
@@ -178,12 +243,8 @@ export function isApprovable(entranceCriteria) {
 // model emitted never reaches the database, and any missing or mistyped gate
 // invalidates the whole reply — three hard gates, no partial credit.
 function parseEntranceCriteria(content) {
-  let parsed
-  try {
-    parsed = JSON.parse(content)
-  } catch {
-    return null
-  }
+  const parsed = extractJsonObject(content)
+  if (parsed === null) return null
   const clean = {}
   for (const gate of ENTRANCE_GATES) {
     const verdict = parsed?.[gate]
@@ -218,12 +279,8 @@ function transcriptAsText(transcript) {
 // (usable) plan. A malformed or empty reply means "not converged yet" — the
 // conversation continues and nothing is stored; it is never a client error.
 function parsePlan(content) {
-  let parsed
-  try {
-    parsed = JSON.parse(content)
-  } catch {
-    return null
-  }
+  const parsed = extractJsonObject(content)
+  if (parsed === null) return null
   const tickets = parsed?.tickets
   if (!Array.isArray(tickets) || tickets.length === 0) return null
   const clean = []
@@ -551,6 +608,9 @@ export async function sendFeatureRequestMessage(uid, id, content, aiGateway) {
       promptId: id,
       role,
       model: doc.model,
+      // Explicit output budget (DAN-69) — the gateway's provider default
+      // (anthropic: 1024) truncated architect replies mid-sentence.
+      max_tokens: MAX_TOKENS_BY_ROLE[role],
       messages: [
         { role: 'system', content: await loadRolePrompt(role) },
         ...toChatMessages(transcript, role),
@@ -572,6 +632,7 @@ export async function sendFeatureRequestMessage(uid, id, content, aiGateway) {
     promptId: id,
     role: PLANNER_ROLE,
     model: doc.model,
+    max_tokens: MAX_TOKENS_BY_ROLE[PLANNER_ROLE],
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: PLANNER_PROMPT },
@@ -598,6 +659,7 @@ export async function sendFeatureRequestMessage(uid, id, content, aiGateway) {
       promptId: id,
       role: EVALUATOR_ROLE,
       model: ENTRANCE_CRITERIA_MODEL,
+      max_tokens: MAX_TOKENS_BY_ROLE[EVALUATOR_ROLE],
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: ENTRANCE_CRITERIA_PROMPT },
