@@ -16,6 +16,16 @@ import { listFeatureRequests } from './api.js'
 // A failed load degrades to a quiet inline note rather than an alert: the list
 // is a convenience surface, and a broken list must never block starting a new
 // request. Deliberately NOT role="alert" — the chat's error channel owns that.
+//
+// DAN-94 adds a third status to the chip's vocabulary — "shipped", the terminal
+// state a session reaches once every filed ticket is done — and needed no JSX
+// change to show it: the chip has always rendered `request.status` verbatim
+// with a `my-requests__status--${status}` modifier, so a new backend status
+// arrives as its own word and its own class the moment the server sends it.
+// That is the whole reason this component "never inspects status beyond
+// displaying it", and the reason the fix for a stuck status is a backend fix.
+// The three states are visually distinct in styles.css (grey / green / purple),
+// but the word itself is the accessible signal and the one tests assert on.
 
 // DAN-91: a row leads with the request's generated title when it has one, and
 // with this preview only when it does not — see rowLabelOf below.

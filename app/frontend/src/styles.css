@@ -854,6 +854,19 @@ tbody tr:hover {
   color: #1a7f37;
 }
 
+/* DAN-94: the terminal status. It must read as a *different* state from
+   "building", not a louder version of it, so it takes its own hue rather than
+   another green — #8250df is the merged-purple this ecosystem already means
+   "landed" with, and it deliberately shares no family with the in-progress
+   green above or the muted grey a "gathering" chip inherits. Weight carries the
+   distinction too, so the three states differ by more than hue alone. Same
+   reasoning as the rule above on why the value is a literal: this is a status
+   chip, not a button, and DAN-89's token removal must not recolour it. */
+.my-requests__status--shipped {
+  color: #8250df;
+  font-weight: 600;
+}
+
 .my-requests__date {
   font-size: 0.8125rem;
   color: var(--color-muted);

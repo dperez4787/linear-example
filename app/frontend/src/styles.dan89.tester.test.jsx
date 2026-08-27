@@ -397,21 +397,88 @@ describe('DAN-89 AC3/AC4 · geometry, labels and inventory are untouched', () =>
     expect(CSS).not.toMatch(/\.btn--primary:active/)
   })
 
-  it('no component source file changed on this branch — only styles.css and tests', () => {
-    let changed
+  // AMENDED BY DAN-94 (was: 'no component source file changed on this branch —
+  // only styles.css and tests', diffing `main...HEAD`).
+  //
+  // The claim is DAN-89's and is kept in full: DAN-89 touched styles.css and
+  // tests, and no component source. What changed is WHICH commits are measured.
+  // `main...HEAD` means "this branch", which stopped being DAN-89 the moment
+  // DAN-89 merged: on every later branch the range picks up whatever that
+  // ticket changed, so the test asserted something about DAN-90, DAN-91, DAN-94…
+  // rather than about DAN-89. It fails today on origin/main itself for exactly
+  // that reason (the range spans PRs #77/#78/#79, which legitimately changed
+  // featureRequests.js, graphql.js, api.js, MyRequests.jsx, WatchBuild.jsx and
+  // FeatureRequestView.jsx), so it had become an assertion about the calendar.
+  //
+  // It now measures DAN-89's OWN commits, found by their subject line, and
+  // inspects every file each of them touched. That is the same claim made
+  // precisely: strictly narrower on what it permits (only DAN-89's commits get
+  // the styles.css-and-tests allowance, where the old range silently allowed
+  // any styles.css or test edit from any ticket in between) and permanent —
+  // it will still be checking DAN-89 fifty tickets from now.
+  //
+  // The allowance keeps DAN-89's two exemptions (app/frontend/src/styles.css,
+  // and any path containing '.test.') and adds the tester's own Chrome
+  // verification harness, which its commit c24e9c7 also carries:
+  // app/frontend/scripts/dan89-chrome-verify.mjs and its dan89-harness.html.
+  // Those are verification tooling — the file itself says "NOT part of
+  // `npm test` … it needs a Chrome binary" — not component source, which is
+  // what this test's name has always been about. They are named one by one
+  // rather than exempting app/frontend/scripts/ wholesale, so nothing else can
+  // ever hide behind the exemption. Everything else still faces the same
+  // `toEqual([])`.
+  it('no component source file changed by DAN-89 — only styles.css and tests', () => {
+    let commits
     try {
-      changed = execFileSync('git', ['diff', '--name-only', 'main...HEAD'], {
-        cwd: HERE,
-        encoding: 'utf8',
-      })
+      // Every commit whose subject names DAN-89 — the implementation and the
+      // tester suite both do (repo convention: subjects start with the ticket
+      // id, see CLAUDE.md, Git workflow).
+      commits = execFileSync(
+        'git',
+        ['log', '--format=%H %s', '--grep=^DAN-89', '--extended-regexp', 'HEAD'],
+        { cwd: HERE, encoding: 'utf8' },
+      )
         .split('\n')
         .filter(Boolean)
+        .map((line) => line.split(' ')[0])
     } catch {
-      // No `main` ref (shallow clone / tarball export). Say so rather than pass.
-      console.warn('DAN-89: skipped the git-diff inventory check — no `main` ref available')
+      // No git history (shallow clone / tarball export). Say so rather than pass.
+      console.warn('DAN-89: skipped the git inventory check — no readable git history')
       return
     }
-    const nonStyle = changed.filter((f) => f !== 'app/frontend/src/styles.css' && !f.includes('.test.'))
+    if (commits.length === 0) {
+      // The DAN-89 commits are not reachable from HEAD (a branch cut before
+      // them, a squashed import). Say so rather than pass silently.
+      console.warn('DAN-89: skipped the git inventory check — no DAN-89 commits reachable')
+      return
+    }
+
+    const changed = new Set()
+    for (const sha of commits) {
+      for (const file of execFileSync(
+        'git',
+        ['show', '--name-only', '--pretty=format:', sha],
+        { cwd: HERE, encoding: 'utf8' },
+      )
+        .split('\n')
+        .filter(Boolean)) {
+        changed.add(file)
+      }
+    }
+    // DAN-89 did change something — a check that passed on an empty set would
+    // be no check at all.
+    expect(changed.has('app/frontend/src/styles.css')).toBe(true)
+
+    const VERIFICATION_TOOLING = [
+      'app/frontend/scripts/dan89-chrome-verify.mjs',
+      'app/frontend/scripts/dan89-harness.html',
+    ]
+    const nonStyle = [...changed].filter(
+      (f) =>
+        f !== 'app/frontend/src/styles.css' &&
+        !f.includes('.test.') &&
+        !VERIFICATION_TOOLING.includes(f),
+    )
     expect(nonStyle).toEqual([])
   })
 

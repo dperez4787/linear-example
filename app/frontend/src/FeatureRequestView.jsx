@@ -58,6 +58,17 @@ const SELECTABLE_MODELS = [
 ]
 const DISPLAY_ONLY_TOOLS = ['Copilot', 'Cursor', 'Amp']
 
+// The session statuses that mean "approved, tickets filed" — the ones that hand
+// this view off to the build DAG and hide the Approve button. "building" is
+// work in flight; DAN-94's "shipped" is the terminal state a session reaches
+// once every filed ticket is done. A shipped session must still open its DAG:
+// the graph is the record of what was built, and WatchBuild already renders it
+// complete (its "Build complete — every ticket is done." line, and no further
+// polling). Hiding Approve for both is not cosmetic either — the backend
+// refuses approval outside "gathering", so the button must never promise it.
+// Exported so the tests assert the vocabulary rather than re-listing it.
+export const BUILD_HANDOFF_STATUSES = ['building', 'shipped']
+
 // The three entrance gates, in checklist order. Keys match the agreed
 // FeatureRequest.entranceCriteria shape (DAN-50); labels are the gate names
 // from the ticket. entranceCriteria is null until the first evaluation, so each
@@ -208,15 +219,17 @@ export default function FeatureRequestView({
   // The picker locks once the session starts — the model is baked into the
   // conversation at startFeatureRequest time.
   const sessionStarted = request !== null
-  // Approval succeeded: the server flipped the request to "building", which
-  // hands the view off (the build DAG view itself is DAN-55).
-  const building = request?.status === 'building'
+  // The session has been approved and its tickets filed, so the view hands off
+  // to the build DAG (DAN-55) — see BUILD_HANDOFF_STATUSES.
+  const showingBuild = BUILD_HANDOFF_STATUSES.includes(request?.status)
 
   // DAN-74: reopen a past session from the "My requests" list. Adopting the
   // fetched FeatureRequest as `request` is the whole trick — every downstream
   // surface already renders from it: a gathering session gets its transcript,
-  // gates, and live composer; a building one flips `building` above, so
-  // WatchBuild mounts and polls with this id. Two seams need explicit care:
+  // gates, and live composer; a building or shipped one flips `showingBuild`
+  // above, so WatchBuild mounts and polls with this id (a shipped session's
+  // first poll finds every ticket DONE and stops there, showing the finished
+  // graph). Two seams need explicit care:
   //  - revealedRef is REPLACED (synchronously, before the setState renders)
   //    with every index of the reopened transcript, so historical agent
   //    replies render complete instead of replaying DAN-79's typewriter —
@@ -422,7 +435,7 @@ export default function FeatureRequestView({
     if (!el) return
     el.style.height = 'auto'
     if (el.scrollHeight > 0) el.style.height = `${el.scrollHeight}px`
-  }, [draft, building, quotaExhausted])
+  }, [draft, showingBuild, quotaExhausted])
 
   // The "not delivered — retry" control: resend the same content against the
   // same conversation (or re-attempt the start if the first round never got
@@ -565,7 +578,7 @@ export default function FeatureRequestView({
             )
           })}
         </ul>
-        {!building && (
+        {!showingBuild && (
           <>
             <button
               className="btn btn--primary"
@@ -686,7 +699,7 @@ export default function FeatureRequestView({
       ) : (
         error && <p role="alert">{error}</p>
       )}
-      {building ? (
+      {showingBuild ? (
         // DAN-55: the hand-off is no longer a placeholder — the approved
         // request's id is the promptId the build view polls progress for.
         // DAN-81 also hands over linearProjectUrl (null until DAN-80's backend

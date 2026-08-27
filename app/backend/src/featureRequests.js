@@ -734,6 +734,51 @@ export function clearFeatureRequestProgressCache() {
   progressCache.clear()
 }
 
+// --- the terminal session status (DAN-94) ------------------------------------
+
+// The third and last session status, after "gathering" (the conversation) and
+// "building" (approved, tickets filed, work in flight). A session reaches it
+// when every ticket the build view can see is DONE — the work shipped — and it
+// is TERMINAL: nothing in this module ever moves a session out of it.
+//
+// Named "shipped" deliberately, and NOT "completed": `completed` is already
+// taken, one abstraction level down, as LINEAR'S workflow-state TYPE inside
+// toTicketBuildState above. Two different things called "completed" in one file
+// is exactly the confusion this ticket was filed against ("shipped work still
+// says building"), so the session-level word is the one the ticket itself uses.
+// The exported constant is the ONE place the string lives; nothing hardcodes it.
+//
+// The flip also stamps `shippedAt` (a Date) alongside the status. It is stored
+// only, not on the wire — the ticket asks for a terminal STATUS, and inventing
+// a GraphQL field nothing renders would be surface for its own sake. It earns
+// its place twice over anyway: it answers "when did this ship" for anyone
+// reading the collection, and it is the observable handle that proves the write
+// happened exactly once (a re-read that rewrote the status would move it).
+export const SHIPPED_STATUS = 'shipped'
+
+// The status a session must be in for the flip to fire. Also the guard that
+// makes the write one-way: the update below matches on it, so a shipped session
+// can never be re-flipped, and no path here can move one back to building.
+//
+// Deliberately not a refactor of every 'building' literal in this file —
+// approveFeatureRequestPlan's write keeps its own, because this constant exists
+// to name the DAN-94 *precondition*, and renaming unrelated lines would put
+// churn in a bug-fix diff. The two can never disagree: this is the only place
+// that reads the status back, and it reads it from the same collection.
+const BUILDING_STATUS = 'building'
+
+// "The build is finished", defined over the progress nodes this very read is
+// about to serve — the SAME rule the DAG uses to stop polling (allDone in
+// WatchBuild.jsx): at least one node, every node DONE. Deriving it from the
+// nodes rather than from the stored ticket list is what keeps the wire and the
+// UI from disagreeing; the one visible consequence is that a filed ticket
+// deleted by hand in Linear (skipped, never fabricated — see above) does not
+// hold the session open, exactly as it does not hold the DAG's "Build complete"
+// banner back today.
+function buildIsFinished(nodes) {
+  return nodes.length > 0 && nodes.every((node) => node.state === 'DONE')
+}
+
 // Live per-ticket build status for the caller's session, read from Linear on
 // demand through the injected client (DAN-52). One node per filed ticket, in
 // the order the tickets were filed:
@@ -746,6 +791,35 @@ export function clearFeatureRequestProgressCache() {
 //
 // A filed ticket Linear no longer returns (deleted by hand in Linear) is
 // skipped rather than fabricated — better a missing row than an invented one.
+//
+// DAN-94 makes this read SELF-HEALING: when the freshly-fetched nodes say the
+// build is finished, the session's status is moved to SHIPPED_STATUS once,
+// here, before the nodes are returned. The alternative — deriving the terminal
+// state on the list query — would cost one Linear round trip per row of "My
+// requests", every time it loads; this rides a tick that already happens (the
+// build view polls this query, and stops polling on exactly this condition),
+// costs nothing when the answer has not changed, and leaves the answer
+// PERSISTED so the list query stays a pure Mongo read.
+//
+// Four properties, all load-bearing:
+//  - Own-session only. The write reuses the SAME uid-scoped filter as the read
+//    above, so it can only ever touch the caller's own document. It also sits
+//    on the cache-MISS path, after a fetch this caller's read actually
+//    performed — a warm cache returns early and writes nothing at all, so the
+//    DAN-52 rule ("a warm cache never bypasses the uid check") extends to the
+//    write for free: there is no cached-path write to bypass anything with.
+//  - Exactly once. The filter requires status "building", so the second and
+//    every later read match nothing and rewrite nothing — including
+//    `shippedAt`, which is therefore the moment the session FIRST shipped, not
+//    the moment it was last looked at. The in-memory status check in front of
+//    it means a shipped session issues no write at all.
+//  - Never backwards. "building" in the filter is also the only status the
+//    flip accepts, so nothing here can move a shipped session back; there is
+//    no code path in this module that writes "building" over "shipped".
+//  - Never fatal. A progress read is a read; if the heal write throws (a Mongo
+//    blip), the nodes the caller asked for are still returned and the next
+//    poll simply tries again. The status is derived from Linear's truth, so a
+//    missed write costs nothing but a delay.
 export async function featureRequestProgress(uid, id, linearClient, now = Date.now) {
   const _id = toObjectId(id)
   const doc = await collection().findOne({ _id, uid })
@@ -783,6 +857,26 @@ export async function featureRequestProgress(uid, id, linearClient, now = Date.n
         .filter((rel) => rel?.type === 'blocks' && rel.issue?.id)
         .map((rel) => rel.issue.id),
     })
+  }
+
+  // The self-healing flip (DAN-94). Guarded twice on purpose: the in-memory
+  // check keeps a shipped session from issuing any write at all on a later
+  // read, and the status in the update FILTER is what makes the write itself
+  // atomic and one-way — two concurrent polls of the same session race into
+  // the same single flip, and whichever loses matches nothing.
+  if (doc.status === BUILDING_STATUS && buildIsFinished(nodes)) {
+    try {
+      await collection().updateOne(
+        { _id, uid, status: BUILDING_STATUS },
+        { $set: { status: SHIPPED_STATUS, shippedAt: new Date() } },
+      )
+    } catch (err) {
+      // Deliberately swallowed: this is a READ the build view polls, and a
+      // cosmetic status heal must never take the DAG down with it. Logged
+      // server-side rather than silently dropped; the next poll retries, and
+      // the truth it derives from lives in Linear, not here.
+      console.error(err)
+    }
   }
 
   progressCache.set(id, { at: now(), nodes })
