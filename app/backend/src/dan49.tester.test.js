@@ -78,7 +78,16 @@ function completion(content, totalTokens) {
   }
 }
 
-const TOKENS_BY_ROLE = { 'product-owner': 101, architect: 103, planner: 107 }
+const TOKENS_BY_ROLE = { 'product-owner': 101, architect: 103, planner: 107, 'entrance-criteria': 109 }
+
+// DAN-50 added a fourth per-round call: the entrance-criteria evaluator. It is
+// answered with a fixed passing evaluation so this suite's DAN-49 assertions
+// stay focused; the evaluator's own behavior is tested in entranceCriteria.test.js.
+const PASSING_EVALUATION = JSON.stringify({
+  notTooBig: { pass: true, reason: 'tester: small.' },
+  notAmbiguous: { pass: true, reason: 'tester: clear.' },
+  noBlockedDependencies: { pass: true, reason: 'tester: unblocked.' },
+})
 
 // A scripted fetch. `plans` is a queue of planner reply strings (last one
 // repeats); `failCall` (1-based, across ALL calls) returns `failStatus` once.
@@ -95,6 +104,7 @@ function scriptedFetch({ plans = [JSON.stringify(VALID_PLAN)], failCall, failSta
     let reply
     if (role === 'product-owner') reply = PO_TURN
     else if (role === 'architect') reply = ARCH_TURN
+    else if (role === 'entrance-criteria') reply = PASSING_EVALUATION
     else {
       reply = plans[Math.min(planIndex, plans.length - 1)]
       planIndex += 1
@@ -387,7 +397,7 @@ test('criterion 5: gateway 429 on the architect (second) call → QUOTA_EXHAUSTE
 
 // --- criterion 6: per-turn usage via myAiUsage delta ---
 
-test('criterion 6: each turn records usage — myAiUsage delta is +3 requests and the sum of the three distinct fixture token counts', async () => {
+test('criterion 6: each turn records usage — myAiUsage delta is +4 requests (DAN-50 adds the evaluator) and the sum of the four distinct fixture token counts', async () => {
   const app = makeApp(scriptedFetch())
   const id = await startSession(app)
 
@@ -395,10 +405,13 @@ test('criterion 6: each turn records usage — myAiUsage delta is +3 requests an
   await gql(app, OWNER, SEND, { id, content: 'export my table' })
   const afterUsage = (await gql(app, OWNER, USAGE)).body.data.myAiUsage
 
-  assert.equal(afterUsage.requests - beforeUsage.requests, 3)
+  assert.equal(afterUsage.requests - beforeUsage.requests, 4)
   assert.equal(
     afterUsage.totalTokens - beforeUsage.totalTokens,
-    TOKENS_BY_ROLE['product-owner'] + TOKENS_BY_ROLE.architect + TOKENS_BY_ROLE.planner,
-    'distinct per-role token counts prove all three calls hit the ledger',
+    TOKENS_BY_ROLE['product-owner'] +
+      TOKENS_BY_ROLE.architect +
+      TOKENS_BY_ROLE.planner +
+      TOKENS_BY_ROLE['entrance-criteria'],
+    'distinct per-role token counts prove all four calls hit the ledger',
   )
 })
