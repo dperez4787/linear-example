@@ -157,10 +157,15 @@ Rules:
 // architect replies mid-sentence in the live dry-run. The ONE place these
 // budgets live; exported so tests assert the captured requests against the
 // constants rather than re-hardcoding the numbers.
+//
+// Trimmed in DAN-72: a full opus round under DAN-69's 3000/3000/1500/500
+// budgets measured ~75s, past Firebase Hosting's hard 60s rewrite timeout —
+// the client got a 502 while the backend finished, and the retry duplicated
+// the message. These budgets keep the worst-case round around 45s.
 export const MAX_TOKENS_BY_ROLE = {
-  'product-owner': 3000,
-  architect: 3000,
-  [PLANNER_ROLE]: 1500,
+  'product-owner': 1500,
+  architect: 1500,
+  [PLANNER_ROLE]: 1200,
   [EVALUATOR_ROLE]: 500,
 }
 
