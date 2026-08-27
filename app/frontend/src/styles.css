@@ -477,3 +477,116 @@ tbody tr:hover {
   background: var(--color-subtle);
   margin: 0;
 }
+
+/* --- Watch-it-build DAG view (DAN-55) ------------------------------------- */
+/* Layers of topological depth: each stage is a row of ticket nodes, so every
+   blocker renders above its dependents. Edges are conveyed by the layering and
+   the per-node "blocked by …" text — tests assert accessible text, never any
+   of these styles. */
+
+.watch-build__status {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-subtle);
+}
+
+.dag {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dag__layer-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 var(--space-2);
+}
+
+.dag__nodes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.dag-node {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg, #fff);
+  max-width: 28rem;
+}
+
+/* Queued tickets are dimmed — but the state is carried by the visible
+   "queued" label, never by this opacity alone. */
+.dag-node--backlog {
+  opacity: 0.55;
+}
+
+.dag-node__issue {
+  font-weight: 600;
+}
+
+.dag-node__state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1, 0.25rem);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dag-node__state--done {
+  color: var(--color-success, #15803d);
+}
+
+.dag-node__state--bounced {
+  color: var(--color-danger);
+}
+
+.dag-node__state--queued,
+.dag-node__blocked {
+  color: var(--color-muted);
+}
+
+.dag-node__blocked {
+  margin: var(--space-1, 0.25rem) 0 0;
+  font-size: 0.8125rem;
+}
+
+/* The two in-flight spinners: same animation, visually distinct colorways —
+   solid accent for "implementing", dashed/purple for "under review". The
+   distinction tests rely on is the label text, not these colors. */
+.spinner {
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  animation: dag-spin 0.9s linear infinite;
+}
+
+.spinner--implementing {
+  border-top-color: var(--color-accent);
+}
+
+.spinner--review {
+  border-style: dashed;
+  border-top-color: #7c3aed;
+}
+
+@keyframes dag-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

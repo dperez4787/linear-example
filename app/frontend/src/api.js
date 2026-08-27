@@ -200,6 +200,30 @@ export async function myAiUsage() {
   return data.myAiUsage
 }
 
+// --- Build progress (DAN-55) --------------------------------------------------
+
+// The TicketProgress selection set (DAN-52): one entry per filed ticket, shaped
+// { issueId, identifier, title, state, issueUrl, prUrl, blockedBy }, where state
+// is BACKLOG | IN_PROGRESS | IN_REVIEW | DONE | BOUNCED, prUrl is null until a
+// PR exists, and blockedBy lists the identifiers of the tickets that block this
+// one. Formatting is a local choice, not contract.
+const TICKET_PROGRESS_FIELDS =
+  'issueId identifier title state issueUrl prUrl blockedBy'
+
+// Live build progress for an approved feature request -> TicketProgress[].
+// Resolves to a plain array (never null) so the watch view can always map over
+// it. Polled by WatchBuild roughly every 5 seconds. NOTE: the backend query
+// ships in DAN-52 (PR #55); this calls the operation name and shape agreed
+// there — featureRequestProgress(promptId) returning [TicketProgress!]! — so no
+// frontend change is needed when it lands.
+export async function featureRequestProgress(promptId) {
+  const data = await gql(
+    `query ($promptId: ID!) { featureRequestProgress(promptId: $promptId) { ${TICKET_PROGRESS_FIELDS} } }`,
+    { promptId },
+  )
+  return data.featureRequestProgress ?? []
+}
+
 // Approve the plan of a feature request whose gates all pass -> the updated
 // FeatureRequest, whose status is "building". NOTE: the backend mutation ships
 // in DAN-51; this calls the operation name and shape agreed there —
