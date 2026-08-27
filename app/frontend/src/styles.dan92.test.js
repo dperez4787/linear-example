@@ -26,10 +26,11 @@ import { beforeAll, describe, expect, it } from 'vitest'
 //      and pseudo-class matching, nothing hand-rolled. Skipped (loudly) when no
 //      Chrome binary is present, so CI without a browser still passes on (1).
 //
-// Nothing here asserts a literal fill colour. PR #76 (DAN-89) reverts the
-// primary from green `--color-primary` back to blue `--color-accent`, and this
-// fix must be correct either way, so every primary assertion is expressed as
-// "hover fill == rest fill" plus a measured contrast floor.
+// Nothing here asserts a literal fill colour. PR #76 (DAN-89) landed while this
+// branch was open and moved the primary fill from green `--color-primary` to
+// blue `--color-accent`; expressing every primary assertion as "hover fill ==
+// rest fill" plus a measured contrast floor is what let this suite pass
+// unchanged across that merge, and is what will catch the next such rename.
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const CSS_PATH = path.join(HERE, 'styles.css')
@@ -207,8 +208,8 @@ describe('DAN-92 · cascade resolved from styles.css (real CSSOM, hand-resolved 
     const hover = snapshot(PRIMARY, ['hover'])
 
     // Token-driven, not literal: whichever token paints the rest state must also
-    // paint the hover state. Holds for green --color-primary and for the blue
-    // --color-accent that PR #76 restores.
+    // paint the hover state. Held for the green --color-primary this branch was
+    // written against, and still holds for the blue --color-accent PR #76 restored.
     expect(hover.background).toBe(rest.background)
     expect(hover['border-color']).toBe(rest['border-color'])
     expect(hover.color).toBe(rest.color)
@@ -247,13 +248,18 @@ describe('DAN-92 · cascade resolved from styles.css (real CSSOM, hand-resolved 
     )
   })
 
-  it('AC3 · the pressed step still darkens past hover — the new rule sets no filter', () => {
-    // The fix is background/border only, precisely so that .btn--primary:hover
-    // (0.95) and .btn--primary:active (0.88) keep their existing relationship.
+  it('AC3 · the pressed state keeps the fill and stays readable', () => {
+    // The fix is background/border only: `filter` is left entirely to
+    // `.btn--primary:hover`, so this rule can never outrank a state override
+    // someone adds later. (DAN-77 had a `.btn--primary:active { brightness(.88) }`
+    // pressed step; PR #76 removed it, so pressed currently inherits hover's 0.95.)
     const hoverK = brightnessOf(snapshot(PRIMARY, ['hover']).filter)
     const activeK = brightnessOf(snapshot(PRIMARY, ['hover', 'active']).filter)
     expect(hoverK).toBeLessThan(1)
     expect(activeK).toBeLessThanOrEqual(hoverK)
+    expect(snapshot(PRIMARY, ['hover', 'active']).background).toBe(
+      snapshot(PRIMARY, []).background,
+    )
     expect(seenContrast(snapshot(PRIMARY, ['hover', 'active']))).toBeGreaterThanOrEqual(AA_NORMAL_TEXT)
   })
 
@@ -494,7 +500,7 @@ describe.skipIf(!CHROME)('DAN-92 · real headless Chrome, pseudo-states forced v
     expect(measured['primary/rest']['font-weight']).toBe('500')
   })
 
-  it('AC3 · pressed still steps darker than hover, and stays readable', () => {
+  it('AC3 · pressed keeps the fill, never darkens less than hover, and stays readable', () => {
     const hoverK = brightnessOf(measured['primary/hover'].filter)
     const activeK = brightnessOf(measured['primary/active'].filter)
     expect(activeK).toBeLessThanOrEqual(hoverK)
