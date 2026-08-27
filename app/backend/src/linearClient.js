@@ -186,6 +186,45 @@ export function createLinearClient({ fetch: fetchImpl = globalThis.fetch } = {})
     return data.issues.nodes
   }
 
+  // Read the narrated activity trail for a set of issues in ONE GraphQL query
+  // (DAN-83): comments, workflow-state history, and PR attachments, for the
+  // build-narration view. Same shape of contract as issuesProgress — the
+  // aggregate view polls per session, so one round trip per refresh, never one
+  // per issue. Returns Linear's raw per-issue nodes —
+  //   { id, identifier, url,
+  //     comments { nodes { body createdAt url } },
+  //     history { nodes { createdAt fromState { name } toState { name } } },
+  //     attachments { nodes { url sourceType createdAt metadata } } }
+  // — and the mapping to DAN-83's ActivityEvent wire shape (author labels,
+  // from→to summaries, draft detection, chronological merge) lives in the data
+  // layer (featureRequests.js), not here: this module owns transport, not
+  // presentation.
+  //
+  // `metadata` is Linear's JSON blob on the attachment; for GitHub PR
+  // attachments it carries the PR's live lifecycle — verified against real
+  // Linear data: a boolean `draft`, a lowercase `status` string
+  // (open/merged/closed), and `mergedAt`/`closedAt` timestamps once those
+  // apply. The data layer reads it defensively (prEventParts in
+  // featureRequests.js); this module just passes it through whole.
+  async function issuesActivity(issueIds) {
+    const data = await gql(
+      `query ($ids: [ID!]!) {
+        issues(filter: { id: { in: $ids } }) {
+          nodes {
+            id
+            identifier
+            url
+            comments { nodes { body createdAt url } }
+            history { nodes { createdAt fromState { name } toState { name } } }
+            attachments { nodes { url sourceType createdAt metadata } }
+          }
+        }
+      }`,
+      { ids: issueIds },
+    )
+    return data.issues.nodes
+  }
+
   return {
     config,
     createProject,
@@ -193,5 +232,6 @@ export function createLinearClient({ fetch: fetchImpl = globalThis.fetch } = {})
     createRelation,
     findOrCreateLabels,
     issuesProgress,
+    issuesActivity,
   }
 }

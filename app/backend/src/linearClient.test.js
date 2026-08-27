@@ -235,3 +235,80 @@ test('issuesProgress without LINEAR_API_KEY throws a LinearError and never touch
   )
   assert.equal(fetchImpl.calls.length, 0)
 })
+
+// --- issuesActivity (DAN-83): one query, comments + history + attachments ---
+
+test('issuesActivity reads all issues in ONE GraphQL query, selecting comments, history, and attachments, and returns the raw nodes', async () => {
+  process.env.LINEAR_API_KEY = 'lin_api_fixture'
+  const nodes = [
+    {
+      id: 'issue-1',
+      identifier: 'DAN-101',
+      url: 'https://linear.app/fixture/issue/DAN-101',
+      comments: {
+        nodes: [
+          {
+            body: 'Verdict: PASS',
+            createdAt: '2026-08-26T10:00:00.000Z',
+            url: 'https://linear.app/fixture/comment/c1',
+          },
+        ],
+      },
+      history: {
+        nodes: [
+          {
+            createdAt: '2026-08-26T09:00:00.000Z',
+            fromState: { name: 'Backlog' },
+            toState: { name: 'In Progress' },
+          },
+        ],
+      },
+      attachments: {
+        nodes: [
+          {
+            url: 'https://github.com/o/r/pull/7',
+            sourceType: 'github',
+            createdAt: '2026-08-26T09:30:00.000Z',
+            // The verified real-Linear shape: boolean draft + lifecycle status.
+            metadata: { draft: true, status: 'open' },
+          },
+        ],
+      },
+    },
+  ]
+  const fetchImpl = scriptedFetch({ issues: { nodes } })
+  const client = createLinearClient({ fetch: fetchImpl })
+
+  const result = await client.issuesActivity(['issue-1', 'issue-2'])
+
+  assert.deepEqual(result, nodes, 'raw Linear nodes — mapping lives in the data layer')
+  assert.equal(fetchImpl.calls.length, 1, 'one round trip for the whole set, never one per issue')
+  const { body } = fetchImpl.calls[0]
+  assert.deepEqual(body.variables, { ids: ['issue-1', 'issue-2'] })
+  // The query must request every field the DAN-83 mapping consumes.
+  for (const field of [
+    'identifier',
+    'url',
+    'comments',
+    'body',
+    'history',
+    'fromState',
+    'toState',
+    'attachments',
+    'sourceType',
+    'createdAt',
+    'metadata',
+  ]) {
+    assert.match(body.query, new RegExp(field), `query selects ${field}`)
+  }
+})
+
+test('issuesActivity without LINEAR_API_KEY throws a LinearError and never touches the transport', async () => {
+  const fetchImpl = scriptedFetch()
+  const client = createLinearClient({ fetch: fetchImpl })
+  await assert.rejects(
+    () => client.issuesActivity(['issue-1']),
+    (err) => err instanceof LinearError && /LINEAR_API_KEY/.test(err.message),
+  )
+  assert.equal(fetchImpl.calls.length, 0)
+})
