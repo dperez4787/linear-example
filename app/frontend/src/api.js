@@ -185,6 +185,17 @@ export async function sendFeatureRequestMessage(id, content) {
   return data.sendFeatureRequestMessage
 }
 
+// All of the caller's feature-request sessions (DAN-74) -> FeatureRequest[],
+// newest first (the backend orders by creation time descending; see
+// featureRequests.test.js). Resolves to a plain array (never null) so the
+// "My requests" list can always map over it. Uses the full selection set — a
+// reopened session must arrive with its transcript, gates, approvable flag,
+// and linearProjectUrl so the view can resume without a second fetch.
+export async function listFeatureRequests() {
+  const data = await gql(`query { featureRequests { ${FEATURE_REQUEST_FIELDS} } }`)
+  return data.featureRequests ?? []
+}
+
 // One feature request by id -> the FeatureRequest, or throws NOT_FOUND (the
 // backend reports not-found as an execution-level error, same as record(id)).
 export async function featureRequest(id) {

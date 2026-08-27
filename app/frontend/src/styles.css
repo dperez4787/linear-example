@@ -801,3 +801,66 @@ tbody tr:hover {
 .chat-message--revealing {
   cursor: pointer;
 }
+
+/* -- "My requests" list (DAN-74) --------------------------------------------- */
+
+/* Past sessions, below the start-a-new-request surface. Deliberately quieter
+   than the picker/composer above it — starting a new request stays the
+   prominent action. */
+.my-requests {
+  margin-top: var(--space-8);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-4);
+}
+
+.my-requests__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Each row is one full-width button: the whole row is the reopen target. */
+.my-requests__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.my-requests__row:hover {
+  background: var(--color-subtle);
+}
+
+/* The preview takes the slack and truncates to one line; status and date keep
+   their natural width on the right. */
+.my-requests__preview {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.my-requests__status {
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
+.my-requests__status--building {
+  color: var(--color-primary);
+}
+
+.my-requests__date {
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
