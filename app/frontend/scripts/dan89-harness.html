@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="/assets/STYLESHEET"></head>
+<body>
+<div class="container">
+  <!-- verbatim markup for all four .btn--primary call-to-action buttons -->
+  <button data-probe="btn-signin" class="btn btn--primary" type="button">Sign in with Google</button>
+  <button data-probe="btn-add" class="btn btn--primary" type="submit">Add</button>
+  <button data-probe="btn-approve" class="btn btn--primary" type="button">Approve plan</button>
+  <button data-probe="btn-send" class="btn btn--primary" type="submit">Send</button>
+  <!-- the secondary / unclassed buttons that must not have moved -->
+  <button data-probe="btn-secondary" class="btn" type="button">Cancel</button>
+  <button data-probe="btn-bare" type="button">Edit</button>
+  <!-- non-button elements the ticket says must be visually unchanged -->
+  <a data-probe="link" href="#">a link</a>
+  <ul class="my-requests__list"><li class="my-requests__item">
+    <button class="my-requests__row" type="button">
+      <span class="my-requests__preview">preview</span>
+      <span data-probe="chip-building" class="my-requests__status my-requests__status--building">building</span>
+      <span class="my-requests__date">today</span>
+    </button>
+  </li></ul>
+  <ul class="activity-timeline"><li class="activity-event activity-event--pr">
+    <time class="activity-event__time">12:00</time>
+    <span data-probe="badge-pr" class="activity-event__badge">DAN-89</span>
+  </li></ul>
+  <ul class="gates__list"><li><span class="gates__name">tests</span>
+    <span data-probe="gate-pass" class="gates__state gates__state--pass">pass</span></li></ul>
+</div>
+</body></html>
