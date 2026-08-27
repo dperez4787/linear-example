@@ -11,6 +11,7 @@
 // can't have" principle as the malformed-id-is-a-404 rule in records.js.
 import { ObjectId } from 'mongodb'
 
+import { GatewayError } from './aiGateway.js'
 import { getDb } from './db.js'
 import { NotFoundError } from './records.js'
 import { loadRolePrompt, CONVERSATION_ROLES } from './roles.js'
@@ -195,12 +196,22 @@ function parseEntranceCriteria(content) {
   return clean
 }
 
+// A transcript message with usable content. New writes can no longer produce
+// an empty turn (DAN-68 — see the guard in sendFeatureRequestMessage), but a
+// session corrupted BEFORE that guard may still carry one, and replaying it to
+// the gateway 400s every subsequent send — the session wedges permanently.
+// Outbound history builders skip such messages so a legacy session self-heals.
+function hasContent({ content }) {
+  return typeof content === 'string' && content.trim() !== ''
+}
+
 // Map the persisted transcript into the chat shape one role's gateway call
 // expects. The calling role sees its own prior turns as `assistant`; the user's
 // turns are `user`; the OTHER agent's turns are also `user`, prefixed with
-// their name so attribution survives the two-party chat format.
+// their name so attribution survives the two-party chat format. Empty-content
+// messages (legacy corruption, see hasContent) are skipped, never sent.
 function toChatMessages(transcript, selfRole) {
-  return transcript.map(({ role, content }) => {
+  return transcript.filter(hasContent).map(({ role, content }) => {
     if (role === selfRole) return { role: 'assistant', content }
     if (role === 'user') return { role: 'user', content }
     return { role: 'user', content: `[${role}] ${content}` }
@@ -209,9 +220,13 @@ function toChatMessages(transcript, selfRole) {
 
 // Flatten the transcript for an internal analyst role (planner, evaluator):
 // the whole conversation is a single user message, because those roles analyze
-// the exchange rather than participate in it.
+// the exchange rather than participate in it. Same skip rule as toChatMessages:
+// an empty legacy message is noise ("architect: "), not signal.
 function transcriptAsText(transcript) {
-  return transcript.map(({ role, content }) => `${role}: ${content}`).join('\n\n')
+  return transcript
+    .filter(hasContent)
+    .map(({ role, content }) => `${role}: ${content}`)
+    .join('\n\n')
 }
 
 // Parse and validate the planner's reply into a plan, or null when there is no
@@ -545,6 +560,16 @@ export async function sendFeatureRequestMessage(uid, id, content, aiGateway) {
 
   // One turn each, in order: the product owner refines, the architect assesses
   // the refined proposal (its call sees the PO's fresh turn in the transcript).
+  //
+  // A turn persists ONLY a non-empty reply (DAN-68). chat() throws on every
+  // transport/HTTP failure before this code runs, so the one way an empty
+  // assistant message ever reached the database was a 2xx response whose
+  // content was absent or empty — the old `?? ''` coalescing persisted it, and
+  // replaying it wedged the session (the gateway 400s empty content). Such a
+  // response is now a GatewayError: nothing persists for the turn, the round
+  // surfaces as INTERNAL (a 429 still throws QuotaExhaustedError inside
+  // chat(), keeping its QUOTA_EXHAUSTED mapping), and the transcript stays
+  // intact at the last good message.
   for (const role of CONVERSATION_ROLES) {
     const completion = await aiGateway.chat({
       uid,
@@ -556,11 +581,12 @@ export async function sendFeatureRequestMessage(uid, id, content, aiGateway) {
         ...toChatMessages(transcript, role),
       ],
     })
-    await append({
-      role,
-      content: completion.choices?.[0]?.message?.content ?? '',
-      createdAt: new Date(),
-    })
+    const reply = completion.choices?.[0]?.message?.content
+    if (typeof reply !== 'string' || reply.trim() === '') {
+      // Message is for the server-side log only — INTERNAL never leaks it.
+      throw new GatewayError(`AI gateway returned an empty ${role} completion`)
+    }
+    await append({ role, content: reply, createdAt: new Date() })
   }
 
   // Plan extraction: one internal call over the full transcript. The whole
