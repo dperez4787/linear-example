@@ -27,7 +27,11 @@ vi.mock('./api.js', () => ({
   approveFeatureRequestPlan: vi.fn(),
 }))
 
-const COMING_SOON = ['gpt-5.6-terra', 'gemini-3.6-flash', 'gpt-oss-120b']
+// DAN-66 graduated the former coming-soon models to selectable radios — the
+// gateway now serves all four and the backend accepts them (DAN-65). The
+// criterion-1 assertions below were updated to that reality; the tools remain
+// display-only.
+const GATEWAY_MODELS = ['gpt-5.6-terra', 'gemini-3.6-flash', 'gpt-oss-120b']
 const DISPLAY_ONLY = ['Copilot', 'Cursor', 'Amp']
 
 function makeRequest(overrides = {}) {
@@ -94,40 +98,32 @@ const checkedRadioNames = () =>
     .map((r) => r.value)
 
 describe('DAN-54 tester · criterion 1: model picker', () => {
-  it('offers exactly claude-opus-5 as selectable; coming-soon render disabled; tools have no control at all', async () => {
+  it('offers all four roster models as enabled radios (DAN-66); tools have no control at all', async () => {
     await renderSettled(<FeatureRequestView onBack={() => {}} />)
 
     const opus = screen.getByRole('radio', { name: 'claude-opus-5' })
     expect(opus).toBeEnabled()
 
-    for (const name of COMING_SOON) {
-      const radio = screen.getByRole('radio', {
-        name: `${name} (coming soon)`,
-      })
-      expect(radio).toBeDisabled()
+    for (const name of GATEWAY_MODELS) {
+      const radio = screen.getByRole('radio', { name })
+      expect(radio).toBeEnabled()
     }
     for (const name of DISPLAY_ONLY) {
       expect(screen.getByText(`${name} (display only)`)).toBeInTheDocument()
     }
     // The three tools never render a form control: the only radios are the
-    // four models, and opus is the only enabled one.
+    // four models, and every one of them is enabled pre-session.
     const radios = screen.getAllByRole('radio')
     expect(radios).toHaveLength(4)
-    expect(radios.filter((r) => !r.disabled)).toEqual([opus])
+    expect(radios.filter((r) => !r.disabled)).toHaveLength(4)
   })
 
-  it('clicking each coming-soon and display-only entry never changes the selection', async () => {
+  it('clicking a display-only entry never changes the selection or starts a session', async () => {
     const user = userEvent.setup()
     await renderSettled(<FeatureRequestView onBack={() => {}} />)
 
     expect(checkedRadioNames()).toEqual(['claude-opus-5'])
 
-    for (const name of COMING_SOON) {
-      await user.click(
-        screen.getByRole('radio', { name: `${name} (coming soon)` }),
-      )
-      expect(checkedRadioNames()).toEqual(['claude-opus-5'])
-    }
     for (const name of DISPLAY_ONLY) {
       await user.click(screen.getByText(`${name} (display only)`))
       expect(checkedRadioNames()).toEqual(['claude-opus-5'])
