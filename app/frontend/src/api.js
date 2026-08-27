@@ -147,7 +147,12 @@ export async function deleteRecord(id) {
 // against the live server. The feature-request surface already depends on
 // DAN-49's sendFeatureRequestMessage the same way, so this widens no gap the
 // live app doesn't already have; component tests mock api.js and are unaffected.
-const FEATURE_REQUEST_FIELDS = `id status model createdAt approvable
+//
+// `linearProjectUrl` (DAN-81) follows the same schema-forward pattern: it is
+// the String|null field DAN-80 adds to FeatureRequest — the Linear project the
+// approved plan was filed into. Until DAN-80 lands, live validation of this
+// selection set depends on it; nothing else changes.
+const FEATURE_REQUEST_FIELDS = `id status model createdAt approvable linearProjectUrl
   messages { role content }
   entranceCriteria {
     notTooBig { pass reason }
@@ -222,6 +227,23 @@ export async function featureRequestProgress(promptId) {
     { promptId },
   )
   return data.featureRequestProgress ?? []
+}
+
+// --- Planning cost (DAN-81) ---------------------------------------------------
+
+// What the planning conversation cost -> { calls, tokensIn, tokensOut, costUsd },
+// or null when the server has no ledger for the request. Read by the building
+// view's "Planning cost" stat, which refreshes it on the same tick as the
+// progress poll — never on a timer of its own. NOTE: the backend query ships in
+// DAN-80; this calls the operation name and shape agreed there —
+// featureRequestCost(promptId) returning { calls, tokensIn, tokensOut, costUsd }
+// — so no frontend change is needed when it lands.
+export async function featureRequestCost(promptId) {
+  const data = await gql(
+    `query ($promptId: ID!) { featureRequestCost(promptId: $promptId) { calls tokensIn tokensOut costUsd } }`,
+    { promptId },
+  )
+  return data.featureRequestCost ?? null
 }
 
 // Approve the plan of a feature request whose gates all pass -> the updated
