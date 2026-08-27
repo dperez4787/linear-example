@@ -12,6 +12,11 @@
 # starts, so a ticket is never picked up twice. To re-run either leg, drag the ticket
 # back to the trigger status (the develop claim also strips `agent-tested`).
 #
+# Partition (DAN-44): this scan only works tickets whose Linear project is NOT
+# `ai-gateway` — that project's tickets belong to the ai-gateway repo's own scan.
+# Tickets in every other project (e.g. `prompt-a-feature`) belong here. Fail safe:
+# if a ticket's project cannot be determined, leave it alone.
+#
 # Secrets required: ANTHROPIC_API_KEY (Claude API billing), LINEAR_API_KEY.
 # Subscription billing instead: replace `anthropic_api_key` with
 # `claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}` (from `claude setup-token`).
@@ -21,6 +26,12 @@ name: Linear agents
 on:
   schedule:
     - cron: '*/5 * * * *'
+  # Fired by the Linear relay (ai-gateway repo, DAN-44) the moment a ticket
+  # changes status — instant pickup; the cron above stays as the backstop.
+  # Both paths converge on the same scan, and the status change is the claim,
+  # so a dispatch racing a scheduled run cannot double-pick a ticket.
+  repository_dispatch:
+    types: [linear-status-change]
   workflow_dispatch: {}
 
 permissions:
@@ -29,6 +40,9 @@ permissions:
 
 env:
   LINEAR_TEAM_KEY: DAN
+  # This repo's scan works every project EXCEPT this one (ai-gateway's own
+  # workflow filters TO it — together the two scans partition the DAN team).
+  EXCLUDED_LINEAR_PROJECT: ai-gateway
   STATE_READY_FOR_DEV: 8d578131-713b-41ea-b940-135b55b7b86b
   STATE_IN_PROGRESS: 561a64fd-33e0-43ad-8ce3-12d4e07d6624
   STATE_IN_REVIEW: 4ce22db3-e24c-4a43-b2ee-d8ec4b0c64b6
@@ -51,10 +65,10 @@ jobs:
           set -euo pipefail
           GQL='query($dev: ID, $test: ID) {
             dev: issues(filter: { state: { id: { eq: $dev } } }, first: 10) {
-              nodes { id identifier title branchName }
+              nodes { id identifier title branchName project { name } }
             }
             test: issues(filter: { state: { id: { eq: $test } } }, first: 10) {
-              nodes { id identifier title branchName labels { nodes { name } } }
+              nodes { id identifier title branchName project { name } labels { nodes { name } } }
             }
           }'
           QUERY=$(jq -n --arg q "$GQL" --arg dev "$STATE_READY_FOR_DEV" --arg test "$STATE_IN_REVIEW" \
@@ -64,10 +78,15 @@ jobs:
             -H "Content-Type: application/json" \
             -d "$QUERY")
           echo "$RESP" | jq -e '.data' > /dev/null  # fail loudly on GraphQL errors
-          DEV=$(echo "$RESP" | jq -c '[.data.dev.nodes[] | {id, identifier, title, branchName}]')
-          TEST=$(echo "$RESP" | jq -c '[.data.test.nodes[]
-            | select(([.labels.nodes[].name] | index("agent-tested")) | not)
-            | {id, identifier, title, branchName}]')
+          # Partition rule (DAN-44): only work tickets whose Linear project is NOT
+          # "ai-gateway" (those belong to the ai-gateway repo's scan); if a ticket's
+          # project cannot be determined (missing or null), leave it alone — better
+          # untouched than agents running in the wrong repo.
+          IN_SCOPE='select((.project | type == "object") and (.project.name | type == "string") and (.project.name != env.EXCLUDED_LINEAR_PROJECT))'
+          DEV=$(echo "$RESP" | jq -c "[.data.dev.nodes[] | $IN_SCOPE | {id, identifier, title, branchName}]")
+          TEST=$(echo "$RESP" | jq -c "[.data.test.nodes[] | $IN_SCOPE
+            | select(([.labels.nodes[].name] | index(\"agent-tested\")) | not)
+            | {id, identifier, title, branchName}]")
           echo "develop=$DEV" >> "$GITHUB_OUTPUT"
           echo "test=$TEST" >> "$GITHUB_OUTPUT"
           echo "Ready for Dev: $(echo "$DEV" | jq -r 'if length == 0 then "none" else [.[].identifier] | join(", ") end')"
