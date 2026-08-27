@@ -357,7 +357,7 @@ test('criterion 2: a planner reply that is a JSON array (not the tickets object)
 
 // --- criterion 3: explicit max_tokens on the captured transport, all four call sites ---
 
-test('criterion 3: one exchange sends four calls whose bodies carry max_tokens 3000/3000/1500/500, matching the exported constant', async () => {
+test('criterion 3: one exchange sends four calls whose bodies carry max_tokens 1500/1500/2500/500, matching the exported constant', async () => {
   const { fetch } = await exchange()
 
   assert.equal(fetch.calls.length, 4, 'PO, architect, planner, evaluator')
@@ -367,11 +367,13 @@ test('criterion 3: one exchange sends four calls whose bodies carry max_tokens 3
   )
 
   // The ticket's numbers, asserted as literals on the wire — independent of
-  // whatever the constant says.
+  // whatever the constant says. Literals updated by DAN-72 (budgets retuned
+  // so an opus round fits Hosting's 60s timeout; the planner budget rose to
+  // 2500 alongside its move to the cheap model).
   const expected = {
-    'product-owner': 3000,
-    architect: 3000,
-    planner: 1500,
+    'product-owner': 1500,
+    architect: 1500,
+    planner: 2500,
     'entrance-criteria': 500,
   }
   for (const call of fetch.calls) {
