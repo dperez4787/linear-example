@@ -192,6 +192,28 @@ a:hover,
   filter: brightness(0.95);
 }
 
+/* DAN-92: keep the primary fill on hover.
+
+   `.btn:hover` is (0,2,0) and `.btn--primary` is only (0,1,0), so the shared
+   secondary hover fill (--color-subtle, a near-white) has always outranked the
+   primary's own background. The label stays white, so hovering any call-to-action
+   made its text vanish (~1.06:1). This rule restores the fill at (0,3,0) — every
+   primary button in the app carries both classes — so the darkening filters above
+   act on the primary colour instead of on the grey.
+
+   Deliberately background/border only: leaving `filter` to the two rules above
+   preserves the hover (0.95) → pressed (0.88) step exactly as it is on main.
+
+   The fill is named through the token, never a hex. `--color-primary` is what
+   `.btn--primary` reads today; the fallback covers DAN-89 (#65 revert), which
+   restores `--color-accent` as the primary fill — so this rule is correct
+   whichever of the two lands first. Both tests assert hover fill == rest fill
+   rather than a literal, so any future token rename is caught here. */
+.btn.btn--primary:hover {
+  background: var(--color-primary, var(--color-accent));
+  border-color: var(--color-primary, var(--color-accent));
+}
+
 /* Pressed steps visibly darker than hover, so the two states do not collapse
    into one. */
 .btn--primary:active {
