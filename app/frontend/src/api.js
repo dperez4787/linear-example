@@ -152,7 +152,14 @@ export async function deleteRecord(id) {
 // the String|null field DAN-80 adds to FeatureRequest — the Linear project the
 // approved plan was filed into. Until DAN-80 lands, live validation of this
 // selection set depends on it; nothing else changes.
-const FEATURE_REQUEST_FIELDS = `id status model createdAt approvable linearProjectUrl
+//
+// `title` (DAN-91) is schema-forward the same way: the String|null field DAN-90
+// adds to FeatureRequest — an AI-generated snake_case slug for the request
+// (e.g. `change_buttons_to_green`), so the Linear project and the app stop
+// being named after a truncated sentence. It is null for legacy sessions and
+// for any session whose plan has not been approved yet, so every consumer must
+// treat null as "no title" rather than as an error.
+const FEATURE_REQUEST_FIELDS = `id status model createdAt approvable linearProjectUrl title
   messages { role content }
   entranceCriteria {
     notTooBig { pass reason }

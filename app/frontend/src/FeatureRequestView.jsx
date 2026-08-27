@@ -692,10 +692,13 @@ export default function FeatureRequestView({
         // DAN-81 also hands over linearProjectUrl (null until DAN-80's backend
         // field lands) so the building view's header can link the filed Linear
         // project; the pre-approval view never shows the link or the cost stat
-        // because WatchBuild only mounts here, after approval.
+        // because WatchBuild only mounts here, after approval. DAN-91 hands
+        // over the generated title the same way (null until DAN-90's backend
+        // field lands) for the build header.
         <WatchBuild
           promptId={request.id}
           linearProjectUrl={request.linearProjectUrl ?? null}
+          title={request.title ?? null}
         />
       ) : (
         <>

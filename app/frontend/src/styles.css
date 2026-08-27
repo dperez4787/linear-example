@@ -1015,3 +1015,30 @@ tbody tr:hover {
 .activity-event__body > :last-child {
   margin-bottom: 0;
 }
+
+/* --- DAN-91: the generated title in the list and the build header ---------- */
+
+/* The title is DAN-90's snake_case slug, printed verbatim. Both surfaces give
+   it the same job: take the slack, stay on one line, and end in an ellipsis
+   when the slug is long — never widen the row it sits in. */
+
+/* The my-requests row already truncates its label to one line (DAN-74); a slug
+   is one unbroken word, so the flex item needs min-width: 0 for that ellipsis
+   to actually engage instead of the word forcing the row wider. Nothing else
+   about the row changes, title or preview. */
+.my-requests__preview {
+  min-width: 0;
+}
+
+/* Build-view header: the slug sits beside the "View in Linear" link, quieter
+   than the heading and clipped rather than wrapping. max-width keeps a very
+   long slug from crowding out the link and the planning-cost stat. */
+.watch-build__title {
+  min-width: 0;
+  max-width: 32ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9375rem;
+  color: var(--color-muted);
+}

@@ -45,6 +45,14 @@ import {
 // tickets DONE stops everything; unmount stops everything). Its failures are
 // equally soft: the last good event list stays rendered and the DAG is never
 // marked stale by an activity blip.
+//
+// DAN-91 adds one more header piece: the request's generated title (DAN-90's
+// snake_case slug, a prop read off the FeatureRequest by the parent) sits
+// beside the "View in Linear" link, so the building view names the request the
+// same way Linear does. Like the link, it renders only when present — null (a
+// legacy session, or one approved before DAN-90) hides it entirely. The slug is
+// printed verbatim: it is already the name, so nothing here re-cases it or
+// swaps its underscores for spaces.
 export const POLL_INTERVAL_MS = 5000
 
 // Accessible per-state markers. Spinners are role="status" with distinct labels
@@ -138,7 +146,16 @@ function allDone(tickets) {
   return tickets.length > 0 && tickets.every((t) => t.state === 'DONE')
 }
 
-export default function WatchBuild({ promptId, linearProjectUrl = null }) {
+export default function WatchBuild({
+  promptId,
+  linearProjectUrl = null,
+  title = null,
+}) {
+  // A blank/whitespace-only title counts as absent, so the header never gains
+  // an empty slot (DAN-91).
+  const shownTitle =
+    typeof title === 'string' && title.trim() !== '' ? title : null
+
   // The last good progress list, or null before the first successful poll.
   // A failed poll never writes here — that is what keeps the DAG on screen.
   const [tickets, setTickets] = useState(null)
@@ -218,6 +235,9 @@ export default function WatchBuild({ promptId, linearProjectUrl = null }) {
     <section className="watch-build" aria-label="Build progress">
       <header className="watch-build__header">
         <h2>Build progress</h2>
+        {shownTitle && (
+          <span className="watch-build__title">{shownTitle}</span>
+        )}
         {linearProjectUrl && (
           <a
             className="watch-build__linear-link"

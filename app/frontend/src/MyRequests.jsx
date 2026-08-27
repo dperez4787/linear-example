@@ -17,6 +17,9 @@ import { listFeatureRequests } from './api.js'
 // is a convenience surface, and a broken list must never block starting a new
 // request. Deliberately NOT role="alert" — the chat's error channel owns that.
 
+// DAN-91: a row leads with the request's generated title when it has one, and
+// with this preview only when it does not — see rowLabelOf below.
+//
 // Row preview: the first user message, truncated. 80 chars keeps a row to one
 // line at typical widths; the ellipsis marks the cut.
 export const PREVIEW_MAX_CHARS = 80
@@ -27,6 +30,20 @@ export function previewOf(request) {
   const text = first.content
   if (text.length <= PREVIEW_MAX_CHARS) return text
   return `${text.slice(0, PREVIEW_MAX_CHARS - 1)}…`
+}
+
+// What the row leads with (DAN-91). When the request carries a generated title
+// — DAN-90's snake_case slug, e.g. `change_buttons_to_green` — that slug is the
+// label, rendered exactly as the backend produced it: no case changes, no
+// underscore-to-space rewriting, no truncation in JS (a long slug is trimmed by
+// the row's existing one-line ellipsis, so the layout is the same either way).
+// A null title — legacy sessions, and any session whose plan has not been
+// approved yet — falls back to the DAN-74 first-message preview, unchanged. An
+// empty/whitespace-only title is treated as absent rather than rendered blank.
+export function rowLabelOf(request) {
+  const title = request.title
+  if (typeof title === 'string' && title.trim() !== '') return title
+  return previewOf(request)
 }
 
 // Deterministic date display (explicit locale, so tests and users see the same
@@ -95,7 +112,7 @@ export default function MyRequests({ onOpen }) {
                 onClick={() => onOpen(request)}
               >
                 <span className="my-requests__preview">
-                  {previewOf(request)}
+                  {rowLabelOf(request)}
                 </span>{' '}
                 <span
                   className={`my-requests__status my-requests__status--${request.status}`}
