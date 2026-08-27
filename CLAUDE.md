@@ -68,6 +68,9 @@ connection latency.
 | `PORT`        | Cloud Run injects this; default `8080` locally |
 | `AI_GATEWAY_URL` | AI gateway base URL (DAN-48) — `.env` locally; read lazily, boot works without it |
 | `AI_GATEWAY_KEY` | AI gateway bearer key (DAN-48) — `.env` locally, Secret Manager in Cloud Run; never a provider API key |
+| `LINEAR_API_KEY` | Linear personal API key (DAN-51) — `.env` locally, Secret Manager in Cloud Run; read lazily, boot works without it. Sent as a bare `Authorization: <key>` header, no `Bearer` prefix |
+| `LINEAR_TEAM_ID` | Linear team approved plans are filed into (DAN-51) — read lazily, no fallback in src. The DAN team's id: `e1ef74ec-5da2-42e9-8e2b-48840faf3647` |
+| `LINEAR_STATE_READY_FOR_DEV` | Linear workflow-state id unblocked tickets are filed in (DAN-51) — read lazily, no fallback in src. The DAN team's Ready for Dev: `8d578131-713b-41ea-b940-135b55b7b86b` |
 
 ## GCP
 

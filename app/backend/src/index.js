@@ -5,6 +5,7 @@ import { createAiGateway } from './aiGateway.js'
 import { authGate, firebaseVerifyToken } from './auth.js'
 import { connect } from './db.js'
 import { schema, rootValue } from './graphql.js'
+import { createLinearClient } from './linearClient.js'
 
 const PORT = process.env.PORT ?? 8080
 
@@ -17,7 +18,14 @@ const PORT = process.env.PORT ?? 8080
 // import or app construction — so booting with neither set still serves /health.
 // Resolvers reach the instance through the GraphQL context and never construct
 // their own client.
-export function createApp({ verifyToken = firebaseVerifyToken, aiGateway = createAiGateway() } = {}) {
+// DAN-51: the Linear client is the third injectable through the same seam. Its
+// default reads LINEAR_API_KEY (and LINEAR_TEAM_ID / LINEAR_STATE_READY_FOR_DEV)
+// lazily at call time, so /health still boots with none of them set.
+export function createApp({
+  verifyToken = firebaseVerifyToken,
+  aiGateway = createAiGateway(),
+  linearClient = createLinearClient(),
+} = {}) {
   const app = express()
 
   app.use(express.json())
@@ -54,7 +62,7 @@ export function createApp({ verifyToken = firebaseVerifyToken, aiGateway = creat
       // attached the decoded token to req.auth (see auth.js); req.raw is the
       // Express request underneath graphql-http's adapter. Feature-request
       // resolvers read uid from this context; records resolvers ignore it.
-      context: (req) => ({ uid: req.raw.auth.uid, aiGateway }),
+      context: (req) => ({ uid: req.raw.auth.uid, aiGateway, linearClient }),
     }),
   )
 
