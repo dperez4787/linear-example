@@ -137,6 +137,42 @@ test('startFeatureRequest with an unsupported model → 200, BAD_USER_INPUT on f
   assert.equal(await featureRequests().countDocuments(), 0, 'a failed mutation writes nothing')
 })
 
+// --- DAN-65: the full gateway roster is accepted and persisted ---
+
+const ROSTER = ['claude-opus-5', 'gpt-5.6-terra', 'gemini-3.6-flash', 'gpt-oss-120b']
+
+for (const model of ROSTER) {
+  test(`startFeatureRequest(model: ${JSON.stringify(model)}) accepts the roster model and persists it`, async () => {
+    const res = await gql(ALICE, START, { input: { model } })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.errors, undefined)
+
+    const session = res.body.data.startFeatureRequest
+    assert.equal(session.model, model, 'the chosen model comes back on the session')
+
+    const { ObjectId } = await import('mongodb')
+    const doc = await featureRequests().findOne({ _id: new ObjectId(session.id) })
+    assert.equal(doc.model, model, 'the chosen model is persisted')
+  })
+}
+
+test('the exported allow-list is exactly the four-model roster, and the harness map covers every roster model', async () => {
+  const { FEATURE_REQUEST_MODELS, HARNESS_BY_MODEL } = await import('./featureRequests.js')
+  assert.deepEqual(FEATURE_REQUEST_MODELS, ROSTER, 'FEATURE_REQUEST_MODELS is the DAN-65 roster, in order')
+  // Every roster model maps to a harness; the non-claude models ride the
+  // claude harness until multi-harness routing lands with its own ticket.
+  assert.deepEqual(
+    HARNESS_BY_MODEL,
+    {
+      'claude-opus-5': 'claude',
+      'gpt-5.6-terra': 'claude',
+      'gemini-3.6-flash': 'claude',
+      'gpt-oss-120b': 'claude',
+    },
+    'HARNESS_BY_MODEL maps all four roster models',
+  )
+})
+
 // --- featureRequests query ---
 
 test('featureRequests returns only the caller sessions, newest first; another user sessions never appear', async () => {
