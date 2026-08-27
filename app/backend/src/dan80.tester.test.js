@@ -187,10 +187,26 @@ async function seedSession({ uid = 'uid-tester-alice' } = {}) {
   return insertedId.toString()
 }
 
+// DAN-90 made approval itself call the gateway (the titler), so an app built
+// with NO gateway can no longer fall back to the default client: this file
+// points AI_GATEWAY_URL at a fake host, and the default client would dial it
+// for real over the network. Tests that pass a gateway keep passing theirs;
+// every other app gets one that refuses, which the titler treats as any other
+// gateway failure (falls back to the truncated project name and still
+// approves). No test in this file performs a real network call.
+const refusingGateway = {
+  async chat() {
+    throw new Error('no scripted gateway: this test must not reach the network')
+  },
+  async usage() {
+    throw new Error('no scripted gateway: this test must not reach the network')
+  },
+}
+
 const makeApp = ({ gateway, linearClient } = {}) =>
   createApp({
     verifyToken: stubVerify,
-    ...(gateway ? { aiGateway: gateway } : {}),
+    aiGateway: gateway ?? refusingGateway,
     ...(linearClient ? { linearClient } : {}),
   })
 

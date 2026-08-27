@@ -120,10 +120,21 @@ const stubVerify = async (token) => {
   return decoded
 }
 
+// DAN-90 made approval itself call the gateway (the titler), so an app built
+// with NO fetchImpl can no longer fall back to the default client: this file
+// points AI_GATEWAY_URL at a fake host, and the default client would dial it
+// for real over the network. Tests that script a fetch keep scripting it;
+// every other app now gets a fetch that refuses, which the titler treats as
+// any other gateway failure (falls back to the truncated project name and
+// still approves). No test in this file performs a real network call.
+const refusingFetch = async () => {
+  throw new Error('no scripted fetch: this test must not reach the network')
+}
+
 const makeApp = ({ fetchImpl, linearClient } = {}) =>
   createApp({
     verifyToken: stubVerify,
-    ...(fetchImpl ? { aiGateway: createAiGateway({ fetch: fetchImpl }) } : {}),
+    aiGateway: createAiGateway({ fetch: fetchImpl ?? refusingFetch }),
     ...(linearClient ? { linearClient } : {}),
   })
 
