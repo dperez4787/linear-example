@@ -226,7 +226,7 @@ test('a genuinely malformed planner reply still stores no plan and is not an err
 
 // --- criterion 3: explicit max_tokens per role on the captured transport ---
 
-test('every gateway call carries the explicit per-role max_tokens: PO and architect 1500, planner 1200, evaluator 500', async () => {
+test('every gateway call carries the explicit per-role max_tokens: PO and architect 1500, planner 2500, evaluator 500', async () => {
   const fetch = scriptedFetch()
   const app = makeApp(fetch)
   const id = await startSession(app)
@@ -238,7 +238,7 @@ test('every gateway call carries the explicit per-role max_tokens: PO and archit
 
   assert.equal(byRole['product-owner'].max_tokens, 1500)
   assert.equal(byRole.architect.max_tokens, 1500)
-  assert.equal(byRole.planner.max_tokens, 1200)
+  assert.equal(byRole.planner.max_tokens, 2500)
   assert.equal(byRole['entrance-criteria'].max_tokens, 500)
 
   // The numbers come from the single exported constant, not four hardcodes.

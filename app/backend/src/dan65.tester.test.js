@@ -34,6 +34,7 @@ const {
   FEATURE_REQUEST_MODELS,
   HARNESS_BY_MODEL,
   ENTRANCE_CRITERIA_MODEL,
+  PLANNER_MODEL,
 } = await import('./featureRequests.js')
 const { ObjectId } = await import('mongodb')
 
@@ -163,7 +164,7 @@ after(async () => {
 // --- criteria 1 + 2: per-model round trip against the captured transport ---
 
 for (const model of ROSTER) {
-  test(`DAN-65 round trip [${model}]: start persists the model; conversational calls carry it; the evaluator keeps ${ENTRANCE_CRITERIA_MODEL}`, async () => {
+  test(`DAN-65 round trip [${model}]: start persists the model; conversational calls carry it; planner and evaluator keep their cheap constants`, async () => {
     const fetchImpl = capturingFetch()
     const app = makeApp({ fetchImpl })
 
@@ -179,8 +180,9 @@ for (const model of ROSTER) {
     assert.ok(doc, 'a session document was written')
     assert.equal(doc.model, model, 'the chosen model is persisted verbatim')
 
-    // One exchange: PO, architect, planner all carry the session's model on
-    // the wire; the evaluator carries the cheap constant instead.
+    // One exchange: PO and architect carry the session's model on the wire;
+    // the planner (DAN-72) and the evaluator carry their own cheap-model
+    // constants instead.
     const sendRes = await gql(app, ALICE, SEND, { id: session.id, content: 'Add CSV export' })
     assert.equal(sendRes.status, 200)
     assert.equal(sendRes.body.errors, undefined)
@@ -191,7 +193,7 @@ for (const model of ROSTER) {
       ['architect', 'entrance-criteria', 'planner', 'product-owner'],
       'exactly the four orchestration roles were called',
     )
-    for (const role of ['product-owner', 'architect', 'planner']) {
+    for (const role of ['product-owner', 'architect']) {
       assert.equal(
         byRole.get(role).body.model,
         model,
@@ -199,11 +201,17 @@ for (const model of ROSTER) {
       )
     }
     assert.equal(
+      byRole.get('planner').body.model,
+      PLANNER_MODEL,
+      'the planner sends its own cheap-model constant, not the session model (DAN-72)',
+    )
+    assert.equal(
       byRole.get('entrance-criteria').body.model,
       ENTRANCE_CRITERIA_MODEL,
       'the evaluator sends its own cheap-model constant, not the session model',
     )
-    // No roster model is the cheap model, so this holds for all four:
+    // No roster model is a cheap-model constant, so this holds for all four:
+    assert.notEqual(byRole.get('planner').body.model, model, 'the planner model is independent of the session model')
     assert.notEqual(
       byRole.get('entrance-criteria').body.model,
       model,

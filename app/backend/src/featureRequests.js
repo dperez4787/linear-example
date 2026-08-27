@@ -161,13 +161,26 @@ Rules:
 // Trimmed in DAN-72: a full opus round under DAN-69's 3000/3000/1500/500
 // budgets measured ~75s, past Firebase Hosting's hard 60s rewrite timeout —
 // the client got a 502 while the backend finished, and the retry duplicated
-// the message. These budgets keep the worst-case round around 45s.
+// the message. The conversational budgets drop to 1500 each; the planner's
+// RISES to 2500 (a converged live plan was truncated at exactly its old
+// 1500 cap, which silently blocked approval) — affordable because DAN-72
+// also moves the planner onto the cheap model (see PLANNER_MODEL below),
+// which emits its budget in seconds. Worst case stays inside the timeout.
 export const MAX_TOKENS_BY_ROLE = {
   'product-owner': 1500,
   architect: 1500,
-  [PLANNER_ROLE]: 1200,
+  [PLANNER_ROLE]: 2500,
   [EVALUATOR_ROLE]: 500,
 }
+
+// The planner's dedicated model (DAN-72), the exact pattern of
+// ENTRANCE_CRITERIA_MODEL below: the planner's output is a machine contract
+// (strict JSON), not tunable voice, so a small model handles it fine — and
+// unlike the session's conversation model it emits the full 2500-token budget
+// in seconds, which is what keeps the whole round under Hosting's 60s rewrite
+// timeout. The ONE place this id lives; exported so tests assert the captured
+// request against the constant.
+export const PLANNER_MODEL = 'claude-haiku-4-5'
 
 // --- lenient JSON extraction for the internal roles (DAN-69) ---
 
@@ -662,7 +675,10 @@ export async function sendFeatureRequestMessage(uid, id, content, aiGateway) {
     uid,
     promptId: id,
     role: PLANNER_ROLE,
-    model: doc.model,
+    // Dedicated cheap model (DAN-72), not the session's conversation model —
+    // see PLANNER_MODEL. Keeps the round inside Hosting's 60s timeout even
+    // with the larger planner budget.
+    model: PLANNER_MODEL,
     max_tokens: MAX_TOKENS_BY_ROLE[PLANNER_ROLE],
     response_format: { type: 'json_object' },
     messages: [

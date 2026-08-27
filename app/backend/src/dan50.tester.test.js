@@ -27,7 +27,7 @@ process.env.AI_GATEWAY_KEY = 'tester-gateway-key'
 const { connect, getDb } = await import('./db.js')
 const { createApp } = await import('./index.js')
 const { createAiGateway } = await import('./aiGateway.js')
-const { ENTRANCE_CRITERIA_MODEL } = await import('./featureRequests.js')
+const { ENTRANCE_CRITERIA_MODEL, PLANNER_MODEL } = await import('./featureRequests.js')
 const { ObjectId } = await import('mongodb')
 
 // --- fixtures ---
@@ -173,10 +173,14 @@ test('criterion 1: one exchange makes exactly four gateway calls — PO, archite
   const evaluator = fetch.calls[3]
   assert.equal(evaluator.body.model, 'claude-haiku-4-5', 'the evaluator runs on the cheap model')
   assert.equal(evaluator.body.model, ENTRANCE_CRITERIA_MODEL, 'the id is the exported constant')
-  for (const call of fetch.calls.slice(0, 3)) {
+  // DAN-72: the planner moved to its own cheap-model constant, so only the
+  // two conversational calls carry the session model now.
+  for (const call of fetch.calls.slice(0, 2)) {
     assert.equal(call.body.model, SESSION_MODEL, `${call.body.metadata.role} uses the session model`)
     assert.notEqual(call.body.model, evaluator.body.model, 'evaluator model is distinct')
   }
+  const planner = fetch.calls[2]
+  assert.equal(planner.body.model, PLANNER_MODEL, 'the planner runs on its dedicated cheap model (DAN-72)')
 
   // A second exchange adds exactly four more — the evaluator is per-exchange,
   // not cumulative.
@@ -196,11 +200,18 @@ test('criterion 1: the cheap model id lives in exactly one non-test source file 
     .filter((f) => readFileSync(`${srcDir}/${f}`, 'utf8').includes('claude-haiku-4-5'))
   assert.deepEqual(hits, ['featureRequests.js'], 'the id is a single constant, not scattered')
   const source = readFileSync(`${srcDir}/featureRequests.js`, 'utf8')
+  // DAN-72 added a second named constant on the same cheap model
+  // (PLANNER_MODEL, the planner's dedicated model). The criterion's intent —
+  // named constants, never hardcodes at call sites — still holds: the id
+  // appears exactly twice in that file, once per exported constant
+  // definition, and nowhere else in non-test source.
   assert.equal(
     source.split('claude-haiku-4-5').length - 1,
-    1,
-    'the id appears exactly once in that file',
+    2,
+    'the id appears exactly twice in that file: ENTRANCE_CRITERIA_MODEL and PLANNER_MODEL (DAN-72)',
   )
+  assert.match(source, /export const ENTRANCE_CRITERIA_MODEL = 'claude-haiku-4-5'/)
+  assert.match(source, /export const PLANNER_MODEL = 'claude-haiku-4-5'/)
 })
 
 // --- criterion 2: structured JSON requested; result persists on the session ---

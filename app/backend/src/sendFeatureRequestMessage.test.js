@@ -243,12 +243,12 @@ test('the PO and architect calls carry each roles/<role>.md file as system messa
 // --- DAN-65: every roster model threads through to the conversational calls ---
 
 // A session started with each roster model sends THAT model on its
-// conversational gateway calls (PO, architect, planner — all doc.model), while
-// the entrance-criteria evaluator keeps its own cheap-model constant
-// regardless of the session's choice.
+// conversational gateway calls (PO and architect — doc.model), while the
+// planner (DAN-72) and the entrance-criteria evaluator keep their own
+// cheap-model constants regardless of the session's choice.
 for (const model of ['claude-opus-5', 'gpt-5.6-terra', 'gemini-3.6-flash', 'gpt-oss-120b']) {
-  test(`a ${model} session sends ${model} on conversational calls; the evaluator keeps its cheap model`, async () => {
-    const { ENTRANCE_CRITERIA_MODEL } = await import('./featureRequests.js')
+  test(`a ${model} session sends ${model} on conversational calls; the planner and evaluator keep their cheap models`, async () => {
+    const { ENTRANCE_CRITERIA_MODEL, PLANNER_MODEL } = await import('./featureRequests.js')
     const fetch = scriptedFetch()
     const app = makeApp(fetch)
     const id = await startSession(app, ALICE, model)
@@ -257,10 +257,16 @@ for (const model of ['claude-opus-5', 'gpt-5.6-terra', 'gemini-3.6-flash', 'gpt-
     assert.equal(res.body.errors, undefined)
 
     assert.equal(fetch.calls.length, 4, 'PO, architect, planner, evaluator')
-    for (const role of ['product-owner', 'architect', 'planner']) {
+    for (const role of ['product-owner', 'architect']) {
       const call = fetch.calls.find((c) => c.body.metadata.role === role)
       assert.equal(call.body.model, model, `the ${role} call carries the session model`)
     }
+    const plannerCall = fetch.calls.find((c) => c.body.metadata.role === 'planner')
+    assert.equal(
+      plannerCall.body.model,
+      PLANNER_MODEL,
+      'the planner uses its own cheap-model constant, not the session model (DAN-72)',
+    )
     const evaluatorCall = fetch.calls.find((c) => c.body.metadata.role === 'entrance-criteria')
     assert.equal(
       evaluatorCall.body.model,
