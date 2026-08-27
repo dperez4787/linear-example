@@ -78,7 +78,10 @@ function typeAndSend(text) {
 }
 
 describe('DAN-54 model picker', () => {
-  it('offers claude-opus-5 selectable, the coming-soon models disabled, and the tools as display-only text', async () => {
+  // DAN-66: the three former coming-soon models are live through the gateway
+  // now, so this asserts all four roster models as enabled radios rather than
+  // claude-opus-5 alone.
+  it('offers all four roster models selectable, claude-opus-5 checked by default, and the tools as display-only text', async () => {
     render(<FeatureRequestView onBack={() => {}} />)
     // Let the mount-time usage fetch settle so the test stays act()-quiet.
     await screen.findByText('Requests')
@@ -88,8 +91,8 @@ describe('DAN-54 model picker', () => {
     expect(opus).toBeChecked()
 
     for (const name of ['gpt-5.6-terra', 'gemini-3.6-flash', 'gpt-oss-120b']) {
-      const radio = screen.getByRole('radio', { name: `${name} (coming soon)` })
-      expect(radio).toBeDisabled()
+      const radio = screen.getByRole('radio', { name })
+      expect(radio).toBeEnabled()
       expect(radio).not.toBeChecked()
     }
 

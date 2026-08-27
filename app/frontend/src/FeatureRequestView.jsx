@@ -31,12 +31,17 @@ import WatchBuild from './WatchBuild.jsx'
 // before the send, so a failed first send retries against the same conversation
 // instead of creating a second one.
 
-// The picker's rows (DAN-54). Exactly one selectable model in v1. The "coming
-// soon" models render as disabled radios so they are visibly on the roadmap but
-// unpickable; the coding tools render as display-only entries with no input at
-// all, so they can never be selected whether or not the picker is locked.
-const SELECTABLE_MODELS = ['claude-opus-5']
-const COMING_SOON_MODELS = ['gpt-5.6-terra', 'gemini-3.6-flash', 'gpt-oss-120b']
+// The picker's rows (DAN-54, roster completed by DAN-66). All four models are
+// now live through the gateway and accepted by the backend (DAN-65), so the
+// former "coming soon" three graduated to selectable radios. The coding tools
+// still render as display-only entries with no input at all, so they can never
+// be selected whether or not the picker is locked.
+const SELECTABLE_MODELS = [
+  'claude-opus-5',
+  'gpt-5.6-terra',
+  'gemini-3.6-flash',
+  'gpt-oss-120b',
+]
 const DISPLAY_ONLY_TOOLS = ['Copilot', 'Cursor', 'Amp']
 
 // The three entrance gates, in checklist order. Keys match the agreed
@@ -171,14 +176,6 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
                   onChange={() => setSelectedModel(name)}
                 />
                 {name}
-              </label>
-            </li>
-          ))}
-          {COMING_SOON_MODELS.map((name) => (
-            <li key={name}>
-              <label className="model-picker__option model-picker__option--muted">
-                <input type="radio" name="model" value={name} disabled />
-                {name} (coming soon)
               </label>
             </li>
           ))}

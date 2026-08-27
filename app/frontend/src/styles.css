@@ -361,9 +361,9 @@ tbody tr:hover {
 /* -- DAN-54: model picker, gates checklist, quota meter, approve -------------- */
 
 /* The model picker: a bordered fieldset whose rows read as a compact list.
-   Disabled rows (coming soon) and display-only rows (tools) share the muted
-   treatment; the lock-on-start is the fieldset's disabled attribute, not a
-   style. */
+   Display-only rows (tools) get the muted treatment (DAN-66 graduated the
+   coming-soon models to selectable, so no model row is muted any more); the
+   lock-on-start is the fieldset's disabled attribute, not a style. */
 .model-picker {
   margin: 0;
   padding: var(--space-3) var(--space-4) var(--space-4);
