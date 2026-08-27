@@ -463,6 +463,11 @@ export async function approveFeatureRequestPlan(uid, id, linearClient) {
       $set: {
         status: 'building',
         linearProjectId: project.id,
+        // DAN-80: the project's Linear URL, captured from projectCreate at
+        // approval time so the frontend can link straight to the project.
+        // Sessions approved before this field existed simply lack it and
+        // serve null — never an error.
+        linearProjectUrl: project.url ?? null,
         tickets: plan.tickets.map((ticket) => {
           const issue = issuesByKey.get(ticket.key)
           return {
@@ -596,6 +601,41 @@ export async function featureRequestProgress(uid, id, linearClient, now = Date.n
 
   progressCache.set(id, { at: now(), nodes })
   return nodes
+}
+
+// --- featureRequestCost: per-session AI spend, read from the gateway (DAN-80) ---
+
+// One usage row as the wire expects it: non-null numbers, zeros when the
+// gateway has no row (a session whose calls predate the gateway's ledger, or
+// one that has never called the gateway, has spent nothing it can report —
+// that is a zero, not an error).
+function toFeatureCost(row) {
+  return {
+    calls: row?.calls ?? 0,
+    tokensIn: row?.tokens_in ?? 0,
+    tokensOut: row?.tokens_out ?? 0,
+    costUsd: row?.cost_usd ?? 0,
+  }
+}
+
+// What this session has cost, read live from the AI gateway's usage ledger
+// through the injected client: GET /v1/usage?group_by=prompt_id returns
+// { data: [{ prompt_id, calls, tokens_in, tokens_out, cost_usd }, …] } — one
+// row per prompt — and this filters to the caller's session. The session read
+// runs FIRST and is uid-scoped, so a foreign or unknown promptId is the same
+// NotFoundError as everywhere else in this module and never touches the
+// gateway. A gateway failure propagates (GatewayError → INTERNAL, logged
+// server-side, nothing leaked); an absent row is zeros, not an error.
+export async function featureRequestCost(uid, id, aiGateway) {
+  const _id = toObjectId(id)
+  const doc = await collection().findOne({ _id, uid })
+  if (!doc) {
+    throw new NotFoundError('feature request not found')
+  }
+
+  const body = await aiGateway.usage({ groupBy: 'prompt_id' })
+  const rows = Array.isArray(body?.data) ? body.data : []
+  return toFeatureCost(rows.find((row) => row?.prompt_id === id))
 }
 
 // Post a user message to the caller's session and run one orchestration round:

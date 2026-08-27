@@ -27,6 +27,7 @@ import {
   sendFeatureRequestMessage,
   approveFeatureRequestPlan,
   featureRequestProgress,
+  featureRequestCost,
   unevaluatedEntranceCriteria,
   isApprovable,
 } from './featureRequests.js'
@@ -136,6 +137,10 @@ export const schema = buildSchema(`
     approvable: Boolean!
     # DAN-51: nullable — set when approval files the Linear project/tickets.
     linearProjectId: String
+    # DAN-80: the filed project's Linear URL, persisted at approval time.
+    # Nullable — unapproved sessions, and sessions approved before this field
+    # existed, serve null.
+    linearProjectUrl: String
     tickets: [FiledTicket!]
   }
 
@@ -162,6 +167,17 @@ export const schema = buildSchema(`
     blockedBy: [ID!]!
   }
 
+  # DAN-80: what one feature-request session has cost, proxied live from the
+  # AI gateway's usage ledger (GET /v1/usage?group_by=prompt_id) and filtered
+  # to the session. Non-null all the way down — a session the gateway has no
+  # row for costs zeros, never null and never an error.
+  type FeatureCost {
+    calls: Int!
+    tokensIn: Int!
+    tokensOut: Int!
+    costUsd: Float!
+  }
+
   type Query {
     records: [Record!]!
     record(id: ID!): Record
@@ -169,6 +185,7 @@ export const schema = buildSchema(`
     featureRequests: [FeatureRequest!]!
     featureRequest(id: ID!): FeatureRequest
     featureRequestProgress(promptId: ID!): [TicketProgress!]!
+    featureRequestCost(promptId: ID!): FeatureCost!
   }
 
   type Mutation {
@@ -325,6 +342,13 @@ export const rootValue = {
   // through to INTERNAL, logged server-side, nothing leaked.
   featureRequestProgress: contextResolver(async ({ promptId }, { uid, linearClient }) =>
     featureRequestProgress(uid, promptId, linearClient),
+  ),
+  // DAN-80: same aiGateway seam as sendFeatureRequestMessage. The data layer
+  // returns wire-ready non-null numbers — no toWire conversion needed. A
+  // gateway failure (GatewayError) deliberately has no mapError branch: it
+  // falls through to INTERNAL, logged server-side, nothing leaked.
+  featureRequestCost: contextResolver(async ({ promptId }, { uid, aiGateway }) =>
+    featureRequestCost(uid, promptId, aiGateway),
   ),
   records: resolver(async () => (await listRecords()).map(toWire)),
   // DAN-48: the caller's usage totals — zeros for a fresh user, never null.

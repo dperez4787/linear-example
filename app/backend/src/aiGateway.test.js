@@ -429,6 +429,125 @@ test('metadata server non-2xx: chat() throws GatewayError, never calls the gatew
   assert.equal(recordUsage.calls.length, 0)
 })
 
+// --- DAN-80: the usage read — GET /v1/usage through the same captured transport ---
+//
+// usage({ groupBy }) shares chat()'s auth exactly: lazy env read, the virtual
+// key in x-gateway-key, and the Cloud Run IAM id token when K_SERVICE is set.
+// Same injectable fetch, so every request below is captured in-process and no
+// test reaches a real gateway.
+
+const usageFixture = {
+  object: 'usage',
+  data: [
+    { prompt_id: 'prompt-abc', calls: 4, tokens_in: 120, tokens_out: 260, cost_usd: 0.0134 },
+    { prompt_id: 'prompt-other', calls: 9, tokens_in: 999, tokens_out: 111, cost_usd: 0.5 },
+  ],
+}
+
+test('usage() GETs ${AI_GATEWAY_URL}/v1/usage?group_by=prompt_id with x-gateway-key and returns the parsed body', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY })
+  const fetch = stubFetch({ body: usageFixture })
+  const gateway = createAiGateway({ fetch, recordUsage: stubRecordUsage() })
+
+  const result = await gateway.usage({ groupBy: 'prompt_id' })
+
+  assert.equal(fetch.calls.length, 1, 'exactly one request')
+  const { url, init } = fetch.calls[0]
+  assert.equal(url, `${GATEWAY_URL}/v1/usage?group_by=prompt_id`)
+  assert.equal(init.method, undefined, 'a plain GET — no method override, no body')
+  assert.equal(init.body, undefined)
+  // Off Cloud Run the ONLY header is the virtual key: no invented
+  // Authorization, and no Content-Type on a bodyless GET.
+  assert.deepEqual(Object.keys(init.headers), ['x-gateway-key'])
+  assert.equal(init.headers['x-gateway-key'], GATEWAY_KEY)
+
+  assert.deepEqual(result, usageFixture, 'the parsed gateway response is returned as-is')
+})
+
+test('on Cloud Run: usage() fetches an id token for the gateway ORIGIN and sends it as Authorization, with x-gateway-key', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY, kService: 'linear-example-backend' })
+  const fetch = stubCloudTransport({ gateway: { status: 200, body: usageFixture } })
+  const gateway = createAiGateway({ fetch, recordUsage: stubRecordUsage() })
+
+  await gateway.usage({ groupBy: 'prompt_id' })
+
+  const meta = fetch.metadataCalls()
+  assert.equal(meta.length, 1)
+  assert.equal(
+    new URL(meta[0].url).searchParams.get('audience'),
+    new URL(GATEWAY_URL).origin,
+    'the audience is the AI_GATEWAY_URL origin',
+  )
+  assert.equal(meta[0].init.headers['Metadata-Flavor'], 'Google')
+
+  const [{ url, init }] = fetch.gatewayCalls()
+  assert.equal(url, `${GATEWAY_URL}/v1/usage?group_by=prompt_id`)
+  assert.equal(init.headers['x-gateway-key'], GATEWAY_KEY, 'the virtual key still rides in x-gateway-key')
+  assert.equal(init.headers.Authorization, `Bearer ${ID_TOKEN}`, 'the id token is the ONLY Authorization')
+})
+
+test('on Cloud Run: chat() and usage() share the id-token cache — one metadata fetch serves both', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY, kService: 'linear-example-backend' })
+  const fetch = stubCloudTransport()
+  const gateway = createAiGateway({ fetch, recordUsage: stubRecordUsage() })
+
+  await gateway.chat(CHAT_ARGS)
+  await gateway.usage({ groupBy: 'prompt_id' })
+
+  assert.equal(fetch.metadataCalls().length, 1, 'one token fetch serves both endpoints')
+  assert.equal(fetch.gatewayCalls().length, 2)
+  for (const { init } of fetch.gatewayCalls()) {
+    assert.equal(init.headers.Authorization, `Bearer ${ID_TOKEN}`)
+  }
+})
+
+test('AI_GATEWAY_IAM=off on Cloud Run: usage() makes no metadata call and invents no Authorization', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY, kService: 'linear-example-backend', iam: 'off' })
+  const fetch = stubCloudTransport({ gateway: { status: 200, body: usageFixture } })
+  const gateway = createAiGateway({ fetch, recordUsage: stubRecordUsage() })
+
+  await gateway.usage({ groupBy: 'prompt_id' })
+
+  assert.equal(fetch.metadataCalls().length, 0)
+  const [{ init }] = fetch.gatewayCalls()
+  assert.equal(init.headers.Authorization, undefined)
+  assert.equal(init.headers['x-gateway-key'], GATEWAY_KEY)
+})
+
+test('missing AI_GATEWAY_URL/KEY: usage() throws GatewayError without ever calling fetch', async (t) => {
+  withEnv(t, { url: undefined, key: undefined })
+  const fetch = stubFetch({ body: usageFixture })
+  const gateway = createAiGateway({ fetch, recordUsage: stubRecordUsage() })
+  await assert.rejects(gateway.usage({ groupBy: 'prompt_id' }), GatewayError)
+  assert.equal(fetch.calls.length, 0, 'no request is attempted without configuration')
+})
+
+test('a non-2xx usage response throws GatewayError (429 included — a usage read has no quota mapping)', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY })
+  for (const status of [429, 503]) {
+    const gateway = createAiGateway({
+      fetch: stubFetch({ status, body: { error: { message: 'nope' } } }),
+      recordUsage: stubRecordUsage(),
+    })
+    await assert.rejects(gateway.usage({ groupBy: 'prompt_id' }), GatewayError)
+    await assert.rejects(gateway.usage({ groupBy: 'prompt_id' }), (err) => {
+      assert.ok(!(err instanceof QuotaExhaustedError), `a ${status} usage read is a GatewayError, not quota`)
+      return true
+    })
+  }
+})
+
+test('a network-level usage fetch failure throws GatewayError', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY })
+  const gateway = createAiGateway({
+    fetch: async () => {
+      throw new Error('ECONNREFUSED')
+    },
+    recordUsage: stubRecordUsage(),
+  })
+  await assert.rejects(gateway.usage({ groupBy: 'prompt_id' }), GatewayError)
+})
+
 test('metadata server network failure: chat() throws GatewayError, records nothing', async (t) => {
   withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY, kService: 'linear-example-backend' })
   const recordUsage = stubRecordUsage()
