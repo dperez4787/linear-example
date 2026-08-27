@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { featureRequestProgress } from './api.js'
+import { featureRequestCost, featureRequestProgress } from './api.js'
 
 // The watch-it-build DAG view (DAN-55): once a feature request is approved,
 // FeatureRequestView hands off to this component, which polls
@@ -21,6 +21,17 @@ import { featureRequestProgress } from './api.js'
 // poll succeeds again. That status line is deliberately the component's only
 // role="status" element outside the per-node spinners — it is the same
 // accessible hand-off signal DAN-54 shipped ("…building…"), now owned here.
+//
+// DAN-81 adds two header pieces. A "View in Linear" link to the request's
+// linearProjectUrl (a prop, read off the FeatureRequest by the parent) opens
+// the filed project in a new tab; it renders only when the URL is present —
+// null hides it entirely. And a "Planning cost" stat ($X.XXXX plus the call
+// count) reads featureRequestCost(promptId) on the same tick as the progress
+// poll — the cost fetch rides the existing recursive setTimeout, never a
+// second timer — so the figure refreshes at the poll cadence and stops when
+// the poll stops. A failed cost read degrades silently: the stat keeps its
+// last good value (or stays absent before the first success) and never marks
+// the DAG stale — staleness remains the progress poll's signal alone.
 export const POLL_INTERVAL_MS = 5000
 
 // Accessible per-state markers. Spinners are role="status" with distinct labels
@@ -114,18 +125,33 @@ function allDone(tickets) {
   return tickets.length > 0 && tickets.every((t) => t.state === 'DONE')
 }
 
-export default function WatchBuild({ promptId }) {
+export default function WatchBuild({ promptId, linearProjectUrl = null }) {
   // The last good progress list, or null before the first successful poll.
   // A failed poll never writes here — that is what keeps the DAG on screen.
   const [tickets, setTickets] = useState(null)
   // True while the most recent poll failed; cleared by the next success.
   const [stale, setStale] = useState(false)
+  // The last good planning-cost ledger ({ calls, tokensIn, tokensOut,
+  // costUsd }), or null before the first successful read. Same
+  // never-blank-on-failure rule as the DAG (DAN-81).
+  const [cost, setCost] = useState(null)
 
   useEffect(() => {
     let cancelled = false
     let timer = null
 
     async function poll() {
+      // Both reads share the one tick (DAN-81): the cost fetch starts alongside
+      // the progress fetch and is awaited before the next hop is scheduled, so
+      // there is exactly one timer no matter how many stats ride it. Its own
+      // catch keeps a cost blip from ever touching the DAG or the stale note.
+      const costPromise = (async () => {
+        try {
+          return await featureRequestCost(promptId)
+        } catch {
+          return null
+        }
+      })()
       let done = false
       try {
         const next = await featureRequestProgress(promptId)
@@ -137,6 +163,9 @@ export default function WatchBuild({ promptId }) {
         if (cancelled) return
         setStale(true)
       }
+      const nextCost = await costPromise
+      if (cancelled) return
+      if (nextCost) setCost(nextCost)
       if (!done) timer = setTimeout(poll, POLL_INTERVAL_MS)
     }
 
@@ -160,7 +189,28 @@ export default function WatchBuild({ promptId }) {
 
   return (
     <section className="watch-build" aria-label="Build progress">
-      <h2>Build progress</h2>
+      <header className="watch-build__header">
+        <h2>Build progress</h2>
+        {linearProjectUrl && (
+          <a
+            className="watch-build__linear-link"
+            href={linearProjectUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View in Linear
+          </a>
+        )}
+        {cost && (
+          <p className="watch-build__cost">
+            Planning cost{' '}
+            <span className="watch-build__cost-figure">
+              ${cost.costUsd.toFixed(4)}
+            </span>{' '}
+            · {cost.calls} {cost.calls === 1 ? 'call' : 'calls'}
+          </p>
+        )}
+      </header>
       <p role="status" className="watch-build__status">
         {finished
           ? 'Build complete — every ticket is done.'

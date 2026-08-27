@@ -506,6 +506,27 @@ tbody tr:hover {
    the per-node "blocked by …" text — tests assert accessible text, never any
    of these styles. */
 
+/* DAN-81: the building-view header row — the heading, the "View in Linear"
+   link, and the planning-cost stat share one baseline, with the stat pushed to
+   the far edge. */
+.watch-build__header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.watch-build__cost {
+  margin: 0 0 0 auto;
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
+.watch-build__cost-figure {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
 .watch-build__status {
   margin: 0 0 var(--space-4);
   padding: var(--space-3) var(--space-4);

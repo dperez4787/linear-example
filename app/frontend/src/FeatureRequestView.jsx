@@ -410,7 +410,14 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
       {building ? (
         // DAN-55: the hand-off is no longer a placeholder — the approved
         // request's id is the promptId the build view polls progress for.
-        <WatchBuild promptId={request.id} />
+        // DAN-81 also hands over linearProjectUrl (null until DAN-80's backend
+        // field lands) so the building view's header can link the filed Linear
+        // project; the pre-approval view never shows the link or the cost stat
+        // because WatchBuild only mounts here, after approval.
+        <WatchBuild
+          promptId={request.id}
+          linearProjectUrl={request.linearProjectUrl ?? null}
+        />
       ) : (
         <>
           <form className="chat-composer" onSubmit={handleSubmit}>
