@@ -171,6 +171,14 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
   // the raw error and the composer disables for the rest of the visit.
   const [quotaExhausted, setQuotaExhausted] = useState(false)
   const [approving, setApproving] = useState(false)
+  // DAN-76: a failed approval renders as a styled panel next to the Approve
+  // button, not the bare line under the transcript that send errors use —
+  // approving is a different action with a different blast radius, and its
+  // error belongs next to its button. Shaped { message, detail } (detail is
+  // the server's own text under the generic headline, or null when the
+  // message IS the server's guidance); null when the last approval attempt
+  // did not fail.
+  const [approveError, setApproveError] = useState(null)
 
   const messages = request?.messages ?? []
 
@@ -316,9 +324,20 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
   // client never re-derives that from the gates, so the server stays the
   // enforcement point. On success the returned request's status is "building",
   // which flips the hand-off state above.
+  //
+  // DAN-76 failure handling: the button re-enables (finally clears approving,
+  // and nothing here flips approvable), so a second click simply re-attempts.
+  // Three failure shapes, mirroring the backend's error mapper:
+  //  - QUOTA_EXHAUSTED keeps the existing sticky friendly-panel behavior.
+  //  - BAD_USER_INPUT ("there is no plan yet" and friends) is user guidance by
+  //    design, so the server's message renders as the panel's text verbatim.
+  //  - Anything else (5xx mapped to INTERNAL, network) gets the generic
+  //    headline — approval is atomic on the backend, so "nothing was created"
+  //    is true and retrying is safe — with the server's text kept underneath
+  //    as the diagnostic detail.
   async function handleApprove() {
     if (!request || approving) return
-    setError(null)
+    setApproveError(null)
     setApproving(true)
     try {
       const updated = await approveFeatureRequestPlan(request.id)
@@ -326,8 +345,13 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
     } catch (err) {
       if (isQuotaExhausted(err)) {
         setQuotaExhausted(true)
+      } else if (err?.extensions?.code === 'BAD_USER_INPUT') {
+        setApproveError({ message: err.message, detail: null })
       } else {
-        setError(err.message)
+        setApproveError({
+          message: "Couldn't file the plan — nothing was created. Try again.",
+          detail: err.message,
+        })
       }
     } finally {
       setApproving(false)
@@ -399,14 +423,27 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
           })}
         </ul>
         {!building && (
-          <button
-            className="btn btn--primary"
-            type="button"
-            disabled={!request?.approvable || approving}
-            onClick={handleApprove}
-          >
-            Approve plan
-          </button>
+          <>
+            <button
+              className="btn btn--primary"
+              type="button"
+              disabled={!request?.approvable || approving}
+              onClick={handleApprove}
+            >
+              Approve plan
+            </button>
+            {/* DAN-76: the approval-failure panel, right under its button.
+                Hidden once quota exhaustion takes over — the sticky quota
+                panel is the one alert for that state. */}
+            {approveError && !quotaExhausted && (
+              <div className="approve-error" role="alert">
+                <p className="approve-error__message">{approveError.message}</p>
+                {approveError.detail && (
+                  <p className="approve-error__detail">{approveError.detail}</p>
+                )}
+              </div>
+            )}
+          </>
         )}
       </section>
       <section className="quota-meter" aria-label="AI usage">
