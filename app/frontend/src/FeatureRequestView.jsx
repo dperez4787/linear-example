@@ -6,6 +6,7 @@ import {
   sendFeatureRequestMessage,
   startFeatureRequest,
 } from './api.js'
+import { renderMarkdown } from './markdown.jsx'
 import WatchBuild from './WatchBuild.jsx'
 
 // The "Request a feature" chat pane (DAN-53), extended by DAN-54 with the model
@@ -72,6 +73,76 @@ function isQuotaExhausted(err) {
   return err?.extensions?.code === 'QUOTA_EXHAUSTED'
 }
 
+// -- DAN-79: markdown agent replies with a typewriter reveal -----------------
+//
+// Agent replies are markdown; renderMarkdown (src/markdown.jsx) turns them
+// into React elements — assistant bubbles only, user bubbles stay plain text.
+//
+// Reveal approach (the ticket left the choice open): slice the RAW text and
+// re-parse the slice each tick, rather than revealing block-by-block. Replies
+// are a few KB at most, the parser is a single line scan, and slicing raw
+// text means the reveal is character-accurate — a half-arrived code fence
+// renders as a growing code block (the parser treats an unclosed fence as
+// running to end-of-input) instead of the whole block popping in at once.
+//
+// ~1000 chars/s as 25 chars every 25ms — a fixed chars-per-tick interval is
+// deterministic under fake timers, unlike wall-clock math.
+const REVEAL_TICK_MS = 25
+const REVEAL_CHARS_PER_TICK = 25
+
+// The reveal animates only when the environment can confirm the user has NOT
+// asked for reduced motion. Where matchMedia is missing (jsdom — the same
+// progressive-enhancement stance as the optional scrollIntoView call above),
+// messages render complete instantly; tests that exercise the typewriter stub
+// window.matchMedia. Every real browser has matchMedia, so the reveal always
+// runs in production unless the user opted out.
+function prefersReducedMotion() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return true
+  }
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+// One assistant bubble. `animate` is latched at mount (a message that starts
+// complete never starts typing later); while typing, clicking the bubble
+// completes it instantly. onDone fires once the full text is shown — the
+// parent records the message as revealed so re-renders never replay it.
+function AssistantMessage({ role, content, animate, onDone }) {
+  const [revealCount, setRevealCount] = useState(
+    animate ? 0 : content.length,
+  )
+  const done = revealCount >= content.length
+
+  useEffect(() => {
+    if (done) return undefined
+    const id = setInterval(() => {
+      setRevealCount((count) =>
+        Math.min(content.length, count + REVEAL_CHARS_PER_TICK),
+      )
+    }, REVEAL_TICK_MS)
+    return () => clearInterval(id)
+  }, [done, content.length])
+
+  useEffect(() => {
+    if (done) onDone()
+  }, [done, onDone])
+
+  return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    <li
+      className={`chat-message chat-message--${role}${
+        done ? '' : ' chat-message--revealing'
+      }`}
+      onClick={done ? undefined : () => setRevealCount(content.length)}
+    >
+      <span className="chat-message__role">{role}</span>
+      <div className="chat-message__content chat-message__content--markdown">
+        {renderMarkdown(content.slice(0, revealCount))}
+      </div>
+    </li>
+  )
+}
+
 export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) {
   const [request, setRequest] = useState(null)
   const [draft, setDraft] = useState('')
@@ -102,6 +173,16 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
   const [approving, setApproving] = useState(false)
 
   const messages = request?.messages ?? []
+
+  // DAN-79: which server-message indices have finished their typewriter
+  // reveal. A ref, not state — completion must survive re-renders without
+  // causing them, so a revealed reply never replays. Server messages present
+  // at the very first render (a transcript that exists before this view does)
+  // are pre-completed: only replies that *arrive* while mounted animate.
+  const revealedRef = useRef(null)
+  if (revealedRef.current === null) {
+    revealedRef.current = new Set(messages.map((_, index) => index))
+  }
   // The picker locks once the session starts — the model is baked into the
   // conversation at startFeatureRequest time.
   const sessionStarted = request !== null
@@ -353,15 +434,33 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
       ) : (
         <>
           <ul className="chat-transcript" aria-label="Conversation">
-            {messages.map((message, index) => (
-              <li
-                key={`server-${index}`}
-                className={`chat-message chat-message--${message.role}`}
-              >
-                <span className="chat-message__role">{message.role}</span>
-                <p className="chat-message__content">{message.content}</p>
-              </li>
-            ))}
+            {messages.map((message, index) =>
+              message.role === 'user' ? (
+                // User bubbles stay exactly as DAN-53 shipped them: plain
+                // text, no markdown, no reveal.
+                <li
+                  key={`server-${index}`}
+                  className={`chat-message chat-message--${message.role}`}
+                >
+                  <span className="chat-message__role">{message.role}</span>
+                  <p className="chat-message__content">{message.content}</p>
+                </li>
+              ) : (
+                // Agent replies render as markdown; a reply that arrived
+                // after mount (not yet in revealedRef, motion allowed) types
+                // on progressively. AssistantMessage latches `animate` at
+                // mount, so re-renders mid-reveal don't restart it.
+                <AssistantMessage
+                  key={`server-${index}`}
+                  role={message.role}
+                  content={message.content}
+                  animate={
+                    !revealedRef.current.has(index) && !prefersReducedMotion()
+                  }
+                  onDone={() => revealedRef.current.add(index)}
+                />
+              ),
+            )}
             {pendingMessages.map((entry) => (
               <li
                 key={`pending-${entry.id}`}

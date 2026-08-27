@@ -714,3 +714,69 @@ tbody tr:hover {
     animation: none;
   }
 }
+
+/* -- DAN-79: markdown replies + typewriter reveal ---------------------------- */
+
+/* Agent replies render parsed markdown (a <div> of block elements) instead of
+   DAN-53's plain <p>. The plain bubbles keep pre-wrap; parsed markdown manages
+   its own breaks (<br/>, block elements), so pre-wrap would double them. */
+.chat-message__content--markdown {
+  white-space: normal;
+}
+
+.chat-message__content--markdown > :first-child {
+  margin-top: 0;
+}
+
+.chat-message__content--markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-message__content--markdown h1,
+.chat-message__content--markdown h2,
+.chat-message__content--markdown h3 {
+  font-size: 1rem;
+  margin: var(--space-2) 0 var(--space-1);
+}
+
+.chat-message__content--markdown h1 {
+  font-size: 1.125rem;
+}
+
+.chat-message__content--markdown p,
+.chat-message__content--markdown ul,
+.chat-message__content--markdown ol {
+  margin: var(--space-1) 0;
+}
+
+.chat-message__content--markdown ul,
+.chat-message__content--markdown ol {
+  padding-left: 1.25rem;
+}
+
+.chat-message__content--markdown code {
+  font-size: 0.875em;
+  background: rgba(175, 184, 193, 0.25);
+  border-radius: 3px;
+  padding: 0.1em 0.3em;
+}
+
+.chat-message__content--markdown pre.md-codeblock {
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  overflow-x: auto;
+}
+
+.chat-message__content--markdown pre.md-codeblock code {
+  background: none;
+  padding: 0;
+}
+
+/* While a reply is still typing on, the whole bubble is the click-to-complete
+   target. The affordance is decorative; the behavior is the onClick. */
+.chat-message--revealing {
+  cursor: pointer;
+}
