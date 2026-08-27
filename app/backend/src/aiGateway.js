@@ -96,26 +96,20 @@ export function createAiGateway({
     return token
   }
 
-  // One chat completion on behalf of a signed-in user. `uid`, `promptId`, and
-  // `role` become the gateway's attribution metadata; every other field (model,
-  // messages, …) passes through as the request body, so the caller owns the
-  // conversational payload and this module owns transport, attribution, error
-  // typing, and usage recording.
-  async function chat({ uid, promptId, role, ...request }) {
-    // Lazy env read — load-bearing, see the module comment. Missing config is a
-    // GatewayError (→ INTERNAL, logged server-side), never a boot-time failure.
+  // The transport preamble every gateway endpoint shares (DAN-80 refactor,
+  // no behavior change to chat): the lazy AI_GATEWAY_URL/AI_GATEWAY_KEY read —
+  // load-bearing, see the module comment; missing config is a GatewayError
+  // (→ INTERNAL, logged server-side), never a boot-time failure — plus the auth
+  // headers. The virtual key rides in x-gateway-key — never in Authorization,
+  // which belongs to the IAM id token (present only on Cloud Run).
+  async function gatewayAuth() {
     const url = process.env.AI_GATEWAY_URL
     const key = process.env.AI_GATEWAY_KEY
     if (!url || !key) {
       throw new GatewayError('AI gateway is not configured: AI_GATEWAY_URL and AI_GATEWAY_KEY must be set')
     }
 
-    // The virtual key rides in x-gateway-key — never in Authorization, which
-    // belongs to the IAM id token below (present only on Cloud Run).
-    const headers = {
-      'Content-Type': 'application/json',
-      'x-gateway-key': key,
-    }
+    const headers = { 'x-gateway-key': key }
     if (iamEnabled()) {
       let audience
       try {
@@ -125,6 +119,17 @@ export function createAiGateway({
       }
       headers.Authorization = `Bearer ${await getIdToken(audience)}`
     }
+    return { url, headers }
+  }
+
+  // One chat completion on behalf of a signed-in user. `uid`, `promptId`, and
+  // `role` become the gateway's attribution metadata; every other field (model,
+  // messages, …) passes through as the request body, so the caller owns the
+  // conversational payload and this module owns transport, attribution, error
+  // typing, and usage recording.
+  async function chat({ uid, promptId, role, ...request }) {
+    const { url, headers } = await gatewayAuth()
+    headers['Content-Type'] = 'application/json'
 
     let res
     try {
@@ -162,5 +167,31 @@ export function createAiGateway({
     return body
   }
 
-  return { chat }
+  // Read the gateway's usage ledger (DAN-80): GET /v1/usage grouped by the
+  // given dimension (e.g. groupBy: 'prompt_id'). Same auth as chat() — the
+  // virtual key in x-gateway-key, plus the Cloud Run IAM id token when
+  // K_SERVICE is set — through the same injectable fetch, so tests capture the
+  // request and no real gateway is ever reached. Every failure (missing
+  // config, network, non-2xx) is a GatewayError → the established INTERNAL
+  // mapping; the parsed response body is returned as-is and the caller owns
+  // filtering/presentation. Reads record nothing against the usage ledger.
+  async function usage({ groupBy }) {
+    const { url, headers } = await gatewayAuth()
+
+    let res
+    try {
+      res = await fetchImpl(`${url}/v1/usage?group_by=${encodeURIComponent(groupBy)}`, { headers })
+    } catch (err) {
+      // Network-level failure. The message is for the server-side log only.
+      throw new GatewayError(`AI gateway usage request failed: ${err.message}`)
+    }
+
+    if (!res.ok) {
+      throw new GatewayError(`AI gateway responded ${res.status} to the usage read`)
+    }
+
+    return res.json()
+  }
+
+  return { chat, usage }
 }

@@ -124,7 +124,7 @@ const gql = (app, token, query, variables) =>
     .set('Authorization', `Bearer ${token}`)
     .send({ query, variables })
 
-const FR_FIELDS = `id status model linearProjectId
+const FR_FIELDS = `id status model linearProjectId linearProjectUrl
   tickets { key identifier url }
   plan { tickets { key } }
   approvable`
@@ -283,7 +283,7 @@ test('approving an approvable session files one project, one issue per plan tick
 
 // --- criterion 4: persistence + the returned FeatureRequest ---
 
-test('approval persists status "building", linearProjectId, and per-ticket identities, and the returned FeatureRequest reflects all of it', async () => {
+test('approval persists status "building", linearProjectId, linearProjectUrl, and per-ticket identities, and the returned FeatureRequest reflects all of it', async () => {
   const linear = fakeLinearClient()
   const app = makeApp(linear)
   const id = await seedSession()
@@ -295,6 +295,8 @@ test('approval persists status "building", linearProjectId, and per-ticket ident
   assert.equal(fr.id, id)
   assert.equal(fr.status, 'building')
   assert.equal(fr.linearProjectId, PROJECT_ID)
+  // DAN-80: the projectCreate url is persisted and served at approval time.
+  assert.equal(fr.linearProjectUrl, PROJECT_URL)
   assert.deepEqual(fr.tickets, [
     { key: 'T1', identifier: 'DAN-101', url: 'https://linear.app/fixture/issue/DAN-101' },
     { key: 'T2', identifier: 'DAN-102', url: 'https://linear.app/fixture/issue/DAN-102' },
@@ -304,6 +306,7 @@ test('approval persists status "building", linearProjectId, and per-ticket ident
   const doc = await featureRequests().findOne({ _id: new ObjectId(id) })
   assert.equal(doc.status, 'building')
   assert.equal(doc.linearProjectId, PROJECT_ID)
+  assert.equal(doc.linearProjectUrl, PROJECT_URL, 'the url is persisted, not just echoed')
   assert.deepEqual(doc.tickets, [
     { key: 'T1', linearIssueId: 'issue-id-1', identifier: 'DAN-101', url: 'https://linear.app/fixture/issue/DAN-101' },
     { key: 'T2', linearIssueId: 'issue-id-2', identifier: 'DAN-102', url: 'https://linear.app/fixture/issue/DAN-102' },
@@ -351,6 +354,7 @@ test('a Linear failure mid-creation → 200 with INTERNAL, session stays "gather
   const doc = await featureRequests().findOne({ _id: new ObjectId(id) })
   assert.equal(doc.status, 'gathering', 'the session stays gathering')
   assert.equal(doc.linearProjectId, undefined, 'no project id persisted')
+  assert.equal(doc.linearProjectUrl, undefined, 'no project url persisted')
   assert.equal(doc.tickets, undefined, 'no tickets persisted')
 
   // Retry with a healthy client succeeds (partial cleanup is out of scope —
@@ -403,16 +407,70 @@ test('approval without a token → HTTP 401 from the gate, zero Linear calls', a
 
 // --- the pre-approval read path: new fields are null before approval ---
 
-test('linearProjectId and tickets are null on a session that has not been approved', async () => {
+test('linearProjectId, linearProjectUrl, and tickets are null on a session that has not been approved', async () => {
   const linear = fakeLinearClient()
   const app = makeApp(linear)
   const id = await seedSession()
 
   const res = await gql(app, ALICE, `query ($id: ID!) {
-    featureRequest(id: $id) { linearProjectId tickets { key } }
+    featureRequest(id: $id) { linearProjectId linearProjectUrl tickets { key } }
   }`, { id })
 
   assert.equal(res.body.errors, undefined)
   assert.equal(res.body.data.featureRequest.linearProjectId, null)
+  assert.equal(res.body.data.featureRequest.linearProjectUrl, null)
   assert.equal(res.body.data.featureRequest.tickets, null)
+})
+
+// --- DAN-80: legacy sessions — approved before linearProjectUrl existed ---
+
+test('a legacy building session with no stored linearProjectUrl serves null without erroring', async () => {
+  const app = makeApp(fakeLinearClient())
+  // Seeded exactly as DAN-51 persisted it: project id and tickets, no url.
+  const { insertedId } = await featureRequests().insertOne({
+    uid: 'uid-alice',
+    status: 'building',
+    model: 'claude-opus-5',
+    messages: [
+      { role: 'user', content: 'legacy session', createdAt: new Date() },
+    ],
+    createdAt: new Date(),
+    plan: PLAN,
+    entranceCriteria: gates(),
+    linearProjectId: PROJECT_ID,
+    tickets: [
+      { key: 'T1', linearIssueId: 'issue-id-1', identifier: 'DAN-101', url: 'https://linear.app/fixture/issue/DAN-101' },
+    ],
+  })
+  const id = insertedId.toString()
+
+  const res = await gql(app, ALICE, `query ($id: ID!) {
+    featureRequest(id: $id) { status linearProjectId linearProjectUrl tickets { key } }
+  }`, { id })
+
+  assert.equal(res.body.errors, undefined, 'a legacy session must not error')
+  assert.equal(res.body.data.featureRequest.status, 'building')
+  assert.equal(res.body.data.featureRequest.linearProjectId, PROJECT_ID)
+  assert.equal(res.body.data.featureRequest.linearProjectUrl, null, 'no stored url serves null')
+  assert.deepEqual(res.body.data.featureRequest.tickets, [{ key: 'T1' }])
+})
+
+test('legacy sessions in the list view also serve linearProjectUrl null without erroring', async () => {
+  const app = makeApp(fakeLinearClient())
+  await featureRequests().insertOne({
+    uid: 'uid-alice',
+    status: 'building',
+    model: 'claude-opus-5',
+    messages: [],
+    createdAt: new Date(),
+    linearProjectId: PROJECT_ID,
+    tickets: [],
+  })
+
+  const res = await gql(app, ALICE, `query {
+    featureRequests { status linearProjectUrl }
+  }`)
+
+  assert.equal(res.body.errors, undefined)
+  assert.deepEqual(res.body.data.featureRequests, [{ status: 'building', linearProjectUrl: null }])
 })
