@@ -18,6 +18,8 @@ import {
   deleteRecord,
 } from './records.js'
 import { ValidationError } from './schema.js'
+import { QuotaExhaustedError } from './aiGateway.js'
+import { getUsage } from './aiUsage.js'
 
 // SDL built with graphql's own buildSchema — no @graphql-tools, because this flat
 // surface has no nested type resolvers or custom scalars to wire.
@@ -60,9 +62,18 @@ export const schema = buildSchema(`
     notes: String
   }
 
+  # DAN-48: the caller's AI usage ledger, read by the frontend's quota meter.
+  # Written by the AI gateway client (aiGateway.js) on each successful call;
+  # the collection is owned by aiUsage.js.
+  type AiUsage {
+    requests: Int!
+    totalTokens: Int!
+  }
+
   type Query {
     records: [Record!]!
     record(id: ID!): Record
+    myAiUsage: AiUsage!
   }
 
   type Mutation {
@@ -92,7 +103,16 @@ function toWire(record) {
 //   NotFoundError   (404)        -> NOT_FOUND, message "record not found"
 //   anything else                -> logged server-side; INTERNAL, generic message
 //                                    (the same don't-leak rule as the middleware's 5xx)
+// DAN-48 adds one branch: the AI gateway's 429 becomes QUOTA_EXHAUSTED with a
+// human-readable message. Every OTHER gateway failure (GatewayError, network,
+// misconfiguration) deliberately has NO branch — it falls through to INTERNAL,
+// which logs the real error server-side and never leaks gateway details.
 function mapError(err) {
+  if (err instanceof QuotaExhaustedError) {
+    return new GraphQLError(err.message, {
+      extensions: { code: 'QUOTA_EXHAUSTED' },
+    })
+  }
   if (err instanceof ValidationError) {
     return new GraphQLError(err.message, {
       extensions: { code: 'BAD_USER_INPUT', field: err.field },
@@ -113,10 +133,14 @@ function mapError(err) {
 // Wrap a resolver so every thrown data-layer error goes through mapError. A single
 // wrapper rather than a graphql-http formatError hook keeps the mapping plain
 // JavaScript — testable without the HTTP layer and not coupled to any handler option.
-function resolver(fn) {
-  return async (args) => {
+// Exported (DAN-48) so gateway-facing suites can exercise the exact mapping
+// chain a production resolver uses. Arguments pass through untouched: buildSchema
+// root fields are called (args, context, info), and context is how a resolver
+// reaches the injected aiGateway and the caller's uid (see index.js).
+export function resolver(fn) {
+  return async (...forwarded) => {
     try {
-      return await fn(args)
+      return await fn(...forwarded)
     } catch (err) {
       throw mapError(err)
     }
@@ -127,6 +151,11 @@ function resolver(fn) {
 // called with the field's arguments. Each is the same one-liner the REST handler was.
 export const rootValue = {
   records: resolver(async () => (await listRecords()).map(toWire)),
+  // DAN-48: the caller's usage totals — zeros for a fresh user, never null.
+  // The uid comes from the GraphQL context (threaded by the auth gate through
+  // createHandler's context fn in index.js), never from an argument, so a user
+  // can only ever read their own ledger.
+  myAiUsage: resolver(async (_args, context) => getUsage(context.uid)),
   record: resolver(async ({ id }) => toWire(await getRecord(id))),
   createRecord: resolver(async ({ input }) => toWire(await createRecord(input))),
   updateRecord: resolver(async ({ id, input }) => toWire(await updateRecord(id, input))),

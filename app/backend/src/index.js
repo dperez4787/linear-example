@@ -1,6 +1,7 @@
 import express from 'express'
 import { createHandler } from 'graphql-http/lib/use/express'
 
+import { createAiGateway } from './aiGateway.js'
 import { authGate, firebaseVerifyToken } from './auth.js'
 import { connect } from './db.js'
 import { schema, rootValue } from './graphql.js'
@@ -11,7 +12,12 @@ const PORT = process.env.PORT ?? 8080
 // network); it defaults to the firebase-admin wrapper, which initializes lazily on
 // first use so boot and /health stay credential- and network-free. See auth.js and
 // docs/architecture.md (Authentication).
-export function createApp({ verifyToken = firebaseVerifyToken } = {}) {
+// DAN-48: the AI gateway client is injected through the same seam. The default
+// factory reads AI_GATEWAY_URL/AI_GATEWAY_KEY lazily inside chat() — never at
+// import or app construction — so booting with neither set still serves /health.
+// Resolvers reach the instance through the GraphQL context and never construct
+// their own client.
+export function createApp({ verifyToken = firebaseVerifyToken, aiGateway = createAiGateway() } = {}) {
   const app = express()
 
   app.use(express.json())
@@ -35,7 +41,17 @@ export function createApp({ verifyToken = firebaseVerifyToken } = {}) {
   // next(err), before any GraphQL parsing and without ever reaching the data layer.
   // It must live under /api/** or the Firebase Hosting rewrite never routes it to
   // Cloud Run. See docs/architecture.md (GraphQL API) and graphql.js.
-  app.use('/api/graphql', authGate(verifyToken), createHandler({ schema, rootValue }))
+  // The context fn hands each execution the caller's uid (set on the raw Express
+  // request by the auth gate — DAN-48) and the injected aiGateway instance.
+  app.use(
+    '/api/graphql',
+    authGate(verifyToken),
+    createHandler({
+      schema,
+      rootValue,
+      context: (req) => ({ uid: req.raw.uid, aiGateway }),
+    }),
+  )
 
   // One error middleware maps thrown errors to status codes. Validation errors
   // from the schema/data layer carry `status` (400) and `field`; anything else
