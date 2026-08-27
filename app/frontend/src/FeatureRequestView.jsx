@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import {
   approveFeatureRequestPlan,
+  featureRequest,
   myAiUsage,
   sendFeatureRequestMessage,
   startFeatureRequest,
@@ -144,7 +145,19 @@ function AssistantMessage({ role, content, animate, onDone }) {
   )
 }
 
-export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) {
+// DAN-82 adds two routing props, both optional so every pre-routing caller
+// (and test) keeps working unchanged:
+//  - `requestId`: the `/requests/:id` deep link's id. When set, the view loads
+//    that session (fetch-and-adopt, below) instead of offering a fresh start.
+//  - `onNavigate(path)`: the App-owned pushState navigation. The view calls it
+//    at exactly the moments a session acquires a URL of its own — opening a
+//    list entry, and the approval hand-off — and never touches history itself.
+export default function FeatureRequestView({
+  model = 'claude-opus-5',
+  onBack,
+  requestId = null,
+  onNavigate = () => {},
+}) {
   const [request, setRequest] = useState(null)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
@@ -210,7 +223,7 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
   //    the same "present at first render" rule, re-applied at reopen.
   //  - the locked picker adopts the session's model, so the disabled radios
   //    show what the conversation was actually started with.
-  function handleOpenExisting(existing) {
+  function adoptRequest(existing) {
     revealedRef.current = new Set(
       (existing.messages ?? []).map((_, index) => index),
     )
@@ -219,6 +232,86 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
     }
     setRequest(existing)
   }
+
+  // Opening from the list is adoption plus a URL: the session gets its
+  // `/requests/:id` history entry (DAN-82), so reload restores it and Back
+  // returns to the list. The reconcile effect below sees the adopted id
+  // already matches the new requestId prop and fetches nothing — the DAN-74
+  // no-refetch reopen is preserved.
+  function handleOpenExisting(existing) {
+    adoptRequest(existing)
+    onNavigate(`/requests/${existing.id}`)
+  }
+
+  // DAN-82: a deep-linked session that failed to load — NOT_FOUND, network.
+  // Its own channel (not `error`): the failure happened before any
+  // conversation existed, and it replaces the whole surface rather than
+  // annotating one.
+  const [loadError, setLoadError] = useState(null)
+  // The deep link is unresolved until the fetched session is adopted; while
+  // true the view renders a placeholder instead of the fresh-start surface,
+  // so a usable composer never flashes before the transcript arrives.
+  const loadingDeepLink =
+    requestId !== null && request?.id !== requestId && loadError === null
+
+  // Reset to the fresh start-a-request surface. Runs when Back (or forward)
+  // lands on bare `/requests` from a session URL: the same instance stays
+  // mounted (App renders the whole `/requests` subtree without a key), so the
+  // session state must be cleared by hand — including revealedRef, so the next
+  // adopted transcript pre-seeds from a clean slate.
+  function resetSession() {
+    revealedRef.current = new Set()
+    setRequest(null)
+    setPendingMessages([])
+    setDraft('')
+    setError(null)
+    setApproveError(null)
+    setLoadError(null)
+    setSelectedModel(model)
+  }
+
+  // Reconcile the requestId prop (the URL) with the session in state. Three
+  // transitions matter, keyed off the PREVIOUS requestId (a ref, so a session
+  // legitimately started while sitting on bare `/requests` — where requestId
+  // stays null throughout — is never mistaken for a back-navigation and
+  // reset):
+  //  - id appeared or changed, and it isn't the session already held → fetch
+  //    the request and reuse the DAN-74 adoption path (gathering → chat with
+  //    the transcript pre-revealed and the picker locked to the session's
+  //    model; building → the DAG). This is the deep-link cold load, and also
+  //    forward-button re-entry after Back.
+  //  - id appeared but matches the held session (approval just pushed the
+  //    URL, or a list entry was opened) → nothing to do; state survives the
+  //    navigation with no refetch.
+  //  - id went away after being present (Back to `/requests`) → reset to the
+  //    fresh surface.
+  // StrictMode's double-invoke just aborts the first fetch's adoption via the
+  // cancelled flag and lets the second run land — featureRequest is a read.
+  const prevRequestIdRef = useRef(requestId)
+  useEffect(() => {
+    const previousId = prevRequestIdRef.current
+    prevRequestIdRef.current = requestId
+    if (requestId === null) {
+      if (previousId !== null) resetSession()
+      return undefined
+    }
+    if (request?.id === requestId) return undefined
+    let cancelled = false
+    setLoadError(null)
+    async function load() {
+      try {
+        const fetched = await featureRequest(requestId)
+        if (!cancelled) adoptRequest(fetched)
+      } catch (err) {
+        if (!cancelled) setLoadError(err.message)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestId])
 
   // Refresh the quota meter. A failed read never blocks the chat — the meter
   // just keeps its last value — but a QUOTA_EXHAUSTED rejection flips the same
@@ -364,6 +457,13 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
     try {
       const updated = await approveFeatureRequestPlan(request.id)
       setRequest(updated)
+      // DAN-82: the approval hand-off is the moment the session becomes a
+      // destination — push its URL so reload reopens this build view and Back
+      // returns to the pre-approval surface. App's navigate() skips the push
+      // when the session was reopened from `/requests/:id` and the URL is
+      // already current. The reconcile effect sees the id already adopted and
+      // fetches nothing.
+      onNavigate(`/requests/${updated.id}`)
     } catch (err) {
       if (isQuotaExhausted(err)) {
         setQuotaExhausted(true)
@@ -378,6 +478,27 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
     } finally {
       setApproving(false)
     }
+  }
+
+  // DAN-82: an unresolved deep link renders only the frame — never a live
+  // composer that could start a brand-new session while the linked one is
+  // still in flight, and never the "My requests" list under a session URL. A
+  // failed load says so (role=alert) and leaves Back as the way out; the rest
+  // of the surface below assumes any requestId has been adopted.
+  if (requestId !== null && request?.id !== requestId) {
+    return (
+      <>
+        <button className="btn" type="button" onClick={onBack}>
+          Back to records
+        </button>
+        <h1>Request a feature</h1>
+        {loadingDeepLink ? (
+          <p className="empty-state">Loading session…</p>
+        ) : (
+          <p role="alert">Couldn’t load this request: {loadError}</p>
+        )}
+      </>
+    )
   }
 
   return (

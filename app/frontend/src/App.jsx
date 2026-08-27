@@ -14,15 +14,54 @@ import RecordTable from './RecordTable.jsx'
 // awaiting that stale promise again would replay pre-edit data. Reconciling each
 // mutation from its own single-record response keeps the list authoritative
 // without ever touching that ref again.
+
+// -- DAN-82: History-API routing ---------------------------------------------
+//
+// DAN-53's state-based view switch grows real URLs, still with no router
+// dependency: the app has exactly three paths, and a hand-rolled parse of
+// location.pathname is less for the next reader to learn than a router's API.
+//  - `/`             → the records table (and the fallback for unknown paths,
+//                      so a mistyped deep link degrades to the home view
+//                      instead of a dead end)
+//  - `/requests`     → the request-a-feature surface: picker + composer with
+//                      the DAN-74 "My requests" list underneath
+//  - `/requests/:id` → one feature-request session, loaded by id (chat while
+//                      it is gathering, the DAN-55 build DAG once building)
+// Everything renders inside AuthGate exactly as before (main.jsx wraps App),
+// so every path sits behind the same sign-in gate. Firebase Hosting rewrites
+// `**` to the SPA, so a deep link cold-loads this same bundle and the mount
+// parse below picks the view.
+//
+// parseRoute is the single source of truth for pathname → view; exported for
+// tests. The id segment is percent-decoded (ids are server-generated and safe,
+// but a hand-typed malformed escape must not crash the parse — it falls back
+// to the raw segment).
+export function parseRoute(pathname) {
+  if (pathname === '/requests' || pathname === '/requests/') {
+    return { view: 'feature-request', requestId: null }
+  }
+  const match = /^\/requests\/([^/]+)\/?$/.exec(pathname)
+  if (match) {
+    let id = match[1]
+    try {
+      id = decodeURIComponent(id)
+    } catch {
+      // Malformed percent-escape — keep the raw segment.
+    }
+    return { view: 'feature-request', requestId: id }
+  }
+  return { view: 'records', requestId: null }
+}
+
 export default function App() {
-  // Which view is showing (DAN-53). State-based switching, no router — the app
-  // has one other view and a router would be a dependency the next reader has
-  // to learn. Both views render inside AuthGate (main.jsx wraps App), so the
-  // feature-request view is behind the same sign-in gate as the records table,
-  // and flipping this state never reloads the page. The records state below
-  // stays mounted-and-owned by App while the chat is showing, so coming back
-  // is instant and re-fetches nothing.
-  const [view, setView] = useState('records') // 'records' | 'feature-request'
+  // The current route, parsed from the real URL at mount (deep links) and kept
+  // in sync two ways: navigate() below for in-app transitions (pushState, so
+  // the URL changes with no reload) and the popstate listener for the browser's
+  // back/forward buttons. The records state below stays mounted-and-owned by
+  // App while the records view shows, exactly as before.
+  const [route, setRoute] = useState(() =>
+    parseRoute(window.location.pathname),
+  )
   const [records, setRecords] = useState([])
   const [status, setStatus] = useState('loading') // 'loading' | 'ready' | 'error'
   const [error, setError] = useState(null)
@@ -36,6 +75,29 @@ export default function App() {
   // both effect runs await the *same* promise — the request goes out exactly once,
   // and the surviving second effect still applies the result.
   const requestRef = useRef(null)
+
+  // In-app navigation: push the new URL onto history, then render the view for
+  // it. Pushing an entry the user is already on would make Back a no-op click
+  // eater, so an already-current path only re-syncs state. Handed down to the
+  // feature-request view, whose approval hand-off and list clicks push
+  // `/requests/:id` through this same function.
+  function navigate(path) {
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, '', path)
+    }
+    setRoute(parseRoute(path))
+  }
+
+  useEffect(() => {
+    // Back/forward: the browser already moved the URL; re-parse it into view
+    // state. Mount-only — the listener reads location fresh on every event, so
+    // it never goes stale.
+    function onPopState() {
+      setRoute(parseRoute(window.location.pathname))
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
 
   useEffect(() => {
     // `cancelled` guards against setting state after this effect run is torn down
@@ -112,10 +174,18 @@ export default function App() {
     }
   }
 
-  if (view === 'feature-request') {
+  if (route.view === 'feature-request') {
+    // One mounted instance covers `/requests` and `/requests/:id` (no key), so
+    // navigating between the list and a session keeps component state alive —
+    // the view reconciles a changing requestId itself (fetch-and-adopt on a
+    // deep link, reset when Back lands on the bare list).
     return (
       <main className="container">
-        <FeatureRequestView onBack={() => setView('records')} />
+        <FeatureRequestView
+          requestId={route.requestId}
+          onNavigate={navigate}
+          onBack={() => navigate('/')}
+        />
       </main>
     )
   }
@@ -127,7 +197,7 @@ export default function App() {
         <button
           className="btn"
           type="button"
-          onClick={() => setView('feature-request')}
+          onClick={() => navigate('/requests')}
         >
           Request a feature
         </button>
