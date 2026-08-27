@@ -226,11 +226,19 @@ describe('DAN-89 AC1/AC2 · the primary button is blue, and green in no state', 
     expect(paint('color', { classes: primary, states })).toBe(WHITE)
   })
 
-  it('hover keeps the shared .btn:hover grey — pre-existing, identical on main and pre-#65', () => {
-    // Pinned, not endorsed: Chrome renders rgb(246, 248, 250) here on the
-    // pre-#65 sheet, on green `main`, and on this branch. Unchanged by DAN-89.
-    expect(paint('background', { classes: primary, states: ['hover'] })).toBe(SUBTLE)
+  // AMENDED BY DAN-92 (was: 'hover keeps the shared .btn:hover grey — pre-existing,
+  // identical on main and pre-#65'). This test pinned the grey hover fill as a
+  // known-bad, out-of-DAN-89-scope quirk: `.btn:hover` (0,2,0) outranked
+  // `.btn--primary` (0,1,0), so the primary went near-white behind its white
+  // label. DAN-92 is the ticket that fixes it, with `.btn.btn--primary:hover` at
+  // (0,3,0). The expectation is inverted rather than deleted, so the state stays
+  // covered and a regression back to the grey still fails here.
+  it('hover keeps the primary blue fill — the grey fall-through was fixed by DAN-92', () => {
+    expect(paint('background', { classes: primary, states: ['hover'] })).toBe(BLUE)
+    expect(paint('border-color', { classes: primary, states: ['hover'] })).toBe(BLUE)
+    // The darkening still comes from .btn--primary:hover, unchanged by DAN-92.
     expect(paint('filter', { classes: primary, states: ['hover'] })).toBe('brightness(0.95)')
+    expect(paint('background', { classes: primary, states: ['hover'] })).not.toBe(SUBTLE)
     expect(paint('background', { classes: primary, states: ['hover'] })).not.toBe(GREEN)
   })
 
@@ -327,7 +335,13 @@ describe('DAN-89 AC3/AC4 · geometry, labels and inventory are untouched', () =>
     expect(paint('display', { classes: ['btn'] })).toBe('inline-flex')
   })
 
-  it('the .btn / .btn--primary block is byte-identical to the pre-#65 stylesheet', () => {
+  // AMENDED BY DAN-92 (was: 'the .btn / .btn--primary block is byte-identical to
+  // the pre-#65 stylesheet'). DAN-92 adds one rule inside this very block, so the
+  // pre-#65 text can no longer be the expectation. The check is still a genuine
+  // byte-for-byte comparison of the whole contiguous block — the new rule and its
+  // comment are reproduced verbatim below, not matched loosely — so it keeps
+  // catching any unannounced edit to the button treatment.
+  it('the .btn / .btn--primary block is byte-identical to pre-#65 plus DAN-92s hover fix', () => {
     const expected = `.btn {
   display: inline-flex;
   align-items: center;
@@ -355,6 +369,23 @@ describe('DAN-89 AC3/AC4 · geometry, labels and inventory are untouched', () =>
 
 .btn--primary:hover {
   filter: brightness(0.95);
+}
+
+/* DAN-92: keep the primary fill on hover.
+
+   \`.btn:hover\` is (0,2,0) and \`.btn--primary\` is only (0,1,0), so the shared
+   secondary hover fill (--color-subtle, a near-white) has always outranked the
+   primary's own background. The label stays white, so hovering any call-to-action
+   made its text vanish (~1.06:1). This rule restores the fill at (0,3,0) — every
+   primary button in the app carries both classes — so the brightness() above
+   darkens the accent instead of the grey.
+
+   Deliberately background/border only. \`filter\` stays on \`.btn--primary:hover\`
+   alone: a filter here would outrank that rule rather than compose with it, so
+   any future pressed/other state override would silently lose to this one. */
+.btn.btn--primary:hover {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 .btn:disabled {

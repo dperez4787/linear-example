@@ -177,6 +177,23 @@ a:hover,
   filter: brightness(0.95);
 }
 
+/* DAN-92: keep the primary fill on hover.
+
+   `.btn:hover` is (0,2,0) and `.btn--primary` is only (0,1,0), so the shared
+   secondary hover fill (--color-subtle, a near-white) has always outranked the
+   primary's own background. The label stays white, so hovering any call-to-action
+   made its text vanish (~1.06:1). This rule restores the fill at (0,3,0) — every
+   primary button in the app carries both classes — so the brightness() above
+   darkens the accent instead of the grey.
+
+   Deliberately background/border only. `filter` stays on `.btn--primary:hover`
+   alone: a filter here would outrank that rule rather than compose with it, so
+   any future pressed/other state override would silently lose to this one. */
+.btn.btn--primary:hover {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
 .btn:disabled {
   opacity: 0.6;
   cursor: default;

@@ -235,21 +235,19 @@ describe('DAN-89 · the primary button is blue again', () => {
     }
   })
 
-  it('hover and pressed keep the shared .btn:hover fill — pre-existing, not this ticket', () => {
-    // `.btn:hover` is (0,2,0) and `.btn--primary` is (0,1,0), so while hovered
-    // (and therefore also while pressed) the shared secondary fill wins and the
-    // primary button goes near-white behind white text.
-    //
-    // This is NOT introduced by DAN-89. Verified in real Chrome against both the
-    // pre-revert (green) and post-revert (blue) stylesheets: hover and
-    // hover+active both resolved to rgb(246, 248, 250) in each. The ticket asks
-    // for the pre-#65 treatment and this *is* the pre-#65 treatment, so fixing
-    // it here would be out of scope. Pinned so the quirk is visible to the next
-    // reader instead of being rediscovered. See the DAN-89 PR/issue comment.
+  // AMENDED BY DAN-92 (was: 'hover and pressed keep the shared .btn:hover fill —
+  // pre-existing, not this ticket'). DAN-89 pinned the grey fall-through as a
+  // known-bad quirk outside its scope and pointed at a future ticket; DAN-92 is
+  // that ticket. `.btn.btn--primary:hover` at (0,3,0) now outranks `.btn:hover`
+  // (0,2,0), so the primary keeps its own fill. Inverted rather than deleted, so
+  // both states stay covered and a regression to the grey still fails here.
+  it('hover and pressed keep the primary fill — the .btn:hover fall-through is fixed', () => {
     for (const state of ['hover', 'active']) {
-      expect(computed('background', { classes: PRIMARY, state })).toBe(ROOT['--color-subtle'])
+      expect(computed('background', { classes: PRIMARY, state })).toBe(ROOT['--color-accent'])
+      expect(computed('background', { classes: PRIMARY, state })).not.toBe(ROOT['--color-subtle'])
     }
     expect(isGreen(ROOT['--color-subtle'])).toBe(false)
+    expect(isGreen(ROOT['--color-accent'])).toBe(false)
   })
 
   it('is green in none of the five states', () => {
