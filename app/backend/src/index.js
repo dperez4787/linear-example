@@ -1,6 +1,7 @@
 import express from 'express'
 import { createHandler } from 'graphql-http/lib/use/express'
 
+import { createAiGateway } from './aiGateway.js'
 import { authGate, firebaseVerifyToken } from './auth.js'
 import { connect } from './db.js'
 import { schema, rootValue } from './graphql.js'
@@ -11,7 +12,12 @@ const PORT = process.env.PORT ?? 8080
 // network); it defaults to the firebase-admin wrapper, which initializes lazily on
 // first use so boot and /health stay credential- and network-free. See auth.js and
 // docs/architecture.md (Authentication).
-export function createApp({ verifyToken = firebaseVerifyToken } = {}) {
+// DAN-48: the AI gateway client is injected through the same seam. The default
+// factory reads AI_GATEWAY_URL/AI_GATEWAY_KEY lazily inside chat() — never at
+// import or app construction — so booting with neither set still serves /health.
+// Resolvers reach the instance through the GraphQL context and never construct
+// their own client.
+export function createApp({ verifyToken = firebaseVerifyToken, aiGateway = createAiGateway() } = {}) {
   const app = express()
 
   app.use(express.json())
@@ -35,6 +41,9 @@ export function createApp({ verifyToken = firebaseVerifyToken } = {}) {
   // next(err), before any GraphQL parsing and without ever reaching the data layer.
   // It must live under /api/** or the Firebase Hosting rewrite never routes it to
   // Cloud Run. See docs/architecture.md (GraphQL API) and graphql.js.
+  // The context fn hands each execution the caller's uid (from the decoded
+  // token the auth gate attached to req.auth) and the injected aiGateway.
+
   app.use(
     '/api/graphql',
     authGate(verifyToken),
@@ -44,9 +53,8 @@ export function createApp({ verifyToken = firebaseVerifyToken } = {}) {
       // Thread the verified caller's identity into GraphQL execution. The gate
       // attached the decoded token to req.auth (see auth.js); req.raw is the
       // Express request underneath graphql-http's adapter. Feature-request
-      // resolvers read uid from this context (DAN-47); the records resolvers
-      // ignore it.
-      context: (req) => ({ uid: req.raw.auth.uid }),
+      // resolvers read uid from this context; records resolvers ignore it.
+      context: (req) => ({ uid: req.raw.auth.uid, aiGateway }),
     }),
   )
 
