@@ -134,6 +134,9 @@ export const schema = buildSchema(`
     messages: [FeatureRequestMessage!]!
     plan: Plan
     entranceCriteria: EntranceCriteria!
+    # DAN-75: true only when all three entrance gates pass AND a plan is
+    # stored — exactly the precondition approveFeatureRequestPlan enforces,
+    # so the Approve button can never promise what the mutation refuses.
     approvable: Boolean!
     # DAN-51: nullable — set when approval files the Linear project/tickets.
     linearProjectId: String
@@ -271,8 +274,10 @@ export function resolver(fn) {
 // DAN-50: entranceCriteria and approvable are presentation-synthesized here.
 // A session with no stored evaluation (virgin — no exchange has run yet)
 // exposes the three "not yet evaluated" gates rather than storing them, and
-// approvable is always derived from the gates, never persisted — so it cannot
-// drift from the criteria it summarizes.
+// approvable is always derived, never persisted — so it cannot drift from the
+// state it summarizes. DAN-75: approvable also requires a stored plan — the
+// approve mutation refuses without one, and this bit must never promise what
+// that mutation would refuse.
 function toWireFeatureRequest(featureRequest) {
   const entranceCriteria = featureRequest.entranceCriteria ?? unevaluatedEntranceCriteria()
   return {
@@ -283,7 +288,7 @@ function toWireFeatureRequest(featureRequest) {
       createdAt: message.createdAt.toISOString(),
     })),
     entranceCriteria,
-    approvable: isApprovable(entranceCriteria),
+    approvable: isApprovable(entranceCriteria, featureRequest.plan),
   }
 }
 

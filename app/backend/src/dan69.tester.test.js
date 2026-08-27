@@ -86,7 +86,9 @@ function completion(content) {
 // Capturing scripted fetch answering per metadata.role. `failRole` makes that
 // one role's call fail with `failStatus`.
 function scriptedFetch({
-  planContent = JSON.stringify({ tickets: [] }),
+  // Converged by default: DAN-75 made approvable require a stored plan, and
+  // the criterion-1 tests here assert the gates axis with that satisfied.
+  planContent = JSON.stringify(PLAN),
   evalContent = JSON.stringify(ALL_PASS),
   failRole,
   failStatus = 429,
