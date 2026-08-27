@@ -18,11 +18,17 @@ import { ValidationError } from './schema.js'
 
 const COLLECTION = 'feature_requests'
 
-// The models a session may be opened against. Validation lives here (not in
+// The models a session may be opened against — the full gateway roster
+// (DAN-65), matching what the gateway serves. Validation lives here (not in
 // schema.js, which is the Record validation module) but throws the same
 // ValidationError class, so the one GraphQL error mapper turns it into the
 // same BAD_USER_INPUT + field shape as every record validation failure.
-export const FEATURE_REQUEST_MODELS = ['claude-opus-5']
+export const FEATURE_REQUEST_MODELS = [
+  'claude-opus-5',
+  'gpt-5.6-terra',
+  'gemini-3.6-flash',
+  'gpt-oss-120b',
+]
 
 function collection() {
   return getDb().collection(COLLECTION)
@@ -244,9 +250,16 @@ function parsePlan(content) {
 
 // The agent harness each session model maps to, for the `agent:<harness>`
 // label on every filed issue. The ONE place this mapping lives; an unknown
-// model falls back to the claude harness — every model the session validator
-// accepts today runs on it anyway.
-export const HARNESS_BY_MODEL = { 'claude-opus-5': 'claude' }
+// model falls back to the claude harness. The non-claude roster models map to
+// the claude harness FOR NOW — it is the only harness that exists; per-model
+// harness routing arrives with its own ticket (DAN-65 scopes this to the
+// mapping only).
+export const HARNESS_BY_MODEL = {
+  'claude-opus-5': 'claude',
+  'gpt-5.6-terra': 'claude',
+  'gemini-3.6-flash': 'claude',
+  'gpt-oss-120b': 'claude',
+}
 const DEFAULT_HARNESS = 'claude'
 
 // Project names derive from the session's first user message, truncated so a

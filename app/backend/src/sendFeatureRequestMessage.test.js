@@ -134,8 +134,8 @@ const SEND = `mutation ($id: ID!, $content: String!) {
 const GET = `query ($id: ID!) { featureRequest(id: $id) { ${FR_FIELDS} } }`
 const USAGE = '{ myAiUsage { requests totalTokens } }'
 
-async function startSession(app, token) {
-  const res = await gql(app, token, START, { input: { model: 'claude-opus-5' } })
+async function startSession(app, token, model = 'claude-opus-5') {
+  const res = await gql(app, token, START, { input: { model } })
   assert.equal(res.body.errors, undefined)
   return res.body.data.startFeatureRequest.id
 }
@@ -239,6 +239,36 @@ test('the PO and architect calls carry each roles/<role>.md file as system messa
   assert.deepEqual(plannerCall.body.response_format, { type: 'json_object' })
   assert.equal(plannerCall.body.metadata.prompt_id, id)
 })
+
+// --- DAN-65: every roster model threads through to the conversational calls ---
+
+// A session started with each roster model sends THAT model on its
+// conversational gateway calls (PO, architect, planner — all doc.model), while
+// the entrance-criteria evaluator keeps its own cheap-model constant
+// regardless of the session's choice.
+for (const model of ['claude-opus-5', 'gpt-5.6-terra', 'gemini-3.6-flash', 'gpt-oss-120b']) {
+  test(`a ${model} session sends ${model} on conversational calls; the evaluator keeps its cheap model`, async () => {
+    const { ENTRANCE_CRITERIA_MODEL } = await import('./featureRequests.js')
+    const fetch = scriptedFetch()
+    const app = makeApp(fetch)
+    const id = await startSession(app, ALICE, model)
+
+    const res = await gql(app, ALICE, SEND, { id, content: 'CSV export please' })
+    assert.equal(res.body.errors, undefined)
+
+    assert.equal(fetch.calls.length, 4, 'PO, architect, planner, evaluator')
+    for (const role of ['product-owner', 'architect', 'planner']) {
+      const call = fetch.calls.find((c) => c.body.metadata.role === role)
+      assert.equal(call.body.model, model, `the ${role} call carries the session model`)
+    }
+    const evaluatorCall = fetch.calls.find((c) => c.body.metadata.role === 'entrance-criteria')
+    assert.equal(
+      evaluatorCall.body.model,
+      ENTRANCE_CRITERIA_MODEL,
+      'the evaluator uses its own cheap-model constant, not the session model',
+    )
+  })
+}
 
 // --- criterion 3: a structured-JSON plan persists and is exposed ---
 
