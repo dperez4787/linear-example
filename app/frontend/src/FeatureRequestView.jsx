@@ -6,6 +6,7 @@ import {
   sendFeatureRequestMessage,
   startFeatureRequest,
 } from './api.js'
+import WatchBuild from './WatchBuild.jsx'
 
 // The "Request a feature" chat pane (DAN-53), extended by DAN-54 with the model
 // picker, the entrance-criteria checklist, the quota meter, the friendly
@@ -282,10 +283,9 @@ export default function FeatureRequestView({ model = 'claude-opus-5', onBack }) 
         error && <p role="alert">{error}</p>
       )}
       {building ? (
-        <p role="status" className="build-handoff">
-          Plan approved — the team is building this feature. Progress will
-          appear here once the build view ships.
-        </p>
+        // DAN-55: the hand-off is no longer a placeholder — the approved
+        // request's id is the promptId the build view polls progress for.
+        <WatchBuild promptId={request.id} />
       ) : (
         <form className="chat-composer" onSubmit={handleSubmit}>
           <label className="chat-composer__field field--grow">
