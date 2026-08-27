@@ -178,3 +178,60 @@ test('a non-2xx response, a GraphQL-level error, and a network failure all throw
     (err) => err instanceof LinearError && /socket hang up/.test(err.message),
   )
 })
+
+// --- issuesProgress (DAN-52): one query, per-issue progress fields ---
+
+test('issuesProgress reads all issues in ONE GraphQL query and returns the raw nodes', async () => {
+  process.env.LINEAR_API_KEY = 'lin_api_fixture'
+  const nodes = [
+    {
+      id: 'issue-1',
+      identifier: 'DAN-101',
+      title: 'Backend: export query',
+      url: 'https://linear.app/fixture/issue/DAN-101',
+      state: { name: 'In Progress', type: 'started' },
+      attachments: { nodes: [] },
+      inverseRelations: { nodes: [] },
+    },
+    {
+      id: 'issue-2',
+      identifier: 'DAN-102',
+      title: 'Frontend: export button',
+      url: 'https://linear.app/fixture/issue/DAN-102',
+      state: { name: 'Backlog', type: 'backlog' },
+      attachments: { nodes: [{ url: 'https://github.com/o/r/pull/7', sourceType: 'github' }] },
+      inverseRelations: { nodes: [{ type: 'blocks', issue: { id: 'issue-1' } }] },
+    },
+  ]
+  const fetchImpl = scriptedFetch({ issues: { nodes } })
+  const client = createLinearClient({ fetch: fetchImpl })
+
+  const result = await client.issuesProgress(['issue-1', 'issue-2'])
+
+  assert.deepEqual(result, nodes, 'raw Linear nodes — mapping lives in the data layer')
+  assert.equal(fetchImpl.calls.length, 1, 'one round trip for the whole set, never one per issue')
+  const { body } = fetchImpl.calls[0]
+  assert.deepEqual(body.variables, { ids: ['issue-1', 'issue-2'] })
+  // The query must request every field the DAN-52 mapping consumes.
+  for (const field of [
+    'identifier',
+    'title',
+    'url',
+    'state',
+    'attachments',
+    'sourceType',
+    'inverseRelations',
+  ]) {
+    assert.match(body.query, new RegExp(field), `query selects ${field}`)
+  }
+})
+
+test('issuesProgress without LINEAR_API_KEY throws a LinearError and never touches the transport', async () => {
+  const fetchImpl = scriptedFetch()
+  const client = createLinearClient({ fetch: fetchImpl })
+  await assert.rejects(
+    () => client.issuesProgress(['issue-1']),
+    (err) => err instanceof LinearError && /LINEAR_API_KEY/.test(err.message),
+  )
+  assert.equal(fetchImpl.calls.length, 0)
+})

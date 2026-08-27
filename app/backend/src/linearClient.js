@@ -153,5 +153,45 @@ export function createLinearClient({ fetch: fetchImpl = globalThis.fetch } = {})
     return idsByName
   }
 
-  return { config, createProject, createIssue, createRelation, findOrCreateLabels }
+  // Read live build progress for a set of issues in ONE GraphQL query
+  // (DAN-52): the watch-it-build view polls this per session, so one round
+  // trip per poll, never one per issue. Returns Linear's raw per-issue nodes —
+  //   { id, identifier, title, url, state { name, type },
+  //     attachments { nodes { url, sourceType } },
+  //     inverseRelations { nodes { type, issue { id } } } }
+  // — and the mapping to the DAN-52 wire shape (state names, PR detection,
+  // blockedBy) lives in the data layer (featureRequests.js), not here: this
+  // module owns transport, not presentation.
+  //
+  // `inverseRelations` are the relations where this issue is the TARGET
+  // (relatedIssue): for a "blocks" relation, `issue` is the blocker — which is
+  // exactly what "blocked by" needs.
+  async function issuesProgress(issueIds) {
+    const data = await gql(
+      `query ($ids: [ID!]!) {
+        issues(filter: { id: { in: $ids } }) {
+          nodes {
+            id
+            identifier
+            title
+            url
+            state { name type }
+            attachments { nodes { url sourceType } }
+            inverseRelations { nodes { type issue { id } } }
+          }
+        }
+      }`,
+      { ids: issueIds },
+    )
+    return data.issues.nodes
+  }
+
+  return {
+    config,
+    createProject,
+    createIssue,
+    createRelation,
+    findOrCreateLabels,
+    issuesProgress,
+  }
 }

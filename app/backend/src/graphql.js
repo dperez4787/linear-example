@@ -26,6 +26,7 @@ import {
   getFeatureRequest,
   sendFeatureRequestMessage,
   approveFeatureRequestPlan,
+  featureRequestProgress,
   unevaluatedEntranceCriteria,
   isApprovable,
 } from './featureRequests.js'
@@ -142,12 +143,32 @@ export const schema = buildSchema(`
     model: String!
   }
 
+  # DAN-52: live per-ticket build status for the watch-it-build view, read
+  # from Linear on demand (with a short server-side cache). One node per filed
+  # ticket. \`state\` is one of BACKLOG | IN_PROGRESS | IN_REVIEW | DONE |
+  # BOUNCED — a String, not an enum, for the same reason Record.status is
+  # (the mapping in featureRequests.js is the single enforcement point, and an
+  # enum would be a second copy of the list that can drift). \`prUrl\` is the
+  # issue's PR attachment url when one exists, else null; \`blockedBy\` lists
+  # the Linear issue ids this ticket is blocked by. Field names are the DAN-55
+  # frontend contract — do not rename.
+  type TicketProgress {
+    issueId: ID!
+    identifier: String!
+    title: String!
+    state: String!
+    issueUrl: String!
+    prUrl: String
+    blockedBy: [ID!]!
+  }
+
   type Query {
     records: [Record!]!
     record(id: ID!): Record
     myAiUsage: AiUsage!
     featureRequests: [FeatureRequest!]!
     featureRequest(id: ID!): FeatureRequest
+    featureRequestProgress(promptId: ID!): [TicketProgress!]!
   }
 
   type Mutation {
@@ -297,6 +318,13 @@ export const rootValue = {
   // they are plain strings all the way down.
   approveFeatureRequestPlan: contextResolver(async ({ id }, { uid, linearClient }) =>
     toWireFeatureRequest(await approveFeatureRequestPlan(uid, id, linearClient)),
+  ),
+  // DAN-52: same linearClient seam. The data layer returns wire-ready plain
+  // strings/nulls/arrays — no toWire conversion needed. Any Linear failure
+  // (LinearError included) deliberately has no mapError branch: it falls
+  // through to INTERNAL, logged server-side, nothing leaked.
+  featureRequestProgress: contextResolver(async ({ promptId }, { uid, linearClient }) =>
+    featureRequestProgress(uid, promptId, linearClient),
   ),
   records: resolver(async () => (await listRecords()).map(toWire)),
   // DAN-48: the caller's usage totals — zeros for a fresh user, never null.
