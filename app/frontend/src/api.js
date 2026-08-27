@@ -124,3 +124,46 @@ export async function updateRecord(id, patch) {
 export async function deleteRecord(id) {
   await gql(`mutation ($id: ID!) { deleteRecord(id: $id) }`, { id })
 }
+
+// --- Feature requests (DAN-53) ----------------------------------------------
+
+// The FeatureRequest selection set, shared by every feature-request operation so
+// each resolves to the same shape: { id, status, model, createdAt, messages },
+// where each message is { role, content }. Formatting is a local choice, not
+// contract.
+const FEATURE_REQUEST_FIELDS = 'id status model createdAt messages { role content }'
+
+// Start a new feature-request conversation for the given model -> the created
+// FeatureRequest (its messages array starts empty; the first user message goes
+// through sendFeatureRequestMessage).
+export async function startFeatureRequest(model) {
+  const data = await gql(
+    `mutation ($input: StartFeatureRequestInput!) { startFeatureRequest(input: $input) { ${FEATURE_REQUEST_FIELDS} } }`,
+    { input: { model } },
+  )
+  return data.startFeatureRequest
+}
+
+// Send one user message into an existing feature request -> the updated
+// FeatureRequest, whose messages array now carries the user's message plus the
+// role-labeled replies. NOTE: the backend mutation ships in DAN-49; this calls
+// the operation name and shape agreed there — sendFeatureRequestMessage(id,
+// content) returning the updated FeatureRequest — so no frontend change is
+// needed when it lands.
+export async function sendFeatureRequestMessage(id, content) {
+  const data = await gql(
+    `mutation ($id: ID!, $content: String!) { sendFeatureRequestMessage(id: $id, content: $content) { ${FEATURE_REQUEST_FIELDS} } }`,
+    { id, content },
+  )
+  return data.sendFeatureRequestMessage
+}
+
+// One feature request by id -> the FeatureRequest, or throws NOT_FOUND (the
+// backend reports not-found as an execution-level error, same as record(id)).
+export async function featureRequest(id) {
+  const data = await gql(
+    `query ($id: ID!) { featureRequest(id: $id) { ${FEATURE_REQUEST_FIELDS} } }`,
+    { id },
+  )
+  return data.featureRequest
+}

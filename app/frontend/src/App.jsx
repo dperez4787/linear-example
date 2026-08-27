@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { createRecord, deleteRecord, listRecords, updateRecord } from './api.js'
+import FeatureRequestView from './FeatureRequestView.jsx'
 import NewRecordForm from './NewRecordForm.jsx'
 import RecordTable from './RecordTable.jsx'
 
@@ -14,6 +15,14 @@ import RecordTable from './RecordTable.jsx'
 // mutation from its own single-record response keeps the list authoritative
 // without ever touching that ref again.
 export default function App() {
+  // Which view is showing (DAN-53). State-based switching, no router — the app
+  // has one other view and a router would be a dependency the next reader has
+  // to learn. Both views render inside AuthGate (main.jsx wraps App), so the
+  // feature-request view is behind the same sign-in gate as the records table,
+  // and flipping this state never reloads the page. The records state below
+  // stays mounted-and-owned by App while the chat is showing, so coming back
+  // is instant and re-fetches nothing.
+  const [view, setView] = useState('records') // 'records' | 'feature-request'
   const [records, setRecords] = useState([])
   const [status, setStatus] = useState('loading') // 'loading' | 'ready' | 'error'
   const [error, setError] = useState(null)
@@ -103,9 +112,26 @@ export default function App() {
     }
   }
 
+  if (view === 'feature-request') {
+    return (
+      <main className="container">
+        <FeatureRequestView onBack={() => setView('records')} />
+      </main>
+    )
+  }
+
   return (
     <main className="container">
-      <h1>Records</h1>
+      <div className="view-header">
+        <h1>Records</h1>
+        <button
+          className="btn"
+          type="button"
+          onClick={() => setView('feature-request')}
+        >
+          Request a feature
+        </button>
+      </div>
       {status === 'loading' && <p>Loading records…</p>}
       {status === 'error' && <p role="alert">Could not load records: {error}</p>}
       {status === 'ready' && (
