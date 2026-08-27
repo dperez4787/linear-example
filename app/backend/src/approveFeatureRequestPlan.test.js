@@ -215,15 +215,21 @@ test('approving a never-evaluated session (no stored gates) → BAD_USER_INPUT, 
   assert.equal(linear.calls.length, 0)
 })
 
-test('approving an approvable session with NO plan → BAD_USER_INPUT, zero Linear calls', async () => {
+test('approving a passing-gates session with NO plan → BAD_USER_INPUT, zero Linear calls (DAN-75 backstop; such a session also serves approvable: false)', async () => {
   const linear = fakeLinearClient()
   const app = makeApp(linear)
   const id = await seedSession({ plan: null })
 
+  // DAN-75: the UI never offers Approve here — the same session already
+  // reads approvable: false, so button and mutation agree.
+  const read = await gql(app, ALICE, `query ($id: ID!) { featureRequest(id: $id) { ${FR_FIELDS} } }`, { id })
+  assert.equal(read.body.errors, undefined)
+  assert.equal(read.body.data.featureRequest.approvable, false)
+
   const res = await gql(app, ALICE, APPROVE, { id })
 
   assert.equal(res.body.errors[0].extensions.code, 'BAD_USER_INPUT')
-  assert.match(res.body.errors[0].message, /plan/)
+  assert.equal(res.body.errors[0].message, 'feature request has no plan to approve')
   assert.equal(linear.calls.length, 0)
 })
 

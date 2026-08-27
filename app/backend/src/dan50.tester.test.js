@@ -35,7 +35,12 @@ const { ObjectId } = await import('mongodb')
 const SESSION_MODEL = 'claude-opus-5'
 const PO_REPLY = 'Refined: one CSV export button over the filtered rows.'
 const ARCHITECT_REPLY = 'Feasible: one query, no schema change.'
-const PLAN_REPLY = JSON.stringify({ tickets: [] }) // planner: not converged
+// Planner: converged. Since DAN-75 approvable requires a stored plan on top of
+// the three gates, so the fixture stores one — these criterion-3 combinations
+// exercise the GATES axis with the plan requirement satisfied.
+const PLAN_REPLY = JSON.stringify({
+  tickets: [{ key: 'T1', title: 'Export', description: 'One export query.', dependsOn: [] }],
+})
 
 const GATES = ['notTooBig', 'notAmbiguous', 'noBlockedDependencies']
 

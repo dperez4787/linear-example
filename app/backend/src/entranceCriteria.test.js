@@ -35,7 +35,12 @@ const { ObjectId } = await import('mongodb')
 
 const PO_REPLY = 'Refined: one CSV export of the visible rows.'
 const ARCHITECT_REPLY = 'One new query, no migration.'
-const PLAN_REPLY = JSON.stringify({ tickets: [] }) // planner: not converged — irrelevant here
+// Planner: converged by default. DAN-75 made the stored plan load-bearing for
+// approvable, so the default fixture stores one; NOT_CONVERGED opts out.
+const PLAN_REPLY = JSON.stringify({
+  tickets: [{ key: 'T1', title: 'Export query', description: 'GET /api/records/export', dependsOn: [] }],
+})
+const NOT_CONVERGED = JSON.stringify({ tickets: [] })
 
 const ALL_PASS = {
   notTooBig: { pass: true, reason: 'One export query and one button.' },
@@ -60,8 +65,9 @@ const TOKENS_BY_ROLE = { 'product-owner': 11, architect: 13, planner: 17, 'entra
 
 // A scripted fetch answering per metadata.role. `evalContent` is what the
 // evaluator says; `evalStatus` makes the evaluator call itself fail with that
-// HTTP status while every other role keeps succeeding.
-function scriptedFetch({ evalContent = JSON.stringify(ALL_PASS), evalStatus } = {}) {
+// HTTP status while every other role keeps succeeding; `planContent` scripts
+// the planner (default: converged — see PLAN_REPLY).
+function scriptedFetch({ evalContent = JSON.stringify(ALL_PASS), evalStatus, planContent = PLAN_REPLY } = {}) {
   const calls = []
   const fn = async (url, init) => {
     const body = JSON.parse(init.body)
@@ -77,7 +83,7 @@ function scriptedFetch({ evalContent = JSON.stringify(ALL_PASS), evalStatus } = 
           ? ARCHITECT_REPLY
           : role === 'entrance-criteria'
             ? evalContent
-            : PLAN_REPLY
+            : planContent
     return { ok: true, status: 200, json: async () => completion(reply, TOKENS_BY_ROLE[role]) }
   }
   fn.calls = calls
@@ -234,13 +240,73 @@ test('extra keys from the model never reach Mongo — stored gates carry exactly
   }
 })
 
-// --- criterion 3: approvable iff all three gates pass ---
+// --- criterion 3: approvable iff all three gates pass AND a plan is stored
+// (the plan requirement is DAN-75) ---
 
-test('approvable is true when all three gates pass', async () => {
+test('approvable is true when all three gates pass and a plan is stored', async () => {
   const app = makeApp(scriptedFetch({ evalContent: JSON.stringify(ALL_PASS) }))
   const id = await startSession(app)
   const res = await gql(app, ALICE, SEND, { id, content: 'export my table as CSV' })
   assert.equal(res.body.data.sendFeatureRequestMessage.approvable, true)
+  const reread = await gql(app, ALICE, GET, { id })
+  assert.equal(reread.body.data.featureRequest.approvable, true)
+})
+
+test('DAN-75: passing gates with NO stored plan (planner not converged) serve approvable: false', async () => {
+  const app = makeApp(
+    scriptedFetch({ evalContent: JSON.stringify(ALL_PASS), planContent: NOT_CONVERGED }),
+  )
+  const id = await startSession(app)
+  const res = await gql(app, ALICE, SEND, { id, content: 'export my table as CSV' })
+
+  const fr = res.body.data.sendFeatureRequestMessage
+  assert.deepEqual(fr.entranceCriteria, ALL_PASS, 'every gate passes')
+  assert.equal(fr.approvable, false, 'no stored plan — the mutation would refuse, so approvable must too')
+
+  const reread = await gql(app, ALICE, GET, { id })
+  assert.equal(reread.body.data.featureRequest.approvable, false)
+  const doc = await featureRequests().findOne({ _id: new ObjectId(id) })
+  assert.ok(!('plan' in doc), 'nothing stored while the planner has not converged')
+})
+
+test('DAN-75: failing gates with a stored plan still serve approvable: false', async () => {
+  const app = makeApp(scriptedFetch({ evalContent: JSON.stringify(ONE_FAILING) }))
+  const id = await startSession(app)
+  const res = await gql(app, ALICE, SEND, { id, content: 'export my table as CSV' })
+
+  const doc = await featureRequests().findOne({ _id: new ObjectId(id) })
+  assert.ok(doc.plan?.tickets?.length > 0, 'the plan converged and is stored')
+  assert.equal(res.body.data.sendFeatureRequestMessage.approvable, false)
+  const reread = await gql(app, ALICE, GET, { id })
+  assert.equal(reread.body.data.featureRequest.approvable, false)
+})
+
+test('DAN-75: a session with passing gates flips approvable on the next read once the planner converges', async () => {
+  // First exchange: gates pass, planner not converged. Second: planner converges.
+  let plannerRound = 0
+  const fetchImpl = async (url, init) => {
+    const body = JSON.parse(init.body)
+    const role = body.metadata.role
+    let reply
+    if (role === 'product-owner') reply = PO_REPLY
+    else if (role === 'architect') reply = ARCHITECT_REPLY
+    else if (role === 'entrance-criteria') reply = JSON.stringify(ALL_PASS)
+    else {
+      plannerRound += 1
+      reply = plannerRound === 1 ? NOT_CONVERGED : PLAN_REPLY
+    }
+    return { ok: true, status: 200, json: async () => completion(reply) }
+  }
+  const app = makeApp(fetchImpl)
+  const id = await startSession(app)
+
+  const first = await gql(app, ALICE, SEND, { id, content: 'export my table' })
+  assert.equal(first.body.data.sendFeatureRequestMessage.approvable, false, 'gates pass but no plan yet')
+
+  const second = await gql(app, ALICE, SEND, { id, content: 'CSV, filtered rows only' })
+  assert.equal(second.body.data.sendFeatureRequestMessage.approvable, true, 'plan stored — approvable flips')
+
+  // And a fresh read (what the frontend polls) serves the flipped bit.
   const reread = await gql(app, ALICE, GET, { id })
   assert.equal(reread.body.data.featureRequest.approvable, true)
 })

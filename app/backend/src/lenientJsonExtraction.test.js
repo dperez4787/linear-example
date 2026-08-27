@@ -64,7 +64,10 @@ function completion(content, totalTokens = 5) {
 
 // A scripted fetch answering per metadata.role, with per-role reply overrides.
 function scriptedFetch({
-  planContent = JSON.stringify({ tickets: [] }),
+  // Converged by default: DAN-75 made approvable require a stored plan, and
+  // the lenient-evaluator tests assert "parsing unlocks Approve" with the
+  // plan requirement satisfied.
+  planContent = JSON.stringify(PLAN_FIXTURE),
   evalContent = JSON.stringify(ALL_PASS),
 } = {}) {
   const calls = []
