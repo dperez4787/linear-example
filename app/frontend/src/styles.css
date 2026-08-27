@@ -28,21 +28,9 @@
   --color-border: #d0d7de;
   --color-surface: #ffffff;
   --color-subtle: #f6f8fa;
-  /* --color-accent is the app's blue: links, the focus ring, and the
-     informational left-borders on the hand-off/status panels. It is *not* the
-     primary button's fill — see --color-primary. */
   --color-accent: #0969da;
+  --color-on-accent: #ffffff;
   --color-danger: #cf222e;
-
-  /* DAN-77: the primary (call-to-action) button is green, not blue. It gets
-     its own token pair rather than reusing --color-accent, because that token
-     also paints links, focus rings, and the informational panel borders, none
-     of which this ticket changes. #1a7f37 is the green already in this
-     stylesheet (.gates__state--pass), so the palette gains no new hue; against
-     white it measures 5.1:1, matching the 5.2:1 the blue fill gave, so white
-     button text stays as readable as it was. */
-  --color-primary: #1a7f37;
-  --color-on-primary: #ffffff;
 
   --radius: 6px;
   --focus-ring: 0 0 0 3px rgba(9, 105, 218, 0.35);
@@ -179,23 +167,14 @@ a:hover,
   background: var(--color-subtle);
 }
 
-/* The one filled call-to-action treatment, shared by every primary button in
-   the app (Sign in with Google, Add record, Send, Approve plan). Plain .btn
-   stays the secondary, white-on-border treatment. */
 .btn--primary {
-  color: var(--color-on-primary);
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 .btn--primary:hover {
   filter: brightness(0.95);
-}
-
-/* Pressed steps visibly darker than hover, so the two states do not collapse
-   into one. */
-.btn--primary:active {
-  filter: brightness(0.88);
 }
 
 .btn:disabled {
@@ -206,13 +185,7 @@ a:hover,
 /* A visible focus indicator on every interactive control. Element selectors
    guarantee the hook exists on every button/input/select/link the app renders;
    the explicit class selectors keep the ring on controls that strip their
-   chrome (e.g. .sort-button).
-
-   DAN-77 leaves this accent-blue: outline-offset puts the ring outside the
-   button, on the page background, so it is drawn against white regardless of
-   the fill and stays as visible on a green button as on a blue one. Keeping
-   one focus color also keeps the indicator identical across buttons, inputs,
-   selects, and links. */
+   chrome (e.g. .sort-button). */
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
@@ -856,8 +829,12 @@ tbody tr:hover {
   color: var(--color-muted);
 }
 
+/* Green, and deliberately still a literal: DAN-89 removed --color-primary
+   along with the rest of DAN-77, but this is a status chip, not a button, so
+   its color must not move. #1a7f37 is the same literal .gates__state--pass
+   already uses for the in-progress/pass green. */
 .my-requests__status--building {
-  color: var(--color-primary);
+  color: #1a7f37;
 }
 
 .my-requests__date {
@@ -975,8 +952,10 @@ tbody tr:hover {
   border-color: var(--color-accent);
 }
 
+/* Same story as .my-requests__status--building: a badge, not a button, so
+   DAN-89's removal of --color-primary must not recolor it. */
 .activity-event--pr .activity-event__badge {
-  border-color: var(--color-primary);
+  border-color: #1a7f37;
 }
 
 /* The expand/collapse control is a real button styled as a link, matching the
