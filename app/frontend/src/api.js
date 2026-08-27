@@ -72,6 +72,13 @@ async function authedFetch(url, init) {
 //  - Execution-level (validation, not-found): res is 200 with a non-empty `errors`
 //    array -> throw the first error's message, carrying extensions.field when the
 //    backend named the offending field, so the create form can point at it.
+//
+// The thrown error also carries the first error's whole `extensions` object
+// (DAN-54), so callers can branch on extensions.code — the quota-exhausted state
+// keys off code === 'QUOTA_EXHAUSTED', which the backend's error mapper emits
+// when the AI gateway reports the caller's quota is spent. `err.field` stays as
+// its own property, unchanged, so the create form's field-scoped display keeps
+// working.
 async function gql(query, variables) {
   const res = await authedFetch(ENDPOINT, {
     method: 'POST',
@@ -82,8 +89,9 @@ async function gql(query, variables) {
   const body = await res.json()
   if (body.errors?.length) {
     const err = new Error(body.errors[0].message)
-    const field = body.errors[0].extensions?.field
-    if (field) err.field = field
+    const extensions = body.errors[0].extensions
+    if (extensions) err.extensions = extensions
+    if (extensions?.field) err.field = extensions.field
     throw err
   }
   return body.data
@@ -128,10 +136,24 @@ export async function deleteRecord(id) {
 // --- Feature requests (DAN-53) ----------------------------------------------
 
 // The FeatureRequest selection set, shared by every feature-request operation so
-// each resolves to the same shape: { id, status, model, createdAt, messages },
-// where each message is { role, content }. Formatting is a local choice, not
-// contract.
-const FEATURE_REQUEST_FIELDS = 'id status model createdAt messages { role content }'
+// each resolves to the same shape: { id, status, model, createdAt, messages,
+// approvable, entranceCriteria }, where each message is { role, content } and
+// entranceCriteria is null until the first evaluation, then three gates each
+// shaped { pass, reason }. Formatting is a local choice, not contract.
+//
+// NOTE: `approvable` and `entranceCriteria` are the shapes agreed for DAN-50/51
+// and do not exist in the deployed schema yet — until those backend tickets
+// land, every operation using this selection set fails GraphQL validation
+// against the live server. The feature-request surface already depends on
+// DAN-49's sendFeatureRequestMessage the same way, so this widens no gap the
+// live app doesn't already have; component tests mock api.js and are unaffected.
+const FEATURE_REQUEST_FIELDS = `id status model createdAt approvable
+  messages { role content }
+  entranceCriteria {
+    notTooBig { pass reason }
+    notAmbiguous { pass reason }
+    noBlockedDependencies { pass reason }
+  }`
 
 // Start a new feature-request conversation for the given model -> the created
 // FeatureRequest (its messages array starts empty; the first user message goes
@@ -166,4 +188,27 @@ export async function featureRequest(id) {
     { id },
   )
   return data.featureRequest
+}
+
+// --- AI usage + approval (DAN-54) --------------------------------------------
+
+// The caller's AI usage ledger -> { requests, totalTokens }. Backed by the
+// myAiUsage query (DAN-48); read by the quota meter, which fetches it on mount
+// and refreshes it after every exchange.
+export async function myAiUsage() {
+  const data = await gql(`query { myAiUsage { requests totalTokens } }`)
+  return data.myAiUsage
+}
+
+// Approve the plan of a feature request whose gates all pass -> the updated
+// FeatureRequest, whose status is "building". NOTE: the backend mutation ships
+// in DAN-51; this calls the operation name and shape agreed there —
+// approveFeatureRequestPlan(id) returning the updated FeatureRequest — so no
+// frontend change is needed when it lands.
+export async function approveFeatureRequestPlan(id) {
+  const data = await gql(
+    `mutation ($id: ID!) { approveFeatureRequestPlan(id: $id) { ${FEATURE_REQUEST_FIELDS} } }`,
+    { id },
+  )
+  return data.approveFeatureRequestPlan
 }

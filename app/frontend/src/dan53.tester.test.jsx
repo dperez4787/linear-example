@@ -36,6 +36,13 @@ vi.mock('./api.js', () => ({
   startFeatureRequest: vi.fn(),
   sendFeatureRequestMessage: vi.fn(),
   featureRequest: vi.fn(),
+  // DAN-54 (mechanical, developer edit): FeatureRequestView now also imports
+  // myAiUsage and approveFeatureRequestPlan, so the mocked module surface must
+  // include them or every import of the mock fails. No assertion here changes;
+  // the meter resolves to nothing so the view skips its state update and the
+  // suite stays act()-quiet.
+  myAiUsage: vi.fn(async () => undefined),
+  approveFeatureRequestPlan: vi.fn(),
 }))
 
 const authMock = vi.hoisted(() => ({ user: null }))
