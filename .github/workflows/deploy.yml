@@ -76,7 +76,7 @@ jobs:
             --cpu-boost \
             --service-account="$RUNTIME_SA" \
             --set-secrets=MONGODB_URI=MONGODB_URI:latest,AI_GATEWAY_KEY=AI_GATEWAY_KEY:latest,LINEAR_API_KEY=LINEAR_API_KEY:latest \
-            --set-env-vars=AI_GATEWAY_URL=https://ai-gateway-dkuqnmldta-uc.a.run.app \
+            --set-env-vars=AI_GATEWAY_URL=https://ai-gateway-dkuqnmldta-uc.a.run.app,LINEAR_TEAM_ID=e1ef74ec-5da2-42e9-8e2b-48840faf3647,LINEAR_STATE_READY_FOR_DEV=8d578131-713b-41ea-b940-135b55b7b86b \
             --allow-unauthenticated
 
   frontend:
