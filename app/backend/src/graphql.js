@@ -25,6 +25,8 @@ import {
   listFeatureRequests,
   getFeatureRequest,
   sendFeatureRequestMessage,
+  unevaluatedEntranceCriteria,
+  isApprovable,
 } from './featureRequests.js'
 
 // SDL built with graphql's own buildSchema — no @graphql-tools, because this flat
@@ -98,6 +100,21 @@ export const schema = buildSchema(`
     tickets: [PlanTicket!]!
   }
 
+  # DAN-50: the three hard gates the entrance-criteria evaluator scores after
+  # every exchange. Non-null all the way down — a virgin session synthesizes
+  # "not yet evaluated" gates at the presentation layer, so the frontend
+  # (DAN-54) never branches on null.
+  type EntranceCriterion {
+    pass: Boolean!
+    reason: String!
+  }
+
+  type EntranceCriteria {
+    notTooBig: EntranceCriterion!
+    notAmbiguous: EntranceCriterion!
+    noBlockedDependencies: EntranceCriterion!
+  }
+
   type FeatureRequest {
     id: ID!
     status: String!
@@ -105,6 +122,8 @@ export const schema = buildSchema(`
     createdAt: String!
     messages: [FeatureRequestMessage!]!
     plan: Plan
+    entranceCriteria: EntranceCriteria!
+    approvable: Boolean!
   }
 
   input StartFeatureRequestInput {
@@ -197,7 +216,14 @@ export function resolver(fn) {
 // createdAt is a Date in the data layer — on the session and (DAN-49) on each
 // message; convert at the presentation boundary, same rule as toWire above.
 // `plan` needs no conversion: it is plain strings and arrays.
+//
+// DAN-50: entranceCriteria and approvable are presentation-synthesized here.
+// A session with no stored evaluation (virgin — no exchange has run yet)
+// exposes the three "not yet evaluated" gates rather than storing them, and
+// approvable is always derived from the gates, never persisted — so it cannot
+// drift from the criteria it summarizes.
 function toWireFeatureRequest(featureRequest) {
+  const entranceCriteria = featureRequest.entranceCriteria ?? unevaluatedEntranceCriteria()
   return {
     ...featureRequest,
     createdAt: featureRequest.createdAt.toISOString(),
@@ -205,6 +231,8 @@ function toWireFeatureRequest(featureRequest) {
       ...message,
       createdAt: message.createdAt.toISOString(),
     })),
+    entranceCriteria,
+    approvable: isApprovable(entranceCriteria),
   }
 }
 

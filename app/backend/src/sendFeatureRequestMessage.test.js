@@ -42,6 +42,14 @@ const PLAN_FIXTURE = {
   ],
 }
 
+// DAN-50: the entrance-criteria evaluator runs as a fourth call after the
+// planner; this fixture keeps it green so the DAN-49 assertions stay focused.
+const EVALUATION_FIXTURE = {
+  notTooBig: { pass: true, reason: 'One export, one button.' },
+  notAmbiguous: { pass: true, reason: 'Scope question answered.' },
+  noBlockedDependencies: { pass: true, reason: 'Nothing blocking.' },
+}
+
 function completion(content, totalTokens) {
   return {
     choices: [{ index: 0, message: { role: 'assistant', content } }],
@@ -49,13 +57,19 @@ function completion(content, totalTokens) {
   }
 }
 
-// Fixture token counts are distinct primes so the usage delta proves all three
-// calls were recorded, not three of one kind.
-const TOKENS_BY_ROLE = { 'product-owner': 11, architect: 13, planner: 17 }
+// Fixture token counts are distinct primes so the usage delta proves all four
+// calls were recorded, not four of one kind.
+const TOKENS_BY_ROLE = { 'product-owner': 11, architect: 13, planner: 17, 'entrance-criteria': 19 }
 
 // A scripted fetch: replies per metadata.role, records every request, and can
-// be told to fail a given role's call. `planContent` is what the planner says.
-function scriptedFetch({ planContent = JSON.stringify(PLAN_FIXTURE), failRole, failStatus = 429 } = {}) {
+// be told to fail a given role's call. `planContent` is what the planner says;
+// `evalContent` is what the entrance-criteria evaluator (DAN-50) says.
+function scriptedFetch({
+  planContent = JSON.stringify(PLAN_FIXTURE),
+  evalContent = JSON.stringify(EVALUATION_FIXTURE),
+  failRole,
+  failStatus = 429,
+} = {}) {
   const calls = []
   const fn = async (url, init) => {
     const body = JSON.parse(init.body)
@@ -65,7 +79,13 @@ function scriptedFetch({ planContent = JSON.stringify(PLAN_FIXTURE), failRole, f
       return { ok: false, status: failStatus, json: async () => ({ error: { message: 'nope' } }) }
     }
     const reply =
-      role === 'product-owner' ? PO_REPLY : role === 'architect' ? ARCHITECT_REPLY : planContent
+      role === 'product-owner'
+        ? PO_REPLY
+        : role === 'architect'
+          ? ARCHITECT_REPLY
+          : role === 'entrance-criteria'
+            ? evalContent
+            : planContent
     return { ok: true, status: 200, json: async () => completion(reply, TOKENS_BY_ROLE[role]) }
   }
   fn.calls = calls
@@ -186,10 +206,10 @@ test('the PO and architect calls carry each roles/<role>.md file as system messa
   const id = await startSession(app, ALICE)
   await gql(app, ALICE, SEND, { id, content: 'CSV export please' })
 
-  assert.equal(fetch.calls.length, 3, 'PO turn, architect turn, planner call')
+  assert.equal(fetch.calls.length, 4, 'PO turn, architect turn, planner call, evaluator call (DAN-50)')
   assert.deepEqual(
     fetch.calls.map((c) => c.body.metadata.role),
-    ['product-owner', 'architect', 'planner'],
+    ['product-owner', 'architect', 'planner', 'entrance-criteria'],
   )
 
   for (const role of ['product-owner', 'architect']) {
@@ -347,7 +367,7 @@ test('a 429 on the FIRST (product-owner) turn still leaves the user message pers
 
 // --- criterion 6: usage recorded per turn, asserted via myAiUsage delta ---
 
-test('one round records three gateway calls in the ledger: myAiUsage requests +3, totalTokens += the three fixture usages', async () => {
+test('one round records four gateway calls in the ledger: myAiUsage requests +4, totalTokens += the four fixture usages', async () => {
   const app = makeApp(scriptedFetch())
   const id = await startSession(app, ALICE)
 
@@ -355,10 +375,13 @@ test('one round records three gateway calls in the ledger: myAiUsage requests +3
   await gql(app, ALICE, SEND, { id, content: 'CSV export please' })
   const afterUsage = (await gql(app, ALICE, USAGE)).body.data.myAiUsage
 
-  assert.equal(afterUsage.requests - beforeUsage.requests, 3, 'PO + architect + planner')
+  assert.equal(afterUsage.requests - beforeUsage.requests, 4, 'PO + architect + planner + evaluator (DAN-50)')
   assert.equal(
     afterUsage.totalTokens - beforeUsage.totalTokens,
-    TOKENS_BY_ROLE['product-owner'] + TOKENS_BY_ROLE.architect + TOKENS_BY_ROLE.planner,
+    TOKENS_BY_ROLE['product-owner'] +
+      TOKENS_BY_ROLE.architect +
+      TOKENS_BY_ROLE.planner +
+      TOKENS_BY_ROLE['entrance-criteria'],
   )
 })
 

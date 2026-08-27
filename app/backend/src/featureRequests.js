@@ -112,6 +112,83 @@ Rules:
 - Only include work the transcript actually agreed on. Never invent scope.
 - If the conversation has NOT converged enough to plan, respond with {"tickets": []}.`
 
+// --- entrance-criteria evaluation: three hard gates (DAN-50) ---
+
+// The second internal role, a sibling of the planner: after every exchange a
+// cheap-model structured-JSON call evaluates whether the session clears the
+// three hard gates that control approvability. Like the planner, its prompt is
+// a code constant — machine contract, not tunable voice.
+const EVALUATOR_ROLE = 'entrance-criteria'
+
+// The ONE place the cheap model id lives. The evaluator is a judgment call a
+// small model handles fine; burning the session's conversation model on it
+// would multiply cost for no quality gain. Exported so tests assert the
+// captured request against this constant rather than re-hardcoding the id.
+export const ENTRANCE_CRITERIA_MODEL = 'claude-haiku-4-5'
+
+// The three gates, in the shape DAN-54's frontend consumes. Order matters only
+// for readability; each gate is { pass: Boolean, reason: String }.
+export const ENTRANCE_GATES = ['notTooBig', 'notAmbiguous', 'noBlockedDependencies']
+
+const ENTRANCE_CRITERIA_PROMPT = `You are the entrance-criteria evaluator for a feature-request conversation between a user, a product owner, and an architect.
+
+Read the transcript and evaluate three hard gates. Respond with STRICT JSON only — no prose, no markdown fences — in exactly this shape:
+
+{"notTooBig": {"pass": true, "reason": "..."}, "notAmbiguous": {"pass": true, "reason": "..."}, "noBlockedDependencies": {"pass": true, "reason": "..."}}
+
+Gates:
+- "notTooBig": the request is scoped small enough to plan as a handful of tickets, not an open-ended program of work.
+- "notAmbiguous": the requirements are concrete enough that a developer could start without guessing intent.
+- "noBlockedDependencies": nothing the transcript identifies as a prerequisite is unresolved or blocked.
+
+Rules:
+- "pass" is a boolean verdict for that gate; "reason" is one short sentence justifying it.
+- Judge only what the transcript actually says. When in doubt, fail the gate.`
+
+// All three gates failed with one shared reason — the shape stored when the
+// evaluation itself could not produce a verdict.
+function failedEntranceCriteria(reason) {
+  return Object.fromEntries(
+    ENTRANCE_GATES.map((gate) => [gate, { pass: false, reason }]),
+  )
+}
+
+// What a session that has never been evaluated exposes: all gates failed,
+// "not yet evaluated". Synthesized at the presentation layer (graphql.js) for
+// virgin sessions — never stored, so a stored entranceCriteria always came
+// from a real evaluation attempt.
+export function unevaluatedEntranceCriteria() {
+  return failedEntranceCriteria('not yet evaluated')
+}
+
+// A session is approvable iff every gate passes. Derived, never stored —
+// a derived value cannot drift from the gates it summarizes.
+export function isApprovable(entranceCriteria) {
+  return ENTRANCE_GATES.every((gate) => entranceCriteria[gate]?.pass === true)
+}
+
+// Parse and validate the evaluator's reply, or null when it is unusable. Same
+// defensive posture as parsePlan: rebuild field-by-field so whatever else the
+// model emitted never reaches the database, and any missing or mistyped gate
+// invalidates the whole reply — three hard gates, no partial credit.
+function parseEntranceCriteria(content) {
+  let parsed
+  try {
+    parsed = JSON.parse(content)
+  } catch {
+    return null
+  }
+  const clean = {}
+  for (const gate of ENTRANCE_GATES) {
+    const verdict = parsed?.[gate]
+    if (typeof verdict?.pass !== 'boolean' || typeof verdict?.reason !== 'string') {
+      return null
+    }
+    clean[gate] = { pass: verdict.pass, reason: verdict.reason }
+  }
+  return clean
+}
+
 // Map the persisted transcript into the chat shape one role's gateway call
 // expects. The calling role sees its own prior turns as `assistant`; the user's
 // turns are `user`; the OTHER agent's turns are also `user`, prefixed with
@@ -122,6 +199,13 @@ function toChatMessages(transcript, selfRole) {
     if (role === 'user') return { role: 'user', content }
     return { role: 'user', content: `[${role}] ${content}` }
   })
+}
+
+// Flatten the transcript for an internal analyst role (planner, evaluator):
+// the whole conversation is a single user message, because those roles analyze
+// the exchange rather than participate in it.
+function transcriptAsText(transcript) {
+  return transcript.map(({ role, content }) => `${role}: ${content}`).join('\n\n')
 }
 
 // Parse and validate the planner's reply into a plan, or null when there is no
@@ -223,10 +307,7 @@ export async function sendFeatureRequestMessage(uid, id, content, aiGateway) {
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: PLANNER_PROMPT },
-      {
-        role: 'user',
-        content: transcript.map(({ role, content }) => `${role}: ${content}`).join('\n\n'),
-      },
+      { role: 'user', content: transcriptAsText(transcript) },
     ],
   })
   const plan = parsePlan(planCompletion.choices?.[0]?.message?.content)
@@ -234,6 +315,36 @@ export async function sendFeatureRequestMessage(uid, id, content, aiGateway) {
     // Latest plan wins — each converged round replaces the draft wholesale.
     await collection().updateOne({ _id, uid }, { $set: { plan } })
   }
+
+  // Entrance-criteria evaluation (DAN-50): one cheap-model structured-JSON
+  // call over the same flattened transcript, its usage recorded by the gateway
+  // client like every call. Unlike the conversational turns, an evaluator
+  // failure must never fail the exchange the user just paid for — a gateway
+  // error here (a 429 included) is handled exactly like unparseable output:
+  // all three gates fail with "evaluation unavailable", and the next exchange
+  // re-evaluates. Latest evaluation wins, replaced wholesale each round.
+  let entranceCriteria = null
+  try {
+    const evaluation = await aiGateway.chat({
+      uid,
+      promptId: id,
+      role: EVALUATOR_ROLE,
+      model: ENTRANCE_CRITERIA_MODEL,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: ENTRANCE_CRITERIA_PROMPT },
+        { role: 'user', content: transcriptAsText(transcript) },
+      ],
+    })
+    entranceCriteria = parseEntranceCriteria(evaluation.choices?.[0]?.message?.content)
+  } catch {
+    // Swallowed deliberately — see the comment above. The chat exchange
+    // succeeded; only the evaluation is unavailable this round.
+  }
+  await collection().updateOne(
+    { _id, uid },
+    { $set: { entranceCriteria: entranceCriteria ?? failedEntranceCriteria('evaluation unavailable') } },
+  )
 
   return toFeatureRequest(await collection().findOne({ _id, uid }))
 }
