@@ -50,7 +50,11 @@ export function authGate(verifyToken) {
     }
 
     try {
-      await verifyToken(match[1])
+      // Attach the decoded claims for downstream consumers. The gate used to
+      // discard them; feature-request sessions (DAN-47) are per-user, so the
+      // caller's uid must reach the GraphQL context — index.js reads req.auth
+      // in createHandler's context option. This is the one seam change.
+      req.auth = await verifyToken(match[1])
       next()
     } catch {
       next(unauthorized('Invalid or expired token'))

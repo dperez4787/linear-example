@@ -35,7 +35,20 @@ export function createApp({ verifyToken = firebaseVerifyToken } = {}) {
   // next(err), before any GraphQL parsing and without ever reaching the data layer.
   // It must live under /api/** or the Firebase Hosting rewrite never routes it to
   // Cloud Run. See docs/architecture.md (GraphQL API) and graphql.js.
-  app.use('/api/graphql', authGate(verifyToken), createHandler({ schema, rootValue }))
+  app.use(
+    '/api/graphql',
+    authGate(verifyToken),
+    createHandler({
+      schema,
+      rootValue,
+      // Thread the verified caller's identity into GraphQL execution. The gate
+      // attached the decoded token to req.auth (see auth.js); req.raw is the
+      // Express request underneath graphql-http's adapter. Feature-request
+      // resolvers read uid from this context (DAN-47); the records resolvers
+      // ignore it.
+      context: (req) => ({ uid: req.raw.auth.uid }),
+    }),
+  )
 
   // One error middleware maps thrown errors to status codes. Validation errors
   // from the schema/data layer carry `status` (400) and `field`; anything else
