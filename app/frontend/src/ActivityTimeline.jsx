@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { useTranslation } from './i18n.js'
 import { renderMarkdown } from './markdown.jsx'
 
 // DAN-84: the live activity pane beside the build DAG. Purely presentational —
@@ -38,6 +39,7 @@ function formatTime(ts) {
 }
 
 export default function ActivityTimeline({ events }) {
+  const { t } = useTranslation()
   // Keys of the comment events whose bodies are expanded. Keyed by position +
   // ts + ticket so an append-only feed keeps every open body open across polls.
   const [expandedKeys, setExpandedKeys] = useState(() => new Set())
@@ -68,21 +70,21 @@ export default function ActivityTimeline({ events }) {
   }
 
   return (
-    <section className="activity-timeline" aria-label="Live activity">
+    <section className="activity-timeline" aria-label={t('activity.paneLabel')}>
       {/* h4, not h3: the DAG's stage headings own level 3, and the DAN-55
           suite asserts the exact set of level-3 headings — the pane title
           stays out of that outline level. */}
-      <h4 className="activity-timeline__title">Activity</h4>
+      <h4 className="activity-timeline__title">{t('activity.heading')}</h4>
       {events === null ? (
-        <p className="empty-state">Loading activity…</p>
+        <p className="empty-state">{t('activity.loading')}</p>
       ) : events.length === 0 ? (
-        <p className="empty-state">No activity yet.</p>
+        <p className="empty-state">{t('activity.empty')}</p>
       ) : (
         <ol
           ref={listRef}
           onScroll={handleScroll}
           role="log"
-          aria-label="Activity events"
+          aria-label={t('activity.eventsLabel')}
           className="activity-timeline__list"
         >
           {events.map((event, i) => {
@@ -126,7 +128,9 @@ export default function ActivityTimeline({ events }) {
                       aria-expanded={open}
                       onClick={() => toggle(key)}
                     >
-                      {open ? 'Hide comment' : 'Show comment'}
+                      {open
+                        ? t('activity.hideComment')
+                        : t('activity.showComment')}
                     </button>
                     {open && (
                       <div className="activity-event__body">

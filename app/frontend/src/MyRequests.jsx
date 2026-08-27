@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { listFeatureRequests } from './api.js'
+import { i18n, useTranslation } from './i18n.js'
 
 // The "My requests" list (DAN-74): the caller's past feature-request sessions,
 // newest first, each reopenable with a click. Rendered by FeatureRequestView
@@ -36,7 +37,7 @@ export const PREVIEW_MAX_CHARS = 80
 
 export function previewOf(request) {
   const first = (request.messages ?? []).find((m) => m.role === 'user')
-  if (!first) return '(no messages yet)'
+  if (!first) return i18n.t('myRequests.noMessages')
   const text = first.content
   if (text.length <= PREVIEW_MAX_CHARS) return text
   return `${text.slice(0, PREVIEW_MAX_CHARS - 1)}…`
@@ -59,6 +60,13 @@ export function rowLabelOf(request) {
 // Deterministic date display (explicit locale, so tests and users see the same
 // string): "Aug 27, 2026". An unparsable createdAt falls back to the raw value
 // rather than "Invalid Date".
+//
+// DAN-95 deliberately does NOT make this follow the UI language: the explicit
+// 'en-US' is the whole reason the string is deterministic across a developer's
+// machine and the CI runner, and the ticket's scope is fixed UI *text*, not
+// date/number formatting. Locale-aware dates are a follow-up decision (it would
+// have to pick between i18next's formatter and per-call Intl options, and
+// re-open how the suites assert on dates), not a silent side effect of this one.
 export function createdOn(request) {
   const date = new Date(request.createdAt)
   if (Number.isNaN(date.getTime())) return request.createdAt
@@ -78,6 +86,7 @@ function newestFirst(requests) {
 }
 
 export default function MyRequests({ onOpen }) {
+  const { t } = useTranslation()
   // 'loading' | 'ready' | 'error'; requests only meaningful when 'ready'.
   const [status, setStatus] = useState('loading')
   const [requests, setRequests] = useState([])
@@ -104,14 +113,14 @@ export default function MyRequests({ onOpen }) {
   }, [])
 
   return (
-    <section className="my-requests" aria-label="My requests">
-      <h2>My requests</h2>
+    <section className="my-requests" aria-label={t('myRequests.heading')}>
+      <h2>{t('myRequests.heading')}</h2>
       {status === 'loading' ? (
-        <p className="empty-state">Loading your requests…</p>
+        <p className="empty-state">{t('myRequests.loading')}</p>
       ) : status === 'error' ? (
-        <p className="empty-state">Couldn’t load your past requests.</p>
+        <p className="empty-state">{t('myRequests.error')}</p>
       ) : requests.length === 0 ? (
-        <p className="empty-state">No requests yet.</p>
+        <p className="empty-state">{t('myRequests.empty')}</p>
       ) : (
         <ul className="my-requests__list">
           {requests.map((request) => (

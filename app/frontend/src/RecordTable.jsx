@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 
+import { useTranslation } from './i18n.js'
 import RecordRow from './RecordRow.jsx'
 
 // The status list mirrors the backend schema (docs/architecture.md, Data model)
@@ -27,6 +28,7 @@ const COMPARATORS = {
 // optimistic apply/rollback and every created row flows through the current
 // filters and sort with no coordination code.
 export default function RecordTable({ records, onSave, onDelete }) {
+  const { t } = useTranslation()
   const [editingId, setEditingId] = useState(null)
   // `sort` is null until a header is clicked; null means "render in the order
   // listRecords() returned". Nothing ever sets it back to null.
@@ -76,7 +78,7 @@ export default function RecordTable({ records, onSave, onDelete }) {
     <>
       <div className="toolbar">
         <label>
-          Filter by name
+          {t('records.table.filterByName')}
           <input
             className="control"
             type="search"
@@ -85,16 +87,16 @@ export default function RecordTable({ records, onSave, onDelete }) {
           />
         </label>
         <label>
-          Filter by status
+          {t('records.table.filterByStatus')}
           <select
             className="control"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="all">all</option>
+            <option value="all">{t('records.status.all')}</option>
             {STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {t(`records.status.${s}`)}
               </option>
             ))}
           </select>
@@ -103,25 +105,45 @@ export default function RecordTable({ records, onSave, onDelete }) {
       <table>
         <thead>
           <tr>
-            <SortableHeader label="Name" column="name" sort={sort} onSort={handleSort} />
-            <SortableHeader label="Status" column="status" sort={sort} onSort={handleSort} />
-            <SortableHeader label="Amount" column="amount" sort={sort} onSort={handleSort} />
-            <th scope="col">Notes</th>
-            <SortableHeader label="Updated" column="updatedAt" sort={sort} onSort={handleSort} />
-            <th scope="col">Actions</th>
+            <SortableHeader
+              label={t('records.table.name')}
+              column="name"
+              sort={sort}
+              onSort={handleSort}
+            />
+            <SortableHeader
+              label={t('records.table.status')}
+              column="status"
+              sort={sort}
+              onSort={handleSort}
+            />
+            <SortableHeader
+              label={t('records.table.amount')}
+              column="amount"
+              sort={sort}
+              onSort={handleSort}
+            />
+            <th scope="col">{t('records.table.notes')}</th>
+            <SortableHeader
+              label={t('records.table.updated')}
+              column="updatedAt"
+              sort={sort}
+              onSort={handleSort}
+            />
+            <th scope="col">{t('records.table.actions')}</th>
           </tr>
         </thead>
         <tbody>
           {records.length === 0 ? (
             <tr>
-              <td colSpan={6}>No records yet.</td>
+              <td colSpan={6}>{t('records.table.empty')}</td>
             </tr>
           ) : visibleRecords.length === 0 ? (
             <tr>
               <td colSpan={6} className="empty-state">
-                No matching records.{' '}
+                {t('records.table.noMatches')}{' '}
                 <button type="button" className="btn" onClick={clearFilters}>
-                  Clear filters
+                  {t('records.table.clearFilters')}
                 </button>
               </td>
             </tr>

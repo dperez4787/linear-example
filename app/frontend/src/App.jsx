@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { createRecord, deleteRecord, listRecords, updateRecord } from './api.js'
 import FeatureRequestView from './FeatureRequestView.jsx'
+import { useTranslation } from './i18n.js'
 import NewRecordForm from './NewRecordForm.jsx'
 import RecordTable from './RecordTable.jsx'
 
@@ -59,6 +60,7 @@ export default function App() {
   // the URL changes with no reload) and the popstate listener for the browser's
   // back/forward buttons. The records state below stays mounted-and-owned by
   // App while the records view shows, exactly as before.
+  const { t } = useTranslation()
   const [route, setRoute] = useState(() =>
     parseRoute(window.location.pathname),
   )
@@ -193,17 +195,19 @@ export default function App() {
   return (
     <main className="container">
       <div className="view-header">
-        <h1>Records</h1>
+        <h1>{t('records.title')}</h1>
         <button
           className="btn"
           type="button"
           onClick={() => navigate('/requests')}
         >
-          Request a feature
+          {t('records.requestFeature')}
         </button>
       </div>
-      {status === 'loading' && <p>Loading records…</p>}
-      {status === 'error' && <p role="alert">Could not load records: {error}</p>}
+      {status === 'loading' && <p>{t('records.loading')}</p>}
+      {status === 'error' && (
+        <p role="alert">{t('records.loadError', { message: error })}</p>
+      )}
       {status === 'ready' && (
         <>
           {actionError && <p role="alert">{actionError}</p>}

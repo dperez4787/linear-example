@@ -1,0 +1,135 @@
+{
+  "common": {
+    "loading": "Loading…"
+  },
+  "language": {
+    "label": "Language"
+  },
+  "nav": {
+    "blog": "Go To Danny's Blog",
+    "signOut": "Sign out",
+    "signedIn": "Signed in"
+  },
+  "auth": {
+    "signInPrompt": "Sign in to view and manage records.",
+    "signInWithGoogle": "Sign in with Google",
+    "signInFailed": "Sign-in failed"
+  },
+  "records": {
+    "title": "Records",
+    "requestFeature": "Request a feature",
+    "loading": "Loading records…",
+    "loadError": "Could not load records: {{message}}",
+    "status": {
+      "all": "all",
+      "active": "active",
+      "pending": "pending",
+      "archived": "archived"
+    },
+    "form": {
+      "ariaLabel": "New record",
+      "heading": "Add a record",
+      "nameLabel": "New name",
+      "namePlaceholder": "Name",
+      "statusLabel": "New status",
+      "amountLabel": "New amount",
+      "amountPlaceholder": "Amount",
+      "notesLabel": "New notes",
+      "notesPlaceholder": "Notes",
+      "submit": "Add"
+    },
+    "table": {
+      "filterByName": "Filter by name",
+      "filterByStatus": "Filter by status",
+      "name": "Name",
+      "status": "Status",
+      "amount": "Amount",
+      "notes": "Notes",
+      "updated": "Updated",
+      "actions": "Actions",
+      "empty": "No records yet.",
+      "noMatches": "No matching records.",
+      "clearFilters": "Clear filters"
+    },
+    "row": {
+      "name": "Name",
+      "status": "Status",
+      "amount": "Amount",
+      "notes": "Notes",
+      "edit": "Edit",
+      "delete": "Delete",
+      "save": "Save",
+      "cancel": "Cancel"
+    }
+  },
+  "featureRequest": {
+    "title": "Request a feature",
+    "backToRecords": "Back to records",
+    "loadingSession": "Loading session…",
+    "loadError": "Couldn’t load this request: {{message}}",
+    "modelLegend": "Model",
+    "displayOnly": "{{name}} (display only)",
+    "gates": {
+      "heading": "Entrance criteria",
+      "pass": "Pass",
+      "fail": "Fail",
+      "notEvaluated": "Not yet evaluated"
+    },
+    "approve": "Approve plan",
+    "approveFailed": "Couldn't file the plan — nothing was created. Try again.",
+    "usage": {
+      "heading": "AI usage",
+      "requests": "Requests",
+      "tokens": "Tokens",
+      "notLoaded": "Usage not loaded yet."
+    },
+    "emptyTranscript": "Describe the feature you would like. The product owner and architect will reply here.",
+    "conversation": "Conversation",
+    "notDelivered": "not delivered —",
+    "retry": "retry",
+    "thinking": "product-owner is thinking…",
+    "quotaHeading": "You’re out of AI quota",
+    "quotaBody": "This conversation has used up the available AI allowance for now. Nothing was lost — your request is saved, and you can pick it up again once the quota resets.",
+    "messageLabel": "Message",
+    "send": "Send",
+    "composerHint": "The team reads and replies — this can take a minute."
+  },
+  "myRequests": {
+    "heading": "My requests",
+    "loading": "Loading your requests…",
+    "error": "Couldn’t load your past requests.",
+    "empty": "No requests yet.",
+    "noMessages": "(no messages yet)"
+  },
+  "watchBuild": {
+    "heading": "Build progress",
+    "viewInLinear": "View in Linear",
+    "planningCost": "Planning cost",
+    "calls_one": "{{count}} call",
+    "calls_other": "{{count}} calls",
+    "complete": "Build complete — every ticket is done.",
+    "building": "Plan approved — the team is building this feature.",
+    "stale": "Live view stale — retrying.",
+    "loading": "Loading build progress…",
+    "noTickets": "No tickets filed yet.",
+    "stages": "Build stages",
+    "stage": "Stage {{number}}",
+    "blockedBy": "blocked by {{blockers}}",
+    "state": {
+      "implementing": "implementing",
+      "review": "under review",
+      "done": "done",
+      "bounced": "sent back",
+      "queued": "queued"
+    }
+  },
+  "activity": {
+    "paneLabel": "Live activity",
+    "heading": "Activity",
+    "loading": "Loading activity…",
+    "empty": "No activity yet.",
+    "eventsLabel": "Activity events",
+    "showComment": "Show comment",
+    "hideComment": "Hide comment"
+  }
+}

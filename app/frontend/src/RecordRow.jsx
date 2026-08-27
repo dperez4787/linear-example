@@ -1,5 +1,7 @@
 import { useState } from 'react'
 
+import { useTranslation } from './i18n.js'
+
 // The allowed statuses mirror the backend schema (docs/architecture.md) purely
 // for the edit UX — the backend stays the enforcement point.
 const STATUSES = ['active', 'pending', 'archived']
@@ -25,6 +27,8 @@ export default function RecordRow({
   onSave,
   onDelete,
 }) {
+  const { t } = useTranslation()
+
   if (isEditing) {
     return (
       <EditRow record={record} onCancel={onCancel} onSave={onSave} />
@@ -40,10 +44,10 @@ export default function RecordRow({
       <td>{updatedDate(record)}</td>
       <td>
         <button type="button" onClick={onEdit}>
-          Edit
+          {t('records.row.edit')}
         </button>
         <button type="button" onClick={() => onDelete(record.id)}>
-          Delete
+          {t('records.row.delete')}
         </button>
       </td>
     </tr>
@@ -55,6 +59,7 @@ export default function RecordRow({
 // coerced with Number() on save; an unparseable value becomes NaN and the
 // backend rejects it (400), which the optimistic caller turns into a rollback.
 function EditRow({ record, onCancel, onSave }) {
+  const { t } = useTranslation()
   const [name, setName] = useState(record.name)
   const [status, setStatus] = useState(record.status)
   const [amount, setAmount] = useState(String(record.amount))
@@ -73,27 +78,27 @@ function EditRow({ record, onCancel, onSave }) {
     <tr>
       <td>
         <input
-          aria-label="Name"
+          aria-label={t('records.row.name')}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
       </td>
       <td>
         <select
-          aria-label="Status"
+          aria-label={t('records.row.status')}
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
           {STATUSES.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {t(`records.status.${s}`)}
             </option>
           ))}
         </select>
       </td>
       <td>
         <input
-          aria-label="Amount"
+          aria-label={t('records.row.amount')}
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -101,7 +106,7 @@ function EditRow({ record, onCancel, onSave }) {
       </td>
       <td>
         <input
-          aria-label="Notes"
+          aria-label={t('records.row.notes')}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
         />
@@ -109,10 +114,10 @@ function EditRow({ record, onCancel, onSave }) {
       <td>{updatedDate(record)}</td>
       <td>
         <button type="button" onClick={handleSave}>
-          Save
+          {t('records.row.save')}
         </button>
         <button type="button" onClick={onCancel}>
-          Cancel
+          {t('records.row.cancel')}
         </button>
       </td>
     </tr>
