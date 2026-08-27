@@ -19,6 +19,12 @@ vi.mock('./api.js', () => ({
   startFeatureRequest: vi.fn(),
   sendFeatureRequestMessage: vi.fn(),
   featureRequest: vi.fn(),
+  // DAN-54: FeatureRequestView now also imports the quota meter's query and
+  // the approval mutation, so the mocked module surface must include them. The
+  // meter resolves to nothing so the view skips its state update and these
+  // tests stay act()-quiet.
+  myAiUsage: vi.fn(async () => undefined),
+  approveFeatureRequestPlan: vi.fn(),
 }))
 
 const authMock = vi.hoisted(() => ({ user: null }))

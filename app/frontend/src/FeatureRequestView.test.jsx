@@ -11,6 +11,12 @@ vi.mock('./api.js', () => ({
   startFeatureRequest: vi.fn(),
   sendFeatureRequestMessage: vi.fn(),
   featureRequest: vi.fn(),
+  // DAN-54: the view now also reads the quota meter and exposes approval. The
+  // meter default resolves to nothing (the view then skips the state update,
+  // keeping these older tests act()-quiet); the meter and approval themselves
+  // are asserted in FeatureRequestView.dan54.test.jsx.
+  myAiUsage: vi.fn(async () => undefined),
+  approveFeatureRequestPlan: vi.fn(),
 }))
 
 function makeRequest(messages = []) {
