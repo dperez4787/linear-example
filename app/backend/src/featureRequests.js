@@ -251,10 +251,28 @@ export function unevaluatedEntranceCriteria() {
   return failedEntranceCriteria('not yet evaluated')
 }
 
-// A session is approvable iff every gate passes. Derived, never stored —
-// a derived value cannot drift from the gates it summarizes.
-export function isApprovable(entranceCriteria) {
+// All three hard gates pass. Split out of isApprovable (DAN-75) because the
+// approve mutation still reports gate failures separately (naming the failing
+// gates) before its no-plan backstop.
+function allGatesPass(entranceCriteria) {
   return ENTRANCE_GATES.every((gate) => entranceCriteria[gate]?.pass === true)
+}
+
+// A stored planner plan with at least one ticket — the thing approval files.
+// The ONE definition of "has a plan", shared by isApprovable and the approve
+// mutation's backstop, so the two can never disagree.
+export function hasStoredPlan(plan) {
+  return (plan?.tickets?.length ?? 0) > 0
+}
+
+// A session is approvable iff every gate passes AND a plan is stored (DAN-75).
+// The UI's Approve button enables off this bit, and approveFeatureRequestPlan
+// refuses without a stored plan — so approvable must never promise what the
+// mutation would refuse: gates can pass before the planner converges, and such
+// a session is NOT approvable yet. Derived, never stored — a derived value
+// cannot drift from the state it summarizes.
+export function isApprovable(entranceCriteria, plan) {
+  return allGatesPass(entranceCriteria) && hasStoredPlan(plan)
 }
 
 // Parse and validate the evaluator's reply, or null when it is unusable. Same
@@ -389,7 +407,7 @@ export async function approveFeatureRequestPlan(uid, id, linearClient) {
   // The three hard gates (DAN-50). A session that has never been evaluated
   // exposes the synthesized all-failed gates, so it is not approvable either.
   const entranceCriteria = doc.entranceCriteria ?? unevaluatedEntranceCriteria()
-  if (!isApprovable(entranceCriteria)) {
+  if (!allGatesPass(entranceCriteria)) {
     const failing = ENTRANCE_GATES.filter((gate) => entranceCriteria[gate]?.pass !== true)
     throw new ValidationError(
       `feature request is not approvable: failing gate(s): ${failing.join(', ')}`,
@@ -397,8 +415,12 @@ export async function approveFeatureRequestPlan(uid, id, linearClient) {
   }
 
   const plan = doc.plan
-  if (!plan?.tickets?.length) {
+  if (!hasStoredPlan(plan)) {
     // Gates can pass without a converged plan — there is nothing to file yet.
+    // Since DAN-75 such a session already serves approvable:false, so a
+    // well-behaved client never reaches this; it stays as the backstop for
+    // stale or hand-crafted calls, with the message and BAD_USER_INPUT
+    // mapping unchanged.
     throw new ValidationError('feature request has no plan to approve')
   }
 
