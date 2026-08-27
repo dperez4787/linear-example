@@ -21,6 +21,12 @@ name: Linear agents
 on:
   schedule:
     - cron: '*/5 * * * *'
+  # Fired by the Linear relay (ai-gateway repo, DAN-44) the moment a ticket
+  # changes status — instant pickup; the cron above stays as the backstop.
+  # Both paths converge on the same scan, and the status change is the claim,
+  # so a dispatch racing a scheduled run cannot double-pick a ticket.
+  repository_dispatch:
+    types: [linear-status-change]
   workflow_dispatch: {}
 
 permissions:
