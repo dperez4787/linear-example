@@ -20,6 +20,11 @@ import {
 import { ValidationError } from './schema.js'
 import { QuotaExhaustedError } from './aiGateway.js'
 import { getUsage } from './aiUsage.js'
+import {
+  startFeatureRequest,
+  listFeatureRequests,
+  getFeatureRequest,
+} from './featureRequests.js'
 
 // SDL built with graphql's own buildSchema — no @graphql-tools, because this flat
 // surface has no nested type resolvers or custom scalars to wire.
@@ -70,16 +75,36 @@ export const schema = buildSchema(`
     totalTokens: Int!
   }
 
+  type FeatureRequestMessage {
+    role: String!
+    content: String!
+  }
+
+  type FeatureRequest {
+    id: ID!
+    status: String!
+    model: String!
+    createdAt: String!
+    messages: [FeatureRequestMessage!]!
+  }
+
+  input StartFeatureRequestInput {
+    model: String!
+  }
+
   type Query {
     records: [Record!]!
     record(id: ID!): Record
     myAiUsage: AiUsage!
+    featureRequests: [FeatureRequest!]!
+    featureRequest(id: ID!): FeatureRequest
   }
 
   type Mutation {
     createRecord(input: CreateRecordInput!): Record!
     updateRecord(id: ID!, input: UpdateRecordInput!): Record!
     deleteRecord(id: ID!): ID!
+    startFeatureRequest(input: StartFeatureRequestInput!): FeatureRequest!
   }
 `)
 
@@ -147,9 +172,53 @@ export function resolver(fn) {
   }
 }
 
+// --- Feature-request sessions (DAN-47) ---
+
+// createdAt is a Date in the data layer; convert at the presentation boundary,
+// same rule as toWire above.
+function toWireFeatureRequest(featureRequest) {
+  return {
+    ...featureRequest,
+    createdAt: featureRequest.createdAt.toISOString(),
+  }
+}
+
+// Feature-request resolvers need the caller's uid, which buildSchema passes as
+// the SECOND resolver argument — the GraphQL context, threaded from the auth
+// gate via createHandler's context option in index.js. The records resolver()
+// wrapper above predates context and drops it, so this variant forwards it;
+// it is deliberately separate rather than an edit to resolver(), to keep the
+// records surface untouched. Error mapping is the same one mapError, with one
+// refinement: NotFoundError keeps its own message ("feature request not
+// found") instead of mapError's hardcoded "record not found" — the code in
+// extensions is identical either way.
+function contextResolver(fn) {
+  return async (args, context) => {
+    try {
+      return await fn(args, context)
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        throw new GraphQLError(err.message, {
+          extensions: { code: 'NOT_FOUND' },
+        })
+      }
+      throw mapError(err)
+    }
+  }
+}
+
 // Root resolvers for a buildSchema schema: a flat object whose function fields are
 // called with the field's arguments. Each is the same one-liner the REST handler was.
 export const rootValue = {
+  featureRequests: contextResolver(async (_args, { uid }) =>
+    (await listFeatureRequests(uid)).map(toWireFeatureRequest),
+  ),
+  featureRequest: contextResolver(async ({ id }, { uid }) =>
+    toWireFeatureRequest(await getFeatureRequest(uid, id)),
+  ),
+  startFeatureRequest: contextResolver(async ({ input }, { uid }) =>
+    toWireFeatureRequest(await startFeatureRequest(uid, input)),
+  ),
   records: resolver(async () => (await listRecords()).map(toWire)),
   // DAN-48: the caller's usage totals — zeros for a fresh user, never null.
   // The uid comes from the GraphQL context (threaded by the auth gate through

@@ -41,15 +41,20 @@ export function createApp({ verifyToken = firebaseVerifyToken, aiGateway = creat
   // next(err), before any GraphQL parsing and without ever reaching the data layer.
   // It must live under /api/** or the Firebase Hosting rewrite never routes it to
   // Cloud Run. See docs/architecture.md (GraphQL API) and graphql.js.
-  // The context fn hands each execution the caller's uid (set on the raw Express
-  // request by the auth gate — DAN-48) and the injected aiGateway instance.
+  // The context fn hands each execution the caller's uid (from the decoded
+  // token the auth gate attached to req.auth) and the injected aiGateway.
+
   app.use(
     '/api/graphql',
     authGate(verifyToken),
     createHandler({
       schema,
       rootValue,
-      context: (req) => ({ uid: req.raw.uid, aiGateway }),
+      // Thread the verified caller's identity into GraphQL execution. The gate
+      // attached the decoded token to req.auth (see auth.js); req.raw is the
+      // Express request underneath graphql-http's adapter. Feature-request
+      // resolvers read uid from this context; records resolvers ignore it.
+      context: (req) => ({ uid: req.raw.auth.uid, aiGateway }),
     }),
   )
 

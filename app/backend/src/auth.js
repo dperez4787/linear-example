@@ -50,13 +50,11 @@ export function authGate(verifyToken) {
     }
 
     try {
-      const decoded = await verifyToken(match[1])
-      // DAN-48: thread the caller's identity to the GraphQL layer. The verified
-      // token's uid rides on the request so createHandler's context fn (index.js)
-      // can expose it to resolvers (myAiUsage, gateway attribution). Minimal
-      // seam, added here because origin/main discarded the decoded claims;
-      // DAN-47 threads the same thing and the merge reconciles.
-      req.uid = decoded?.uid
+      // Attach the decoded claims for downstream consumers. The gate used to
+      // discard them; feature-request sessions (DAN-47) are per-user, so the
+      // caller's uid must reach the GraphQL context — index.js reads req.auth
+      // in createHandler's context option. This is the one seam change.
+      req.auth = await verifyToken(match[1])
       next()
     } catch {
       next(unauthorized('Invalid or expired token'))
