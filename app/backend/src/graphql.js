@@ -24,6 +24,7 @@ import {
   startFeatureRequest,
   listFeatureRequests,
   getFeatureRequest,
+  sendFeatureRequestMessage,
 } from './featureRequests.js'
 
 // SDL built with graphql's own buildSchema — no @graphql-tools, because this flat
@@ -75,9 +76,26 @@ export const schema = buildSchema(`
     totalTokens: Int!
   }
 
+  # DAN-49: createdAt is additive — no message existed before the mutation
+  # that writes them, and every written message carries a timestamp.
   type FeatureRequestMessage {
     role: String!
     content: String!
+    createdAt: String!
+  }
+
+  # DAN-49: the planner's structured draft, stored on the session once the
+  # conversation converges. Nullable on FeatureRequest — no plan yet is the
+  # normal early state, not an error.
+  type PlanTicket {
+    key: String!
+    title: String!
+    description: String!
+    dependsOn: [String!]!
+  }
+
+  type Plan {
+    tickets: [PlanTicket!]!
   }
 
   type FeatureRequest {
@@ -86,6 +104,7 @@ export const schema = buildSchema(`
     model: String!
     createdAt: String!
     messages: [FeatureRequestMessage!]!
+    plan: Plan
   }
 
   input StartFeatureRequestInput {
@@ -105,6 +124,7 @@ export const schema = buildSchema(`
     updateRecord(id: ID!, input: UpdateRecordInput!): Record!
     deleteRecord(id: ID!): ID!
     startFeatureRequest(input: StartFeatureRequestInput!): FeatureRequest!
+    sendFeatureRequestMessage(id: ID!, content: String!): FeatureRequest!
   }
 `)
 
@@ -174,12 +194,17 @@ export function resolver(fn) {
 
 // --- Feature-request sessions (DAN-47) ---
 
-// createdAt is a Date in the data layer; convert at the presentation boundary,
-// same rule as toWire above.
+// createdAt is a Date in the data layer — on the session and (DAN-49) on each
+// message; convert at the presentation boundary, same rule as toWire above.
+// `plan` needs no conversion: it is plain strings and arrays.
 function toWireFeatureRequest(featureRequest) {
   return {
     ...featureRequest,
     createdAt: featureRequest.createdAt.toISOString(),
+    messages: featureRequest.messages.map((message) => ({
+      ...message,
+      createdAt: message.createdAt.toISOString(),
+    })),
   }
 }
 
@@ -218,6 +243,12 @@ export const rootValue = {
   ),
   startFeatureRequest: contextResolver(async ({ input }, { uid }) =>
     toWireFeatureRequest(await startFeatureRequest(uid, input)),
+  ),
+  // DAN-49: the aiGateway comes from the GraphQL context (injected through
+  // createApp, see index.js) — the resolver never constructs a client, and the
+  // data layer owns the orchestration and every Mongo call.
+  sendFeatureRequestMessage: contextResolver(async ({ id, content }, { uid, aiGateway }) =>
+    toWireFeatureRequest(await sendFeatureRequestMessage(uid, id, content, aiGateway)),
   ),
   records: resolver(async () => (await listRecords()).map(toWire)),
   // DAN-48: the caller's usage totals — zeros for a fresh user, never null.
