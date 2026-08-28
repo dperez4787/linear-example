@@ -123,6 +123,11 @@
       "queued": "en cola"
     }
   },
+  "costBreakdown": {
+    "heading": "Desglose de costes",
+    "planning": "Planificación",
+    "grandTotal": "Total general"
+  },
   "activity": {
     "paneLabel": "Actividad en vivo",
     "heading": "Actividad",

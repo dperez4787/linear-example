@@ -5,7 +5,9 @@ import {
   featureRequestActivity,
   featureRequestCost,
   featureRequestProgress,
+  ticketCosts,
 } from './api.js'
+import CostBreakdown from './CostBreakdown.jsx'
 import { useTranslation } from './i18n.js'
 
 // The watch-it-build DAG view (DAN-55): once a feature request is approved,
@@ -54,6 +56,14 @@ import { useTranslation } from './i18n.js'
 // legacy session, or one approved before DAN-90) hides it entirely. The slug is
 // printed verbatim: it is already the name, so nothing here re-cases it or
 // swaps its underscores for spaces.
+//
+// DAN-103 adds the cost breakdown (CostBreakdown) below the DAG/activity body.
+// Its ticketCosts read is the third rider on the one tick: fetched alongside
+// the progress poll, awaited before the next hop is scheduled — still one
+// timer — and it starts and stops with the poll. Failures are equally soft:
+// the last good rows stay rendered and the DAG is never marked stale by a
+// cost-read blip. A session with no recorded legs resolves [] and renders no
+// breakdown at all, so the legacy view stays the DAN-81 planning-only layout.
 export const POLL_INTERVAL_MS = 5000
 
 // Accessible per-state markers. Spinners are role="status" with distinct labels
@@ -176,6 +186,10 @@ export default function WatchBuild({
   // before the first successful read. Same never-blank-on-failure rule as the
   // DAG and the cost stat (DAN-84).
   const [events, setEvents] = useState(null)
+  // The last good per-ticket cost rows (TicketCost[], ascending by
+  // recordedAt), or null before the first successful read. Same
+  // never-blank-on-failure rule as every other rider (DAN-103).
+  const [buildCosts, setBuildCosts] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -201,6 +215,13 @@ export default function WatchBuild({
           return null
         }
       })()
+      const buildCostsPromise = (async () => {
+        try {
+          return await ticketCosts(promptId)
+        } catch {
+          return null
+        }
+      })()
       let done = false
       try {
         const next = await featureRequestProgress(promptId)
@@ -214,9 +235,11 @@ export default function WatchBuild({
       }
       const nextCost = await costPromise
       const nextEvents = await activityPromise
+      const nextBuildCosts = await buildCostsPromise
       if (cancelled) return
       if (nextCost) setCost(nextCost)
       if (nextEvents) setEvents(nextEvents)
+      if (nextBuildCosts) setBuildCosts(nextBuildCosts)
       if (!done) timer = setTimeout(poll, POLL_INTERVAL_MS)
     }
 
@@ -325,6 +348,7 @@ export default function WatchBuild({
         </div>
         <ActivityTimeline events={events} />
       </div>
+      <CostBreakdown planningCost={cost} rows={buildCosts} />
     </section>
   )
 }
