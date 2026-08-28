@@ -302,3 +302,30 @@ export async function approveFeatureRequestPlan(id) {
   )
   return data.approveFeatureRequestPlan
 }
+
+// --- Language preference (DAN-97) ---------------------------------------------
+
+// The signed-in caller's stored UI language -> 'en' | 'es', or null when they
+// have never set one. Backed by DAN-96's uid-scoped `languagePreference` query;
+// the uid comes from the ID token authedFetch attaches, never from an argument,
+// so there is nothing here for a caller to get wrong.
+//
+// Null is the ordinary "not chosen yet" answer, not an error — the caller falls
+// back to DAN-95's local default. Read once per signed-in session on load.
+export async function languagePreference() {
+  const data = await gql(`query { languagePreference }`)
+  return data.languagePreference ?? null
+}
+
+// Store the caller's UI language -> the value the server stored. Backed by
+// DAN-96's `setLanguagePreference` mutation, which upserts one row per uid, so
+// calling it repeatedly is last-write-wins rather than an accumulating history.
+// A rejected language is an execution-level BAD_USER_INPUT and throws like any
+// other validation failure.
+export async function setLanguagePreference(language) {
+  const data = await gql(
+    `mutation ($language: String!) { setLanguagePreference(language: $language) }`,
+    { language },
+  )
+  return data.setLanguagePreference
+}

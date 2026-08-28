@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useAuth } from './AuthContext.jsx'
 import { useTranslation } from './i18n.js'
 import LanguageSwitcher from './LanguageSwitcher.jsx'
+import { useLanguagePreference } from './languagePreference.js'
 
 // The auth boundary. It wraps the records UI (App) so that record data is only
 // ever mounted for a signed-in user: when there is no user, `children` (the
@@ -14,6 +15,10 @@ export default function AuthGate({ children }) {
   const { user, initializing, signIn, signOut } = useAuth()
   const [signInError, setSignInError] = useState(null)
   const { t } = useTranslation()
+  // DAN-97: the gate is where "post-auth" is actually known, so it is where the
+  // signed-in user's stored language gets read and later switches get mirrored
+  // back. The hook renders nothing and fails soft; see languagePreference.js.
+  useLanguagePreference(user)
 
   if (initializing) {
     return <p>{t('common.loading')}</p>
