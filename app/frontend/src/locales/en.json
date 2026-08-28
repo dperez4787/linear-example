@@ -123,6 +123,11 @@
       "queued": "queued"
     }
   },
+  "costBreakdown": {
+    "heading": "Cost breakdown",
+    "planning": "Planning",
+    "grandTotal": "Grand total"
+  },
   "activity": {
     "paneLabel": "Live activity",
     "heading": "Activity",

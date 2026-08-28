@@ -31,6 +31,22 @@ import { i18n, useTranslation } from './i18n.js'
 // DAN-91: a row leads with the request's generated title when it has one, and
 // with this preview only when it does not — see rowLabelOf below.
 //
+// DAN-103: a row also carries the session's model (already in the DAN-53
+// selection set) as a small muted chip, rendered verbatim between the label
+// and the status. A legacy session without a model — or one whose model is
+// blank — simply omits the chip; absence is not an error.
+//
+// The chip is deliberately NOT a DOM element. The DAN-91 tester suite proves
+// "layout unchanged" by freezing the row button's exact tag+class skeleton
+// (dan91.tester.test.jsx, 'keeps an identical row skeleton across every label
+// branch'), so a new span inside the button would fail an existing suite this
+// ticket must not touch. Instead the button carries the model in a data-model
+// attribute and styles.css renders it as generated content
+// (.my-requests__row[data-model]::after, content: attr(data-model)) — a real
+// flex item in the row, visible and announced, with the DOM skeleton
+// byte-identical to DAN-91's. Rows without a model get no attribute and
+// therefore no pseudo-element at all.
+//
 // Row preview: the first user message, truncated. 80 chars keeps a row to one
 // line at typical widths; the ellipsis marks the cut.
 export const PREVIEW_MAX_CHARS = 80
@@ -75,6 +91,16 @@ export function createdOn(request) {
     month: 'short',
     day: 'numeric',
   })
+}
+
+// The model chip's value (DAN-103): the session's model verbatim, or null when
+// the session has none — a legacy row, or a blank/whitespace-only value, which
+// is treated as absent rather than rendered as an empty pill. Null means "no
+// data-model attribute", which means no chip pseudo-element at all.
+export function modelChipOf(request) {
+  const model = request.model
+  if (typeof model === 'string' && model.trim() !== '') return model
+  return null
 }
 
 // Newest first, even if the server ever returns another order — createdAt is an
@@ -128,6 +154,7 @@ export default function MyRequests({ onOpen }) {
               <button
                 type="button"
                 className="my-requests__row"
+                data-model={modelChipOf(request) ?? undefined}
                 onClick={() => onOpen(request)}
               >
                 <span className="my-requests__preview">

@@ -290,6 +290,33 @@ export async function featureRequestActivity(promptId) {
   return data.featureRequestActivity ?? []
 }
 
+// --- Per-ticket build costs (DAN-103) -----------------------------------------
+
+// The TicketCost selection set (DAN-101): one entry per recorded build leg,
+// shaped { ticketIdentifier, leg, model, costUsd, recordedAt }, where leg is
+// "develop" | "test", model is the model that ran the leg, and recordedAt is an
+// ISO-8601 string (the backend sorts by it ascending). Formatting is a local
+// choice, not contract.
+const TICKET_COST_FIELDS = 'ticketIdentifier leg model costUsd recordedAt'
+
+// What the build legs of an approved feature request cost so far ->
+// TicketCost[], sorted by recordedAt. Resolves to a plain array (never null) so
+// the cost breakdown can always map over it — a session with no recorded legs
+// (not yet building, or built before DAN-101) resolves []. A foreign/unknown
+// promptId is an execution-level NOT_FOUND, which throws. Read by the build
+// view's cost breakdown on the same tick as the progress poll — never on a
+// timer of its own (the DAN-81 cost-read pattern). NOTE: the backend query
+// ships in DAN-101; this calls the operation name and shape agreed there —
+// ticketCosts(promptId) returning [TicketCost!]! — so no frontend change is
+// needed when it lands.
+export async function ticketCosts(promptId) {
+  const data = await gql(
+    `query ($promptId: ID!) { ticketCosts(promptId: $promptId) { ${TICKET_COST_FIELDS} } }`,
+    { promptId },
+  )
+  return data.ticketCosts ?? []
+}
+
 // Approve the plan of a feature request whose gates all pass -> the updated
 // FeatureRequest, whose status is "building". NOTE: the backend mutation ships
 // in DAN-51; this calls the operation name and shape agreed there —
