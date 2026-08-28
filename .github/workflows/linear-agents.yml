@@ -1,6 +1,8 @@
 # Remote developer/tester agents driven by Linear ticket status.
 #
-# The whole loop is autonomous (DAN-98); the ONLY human gate left is merging the PR:
+# The whole loop is autonomous (DAN-98), and for prompt:*-labeled tickets it now
+# runs end to end with NO human after the in-app Approve (DAN-100) — the human
+# gate moved from per-PR to per-feature:
 #
 #   status "Ready for Dev"                      → develop job: claims the ticket
 #                                                 (→ In Progress), implements it, opens a
@@ -8,7 +10,24 @@
 #                                                 ticket to In Review (no human action)
 #   status "In Review" without `agent-tested`   → test job: verifies acceptance criteria,
 #                                                 comments the verdict, lifts the draft on pass
-#   human merges the PR                         → the only manual step in the chain
+#   tester PASS + `prompt:*` label              → the SAME test run merges the PR (merge
+#                                                 commit, branch deleted) and moves the ticket
+#                                                 to Done (DAN-100); the relay dispatches on the
+#                                                 Done transition, which promotes the next
+#                                                 blocked ticket in the chain
+#   human merges the PR                         → only for tickets WITHOUT a prompt:* label
+#                                                 (their behavior is unchanged: lifted draft,
+#                                                 In Review, unmerged)
+#
+# DAN-100 auto-merge signal and failure mode: PASS means the PR's draft bit was
+# lifted AND a "Tester verdict" PASS comment was posted since the run started —
+# both, never one alone (.github/scripts/auto-merge-decision.mjs). The merge and
+# the Done move each fail the job LOUDLY on error; the ticket then stays In
+# Review with `agent-tested` for the next scan or a human — the correct degraded
+# state. This repo has no required-review branch protection; if one is added
+# later, `gh pr merge` will be rejected (github-actions[bot] cannot approve its
+# own PR), the job fails loudly, and every prompt-labeled ticket parks In Review
+# until a human merges or the protection is lifted.
 #
 # Every 5 minutes the scan job polls Linear (a single GraphQL request — no Claude
 # tokens are spent unless a ticket is actually waiting). Before looking for tickets
@@ -50,6 +69,11 @@ on:
     types: [linear-status-change]
   workflow_dispatch: {}
 
+# DAN-100 permissions audit: `gh pr merge --merge --delete-branch` needs exactly
+# `contents: write` (create the merge commit, delete the branch) and
+# `pull-requests: write` (merge the PR) — both were ALREADY granted here for the
+# develop/test legs (pushing branches, opening/commenting PRs), so the added
+# permission delta for auto-merge is zero.
 permissions:
   contents: write
   pull-requests: write
@@ -63,6 +87,7 @@ env:
   STATE_IN_PROGRESS: 561a64fd-33e0-43ad-8ce3-12d4e07d6624
   STATE_IN_REVIEW: 4ce22db3-e24c-4a43-b2ee-d8ec4b0c64b6
   STATE_TODO: 7e52dca3-ae1c-4558-a17f-109eb9622f90
+  STATE_DONE: afd17d47-af6c-4112-9655-f1ef5a7f1d11
   LABEL_AGENT_TESTED: 807df70e-ece2-48f9-b882-d5f466c46a30
 
 jobs:
@@ -211,8 +236,9 @@ jobs:
             - The ticket is already in "In Progress"; leave the Linear status alone —
               the workflow moved it there and, once your draft PR exists, a later
               workflow step moves the ticket to "In Review" itself, which hands it
-              to the tester agent. No human touches the status; the only human gate
-              in the whole chain is merging the PR.
+              to the tester agent. No human touches the status; on a tester PASS
+              the workflow even merges prompt-labeled tickets itself — a human
+              merge remains only for tickets without a prompt:* label.
 
             CI environment notes — these OVERRIDE the corresponding CLAUDE.md sections:
             - Do NOT run `source ~/.zshenv`; node, npm, git, and gh are already on PATH.
@@ -319,6 +345,10 @@ jobs:
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
+          # DAN-100: whether this ticket is in the autonomous prompt-a-feature
+          # flow (prompt:* label) — decides auto-merge eligibility later. Read
+          # from the labels this query already fetched; no extra request.
+          echo "prompt=$(echo "$RESP" | jq -r '[.data.issue.labels.nodes[].name] | any(startswith("prompt:"))')" >> "$GITHUB_OUTPUT"
           echo "started=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Verify ticket
@@ -353,7 +383,9 @@ jobs:
               GitHub review: CI's identity authored the PR and GitHub forbids
               self-approval — the PR comment is the verdict.
             - If every criterion passes: run `gh pr ready ${{ matrix.issue.branchName }}`
-              and leave the Linear status at "In Review" (the human merges).
+              and leave the Linear status at "In Review" (do NOT merge: a later
+              workflow step auto-merges prompt-labeled tickets; a human merges
+              the rest).
             - If any criterion fails: leave the PR a draft and move the Linear issue
               back to "In Progress" so the failure is visible on the board.
 
@@ -369,6 +401,7 @@ jobs:
       # Without the label, the next scheduled scan simply retries the ticket.
       - name: Mark ticket agent-tested (evidence-gated)
         if: steps.guard.outputs.skip != 'true'
+        id: tested
         run: |
           set -euo pipefail
           PR_NUMBER=$(gh pr list --repo "${{ github.repository }}" \
@@ -378,10 +411,17 @@ jobs:
             echo "::error::No PR found for ${{ matrix.issue.branchName }} — cannot have been tested; not labeling."
             exit 1
           fi
-          VERDICTS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" --paginate \
-            -q '[.[] | select(.user.login == "github-actions[bot]")
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          # DAN-100: fetch the comments ONCE to a file — this step counts
+          # verdicts from it, and the auto-merge decision step reuses it
+          # instead of re-querying. (--jq '.[]' + jq -s flattens --paginate's
+          # per-page arrays into one.)
+          gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+            --paginate --jq '.[]' | jq -s '.' > "$RUNNER_TEMP/pr-verdict-comments.json"
+          VERDICTS=$(jq '[.[] | select(.user.login == "github-actions[bot]")
                      | select(.body | contains("Tester verdict"))
-                     | select(.created_at >= "${{ steps.guard.outputs.started }}")] | length')
+                     | select(.created_at >= "${{ steps.guard.outputs.started }}")] | length' \
+            "$RUNNER_TEMP/pr-verdict-comments.json")
           if [ "$VERDICTS" -eq 0 ]; then
             echo "::error::No tester verdict posted on PR #$PR_NUMBER since ${{ steps.guard.outputs.started }} — the tester did not complete; not labeling so the next scan retries."
             exit 1
@@ -392,3 +432,54 @@ jobs:
             -d "$(jq -n --arg id "${{ matrix.issue.id }}" --arg label "$LABEL_AGENT_TESTED" \
               '{query: "mutation($id: String!, $label: String!) { issueAddLabel(id: $id, labelId: $label) { success } }", variables: {id: $id, label: $label}}')" \
             | jq -e '.data.issueAddLabel.success' > /dev/null
+
+      # ---- DAN-100: autonomous merge for the prompt-a-feature flow ----
+      # Runs only after verdict verification + labeling succeeded. The decision
+      # is pure and unit-tested (.github/scripts/auto-merge-decision.mjs):
+      # merge=yes ONLY for a prompt:*-labeled ticket whose latest in-run tester
+      # verdict is a PASS and whose PR draft bit was lifted — both signals,
+      # never one alone. Non-prompt tickets and FAIL verdicts get merge=no and
+      # nothing below runs: behavior identical to before DAN-100.
+      - name: Decide auto-merge (prompt label + tester PASS)
+        if: steps.guard.outputs.skip != 'true'
+        id: automerge
+        run: |
+          set -euo pipefail
+          IS_DRAFT=$(gh pr view "${{ steps.tested.outputs.pr_number }}" \
+            --repo "${{ github.repository }}" --json isDraft -q .isDraft)
+          node .github/scripts/auto-merge-decision.mjs \
+            --comments "$RUNNER_TEMP/pr-verdict-comments.json" \
+            --since "${{ steps.guard.outputs.started }}" \
+            --draft "$IS_DRAFT" \
+            --prompt-labeled "${{ steps.guard.outputs.prompt }}" \
+            | tee -a "$GITHUB_OUTPUT"
+
+      # Merge commit (not squash/rebase) to match the repo's merge history.
+      # Any merge failure — conflict, or a later-added required-review branch
+      # protection rejecting github-actions[bot] — fails the job loudly here;
+      # the ticket stays In Review with `agent-tested` for the next scan or a
+      # human, which is the correct degraded state.
+      - name: Merge PR (prompt-labeled ticket, tester PASS)
+        if: steps.guard.outputs.skip != 'true' && steps.automerge.outputs.merge == 'yes'
+        run: |
+          set -euo pipefail
+          gh pr merge "${{ steps.tested.outputs.pr_number }}" \
+            --repo "${{ github.repository }}" --merge --delete-branch
+          echo "PR #${{ steps.tested.outputs.pr_number }} merged (merge commit), branch deleted"
+
+      # Only reached if the merge above succeeded. The relay (ai-gateway repo)
+      # dispatches on the Done transition, triggering the scan that promotes
+      # the next blocked ticket — this move is what closes the loop. A failure
+      # here fails the job loudly: the PR is merged but the ticket sits In
+      # Review, and the next human/scan pass resolves it.
+      - name: Move ticket to Done
+        if: steps.guard.outputs.skip != 'true' && steps.automerge.outputs.merge == 'yes'
+        run: |
+          set -euo pipefail
+          curl -sS --fail https://api.linear.app/graphql \
+            -H "Authorization: $LINEAR_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg id "${{ matrix.issue.id }}" --arg state "$STATE_DONE" \
+              '{query: "mutation($id: String!, $state: String!) { issueUpdate(id: $id, input: { stateId: $state }) { success } }", variables: {id: $id, state: $state}}')" \
+            | jq -e '.data.issueUpdate.success' > /dev/null
+          echo "${{ matrix.issue.identifier }} → Done (relay will dispatch the next scan)"
