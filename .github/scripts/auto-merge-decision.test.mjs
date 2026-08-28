@@ -44,8 +44,14 @@ test('verdictLine: returns the marker-bearing line, null when absent', () => {
   assert.equal(verdictLine(null), null)
 })
 
-test('isPassVerdict: PASS on the verdict line → true', () => {
+test('isPassVerdict: unhedged terminal PASS on the verdict line → true (dash/colon separators, trailing whitespace)', () => {
   assert.equal(isPassVerdict(comment().body), true)
+  assert.equal(isPassVerdict('## Tester verdict — PASS'), true)
+  assert.equal(isPassVerdict('Tester verdict: PASS'), true)
+  assert.equal(isPassVerdict('Tester verdict — PASS   '), true, 'trailing spaces allowed')
+  assert.equal(isPassVerdict('Tester verdict - PASS'), true, 'plain hyphen separator')
+  assert.equal(isPassVerdict('Tester verdict – PASS'), true, 'en dash separator')
+  assert.equal(isPassVerdict('## Tester verdict — PASS\r\n\r\nCRLF body'), true, 'CRLF bodies tolerated')
 })
 
 test('isPassVerdict: FAIL verdict is not a pass, even when the evidence body mentions PASS', () => {
@@ -61,8 +67,21 @@ test('isPassVerdict: PASS only in the body below the verdict line does not count
   assert.equal(isPassVerdict('## Tester verdict\nPASS'), false)
 })
 
-test('isPassVerdict: PASS must be a whole word (SURPASSED is not a verdict)', () => {
+test('isPassVerdict: hedged, negated, and fragment lookalikes are all conservatively not a pass', () => {
+  // negation before PASS
+  assert.equal(isPassVerdict('## Tester verdict — NOT PASS'), false)
+  assert.equal(isPassVerdict('Tester verdict: did not PASS'), false)
+  // hedging after PASS
+  assert.equal(isPassVerdict('## Tester verdict — PASS?'), false)
+  assert.equal(isPassVerdict('## Tester verdict — PASS (with caveats)'), false)
+  // fragments containing PASS
+  assert.equal(isPassVerdict('## Tester verdict — PASSABLE'), false)
+  assert.equal(isPassVerdict('## Tester verdict — PASSED'), false)
   assert.equal(isPassVerdict('## Tester verdict — expectations SURPASSED'), false)
+  // wrong case, plain FAIL, missing separator
+  assert.equal(isPassVerdict('## Tester verdict — pass'), false)
+  assert.equal(isPassVerdict('## Tester verdict — FAIL'), false)
+  assert.equal(isPassVerdict('Tester verdict PASS'), false, 'no separator → not a verdict')
 })
 
 // ---------- verdict comment filtering (mirrors the labeling step jq) ----------

@@ -16,10 +16,15 @@
 //      re-check is defense in depth, not the primary gate.)
 //   3. Latest verdict since run start is not a PASS → merge=no. The verdict
 //      line — the line of the comment containing "Tester verdict", the same
-//      marker the labeling step greps for — must contain the word PASS and
-//      not the word FAIL; a FAIL verdict whose evidence body happens to
-//      mention "PASS" does not count, and an ambiguous line (both words)
-//      is conservatively not a PASS.
+//      marker the labeling step greps for — must be an UNHEDGED TERMINAL
+//      PASS: "Tester verdict", a separator (em/en dash, hyphen, or colon),
+//      then PASS as the last thing on the line. Nothing may follow PASS, and
+//      nothing but the separator may precede it after the marker, so negation
+//      or hedging is impossible by construction: "NOT PASS", "did not PASS",
+//      "PASS?", "PASS (with caveats)", "PASSED"/"PASSABLE", lowercase
+//      "pass", and every FAIL variant are all conservatively not a PASS. A
+//      FAIL verdict whose evidence body happens to mention "PASS" does not
+//      count either — only the verdict line is inspected.
 //   4. The PR is still a draft → merge=no. The tester only lifts the draft
 //      (`gh pr ready`) on a full pass, so PASS-comment AND lifted-draft
 //      together are the reliable signal; either alone is not.
@@ -47,6 +52,12 @@
 
 const VERDICT_MARKER = 'Tester verdict'
 const BOT_LOGIN = 'github-actions[bot]'
+// Unhedged terminal PASS only (see rule 3 above): the marker, a separator
+// (em dash, colon, en dash, or hyphen), then PASS ending the line (trailing
+// whitespace ok — also tolerates CRLF bodies). Because nothing but the
+// separator may sit between the marker and PASS, and nothing at all after
+// it, negated/hedged/fragment lookalikes cannot match. Case-sensitive.
+const PASS_VERDICT = /Tester verdict\s*[—:–-]+\s*PASS\s*$/
 // A permissive `--since` would be dangerous: string-comparing created_at
 // against '' (or garbage) makes every historical PASS count. Require the
 // exact shape the guard step emits (date -u +%Y-%m-%dT%H:%M:%SZ).
@@ -59,11 +70,11 @@ export function verdictLine(body) {
   return body.split('\n').find((line) => line.includes(VERDICT_MARKER)) ?? null
 }
 
-// PASS iff the verdict line itself says PASS and does not say FAIL. Only the
-// verdict line is inspected — evidence text below it can mention either word.
+// PASS iff the verdict line itself is an unhedged terminal PASS. Only the
+// verdict line is inspected — evidence text below it can say anything.
 export function isPassVerdict(body) {
   const line = verdictLine(body)
-  return line !== null && /\bPASS\b/.test(line) && !/\bFAIL\b/.test(line)
+  return line !== null && PASS_VERDICT.test(line)
 }
 
 // Same filter as the labeling step's jq: bot-authored, marker-bearing,
