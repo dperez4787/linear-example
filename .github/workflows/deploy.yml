@@ -16,6 +16,23 @@ on:
   push:
     branches: [main]
 
+# DAN-70: rapid merges to main used to start overlapping deploy runs; when an
+# older run finished last, production served stale bytes. One workflow-level
+# group serializes ENTIRE runs — backend and frontend deploy from the same
+# commit as one unit, so no job from an older run can start after a newer run
+# has begun. cancel-in-progress is false (queue, strict ordering) rather than
+# true (cancel the older run): a cancel can land mid `gcloud run deploy` /
+# `firebase deploy` and leave the two halves on different commits, whereas
+# queuing lets every started run finish atomically. GitHub keeps only the
+# latest PENDING run per group, so a burst of merges collapses to "current run
+# finishes, newest commit deploys next" — the newest commit always deploys
+# last, and an older run can never overwrite a newer one. The group is keyed
+# on github.ref so a future non-main trigger would queue separately instead of
+# blocking main deploys.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   backend:
     name: Build, push, and deploy backend
