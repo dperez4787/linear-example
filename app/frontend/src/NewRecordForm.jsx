@@ -1,5 +1,7 @@
 import { useState } from 'react'
 
+import { useTranslation } from './i18n.js'
+
 // The allowed statuses mirror the backend schema (docs/architecture.md) for the
 // input UX only — the backend stays the enforcement point, so the form does no
 // validation of its own and lets a rejected submit come back as a field-scoped
@@ -26,6 +28,7 @@ const EMPTY = { name: '', status: 'active', amount: '', notes: '' }
 // the "Name"/"Amount"/… labels the edit row uses), matching the label-less input
 // style RecordRow's edit mode already established.
 export default function NewRecordForm({ onCreate }) {
+  const { t } = useTranslation()
   const [draft, setDraft] = useState(EMPTY)
   const [fieldError, setFieldError] = useState(null) // { field, message } | null
   const [formError, setFormError] = useState(null) // string | null
@@ -68,8 +71,12 @@ export default function NewRecordForm({ onCreate }) {
   const errorFor = (field) => (fieldError?.field === field ? fieldError.message : null)
 
   return (
-    <form className="record-form" aria-label="New record" onSubmit={handleSubmit}>
-      <h2>Add a record</h2>
+    <form
+      className="record-form"
+      aria-label={t('records.form.ariaLabel')}
+      onSubmit={handleSubmit}
+    >
+      <h2>{t('records.form.heading')}</h2>
       {formError && <p role="alert">{formError}</p>}
 
       {/* One aligned toolbar row: every control shares the .control height so the
@@ -82,8 +89,8 @@ export default function NewRecordForm({ onCreate }) {
         <div className="field field--grow">
           <input
             className="control"
-            aria-label="New name"
-            placeholder="Name"
+            aria-label={t('records.form.nameLabel')}
+            placeholder={t('records.form.namePlaceholder')}
             aria-invalid={errorFor('name') ? 'true' : undefined}
             aria-describedby={errorFor('name') ? 'new-name-error' : undefined}
             value={draft.name}
@@ -99,7 +106,7 @@ export default function NewRecordForm({ onCreate }) {
         <div className="field">
           <select
             className="control"
-            aria-label="New status"
+            aria-label={t('records.form.statusLabel')}
             aria-invalid={errorFor('status') ? 'true' : undefined}
             aria-describedby={errorFor('status') ? 'new-status-error' : undefined}
             value={draft.status}
@@ -107,7 +114,7 @@ export default function NewRecordForm({ onCreate }) {
           >
             {STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {t(`records.status.${s}`)}
               </option>
             ))}
           </select>
@@ -121,9 +128,9 @@ export default function NewRecordForm({ onCreate }) {
         <div className="field">
           <input
             className="control"
-            aria-label="New amount"
+            aria-label={t('records.form.amountLabel')}
             type="number"
-            placeholder="Amount"
+            placeholder={t('records.form.amountPlaceholder')}
             aria-invalid={errorFor('amount') ? 'true' : undefined}
             aria-describedby={errorFor('amount') ? 'new-amount-error' : undefined}
             value={draft.amount}
@@ -139,8 +146,8 @@ export default function NewRecordForm({ onCreate }) {
         <div className="field field--grow">
           <input
             className="control"
-            aria-label="New notes"
-            placeholder="Notes"
+            aria-label={t('records.form.notesLabel')}
+            placeholder={t('records.form.notesPlaceholder')}
             aria-invalid={errorFor('notes') ? 'true' : undefined}
             aria-describedby={errorFor('notes') ? 'new-notes-error' : undefined}
             value={draft.notes}
@@ -154,7 +161,7 @@ export default function NewRecordForm({ onCreate }) {
         </div>
 
         <button className="btn btn--primary" type="submit" disabled={submitting}>
-          Add
+          {t('records.form.submit')}
         </button>
       </div>
     </form>

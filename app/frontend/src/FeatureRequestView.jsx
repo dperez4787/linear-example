@@ -7,6 +7,7 @@ import {
   sendFeatureRequestMessage,
   startFeatureRequest,
 } from './api.js'
+import { useTranslation } from './i18n.js'
 import { renderMarkdown } from './markdown.jsx'
 import MyRequests from './MyRequests.jsx'
 import WatchBuild from './WatchBuild.jsx'
@@ -73,6 +74,12 @@ export const BUILD_HANDOFF_STATUSES = ['building', 'shipped']
 // FeatureRequest.entranceCriteria shape (DAN-50); labels are the gate names
 // from the ticket. entranceCriteria is null until the first evaluation, so each
 // row renders "Not yet evaluated" until the server has judged the request.
+//
+// DAN-95 leaves these labels untranslated on purpose: they are the gates'
+// names — the same tokens the backend and the tickets use — not prose. The
+// Pass/Fail/Not-yet-evaluated verdicts beside them ARE prose, and are
+// translated. Model names and the display-only tool names above are left alone
+// for the same reason.
 const GATES = [
   { key: 'notTooBig', label: 'not-too-big' },
   { key: 'notAmbiguous', label: 'not-ambiguous' },
@@ -169,6 +176,7 @@ export default function FeatureRequestView({
   requestId = null,
   onNavigate = () => {},
 }) {
+  const { t } = useTranslation()
   const [request, setRequest] = useState(null)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
@@ -484,7 +492,7 @@ export default function FeatureRequestView({
         setApproveError({ message: err.message, detail: null })
       } else {
         setApproveError({
-          message: "Couldn't file the plan — nothing was created. Try again.",
+          message: t('featureRequest.approveFailed'),
           detail: err.message,
         })
       }
@@ -502,13 +510,15 @@ export default function FeatureRequestView({
     return (
       <>
         <button className="btn" type="button" onClick={onBack}>
-          Back to records
+          {t('featureRequest.backToRecords')}
         </button>
-        <h1>Request a feature</h1>
+        <h1>{t('featureRequest.title')}</h1>
         {loadingDeepLink ? (
-          <p className="empty-state">Loading session…</p>
+          <p className="empty-state">{t('featureRequest.loadingSession')}</p>
         ) : (
-          <p role="alert">Couldn’t load this request: {loadError}</p>
+          <p role="alert">
+            {t('featureRequest.loadError', { message: loadError })}
+          </p>
         )}
       </>
     )
@@ -517,11 +527,11 @@ export default function FeatureRequestView({
   return (
     <>
       <button className="btn" type="button" onClick={onBack}>
-        Back to records
+        {t('featureRequest.backToRecords')}
       </button>
-      <h1>Request a feature</h1>
+      <h1>{t('featureRequest.title')}</h1>
       <fieldset className="model-picker" disabled={sessionStarted}>
-        <legend>Model</legend>
+        <legend>{t('featureRequest.modelLegend')}</legend>
         <ul className="model-picker__options">
           {SELECTABLE_MODELS.map((name) => (
             <li key={name}>
@@ -542,13 +552,13 @@ export default function FeatureRequestView({
               key={name}
               className="model-picker__option model-picker__option--muted"
             >
-              {name} (display only)
+              {t('featureRequest.displayOnly', { name })}
             </li>
           ))}
         </ul>
       </fieldset>
-      <section className="gates" aria-label="Entrance criteria">
-        <h2>Entrance criteria</h2>
+      <section className="gates" aria-label={t('featureRequest.gates.heading')}>
+        <h2>{t('featureRequest.gates.heading')}</h2>
         <ul className="gates__list">
           {GATES.map(({ key, label }) => {
             const gate = request?.entranceCriteria?.[key] ?? null
@@ -564,14 +574,16 @@ export default function FeatureRequestView({
                           : 'gates__state gates__state--fail'
                       }
                     >
-                      {gate.pass ? 'Pass' : 'Fail'}
+                      {gate.pass
+                        ? t('featureRequest.gates.pass')
+                        : t('featureRequest.gates.fail')}
                     </span>
                     {' — '}
                     <span className="gates__reason">{gate.reason}</span>
                   </>
                 ) : (
                   <span className="gates__state gates__state--pending">
-                    Not yet evaluated
+                    {t('featureRequest.gates.notEvaluated')}
                   </span>
                 )}
               </li>
@@ -586,7 +598,7 @@ export default function FeatureRequestView({
               disabled={!request?.approvable || approving}
               onClick={handleApprove}
             >
-              Approve plan
+              {t('featureRequest.approve')}
             </button>
             {/* DAN-76: the approval-failure panel, right under its button.
                 Hidden once quota exhaustion takes over — the sticky quota
@@ -602,31 +614,31 @@ export default function FeatureRequestView({
           </>
         )}
       </section>
-      <section className="quota-meter" aria-label="AI usage">
-        <h2>AI usage</h2>
+      <section className="quota-meter" aria-label={t('featureRequest.usage.heading')}>
+        <h2>{t('featureRequest.usage.heading')}</h2>
         {usage ? (
           <dl className="quota-meter__figures">
             <div className="quota-meter__figure">
-              <dt>Requests</dt>
+              <dt>{t('featureRequest.usage.requests')}</dt>
               <dd>{usage.requests}</dd>
             </div>
             <div className="quota-meter__figure">
-              <dt>Tokens</dt>
+              <dt>{t('featureRequest.usage.tokens')}</dt>
               <dd>{usage.totalTokens}</dd>
             </div>
           </dl>
         ) : (
-          <p className="empty-state">Usage not loaded yet.</p>
+          <p className="empty-state">{t('featureRequest.usage.notLoaded')}</p>
         )}
       </section>
       {transcriptLength === 0 ? (
-        <p className="empty-state">
-          Describe the feature you would like. The product owner and architect
-          will reply here.
-        </p>
+        <p className="empty-state">{t('featureRequest.emptyTranscript')}</p>
       ) : (
         <>
-          <ul className="chat-transcript" aria-label="Conversation">
+          <ul
+            className="chat-transcript"
+            aria-label={t('featureRequest.conversation')}
+          >
             {messages.map((message, index) =>
               message.role === 'user' ? (
                 // User bubbles stay exactly as DAN-53 shipped them: plain
@@ -659,18 +671,22 @@ export default function FeatureRequestView({
                 key={`pending-${entry.id}`}
                 className="chat-message chat-message--user"
               >
+                {/* The role label is the server's vocabulary, rendered
+                    verbatim for delivered messages above — translating only
+                    the optimistic copy would label one speaker two ways in
+                    one transcript. */}
                 <span className="chat-message__role">user</span>
                 <p className="chat-message__content">{entry.content}</p>
                 {entry.status === 'failed' && (
                   <p className="chat-message__undelivered">
-                    not delivered —{' '}
+                    {t('featureRequest.notDelivered')}{' '}
                     <button
                       className="chat-message__retry"
                       type="button"
                       disabled={sending || quotaExhausted}
                       onClick={() => handleRetry(entry.id)}
                     >
-                      retry
+                      {t('featureRequest.retry')}
                     </button>
                   </p>
                 )}
@@ -679,7 +695,7 @@ export default function FeatureRequestView({
             {sending && (
               <li className="chat-message chat-message--thinking">
                 <p className="chat-message__content chat-thinking" role="status">
-                  product-owner is thinking…
+                  {t('featureRequest.thinking')}
                 </p>
               </li>
             )}
@@ -689,12 +705,8 @@ export default function FeatureRequestView({
       )}
       {quotaExhausted ? (
         <section className="quota-exhausted" role="alert">
-          <h2>You’re out of AI quota</h2>
-          <p>
-            This conversation has used up the available AI allowance for now.
-            Nothing was lost — your request is saved, and you can pick it up
-            again once the quota resets.
-          </p>
+          <h2>{t('featureRequest.quotaHeading')}</h2>
+          <p>{t('featureRequest.quotaBody')}</p>
         </section>
       ) : (
         error && <p role="alert">{error}</p>
@@ -717,7 +729,7 @@ export default function FeatureRequestView({
         <>
           <form className="chat-composer" onSubmit={handleSubmit}>
             <label className="chat-composer__field field--grow">
-              Message
+              {t('featureRequest.messageLabel')}
               <textarea
                 ref={composerRef}
                 className="control chat-composer__textarea"
@@ -733,11 +745,11 @@ export default function FeatureRequestView({
               type="submit"
               disabled={sending || quotaExhausted}
             >
-              Send
+              {t('featureRequest.send')}
             </button>
           </form>
           <p className="chat-composer__hint">
-            The team reads and replies — this can take a minute.
+            {t('featureRequest.composerHint')}
           </p>
         </>
       )}

@@ -1,0 +1,135 @@
+{
+  "common": {
+    "loading": "Cargando…"
+  },
+  "language": {
+    "label": "Idioma"
+  },
+  "nav": {
+    "blog": "Ir al blog de Danny",
+    "signOut": "Cerrar sesión",
+    "signedIn": "Sesión iniciada"
+  },
+  "auth": {
+    "signInPrompt": "Inicia sesión para ver y gestionar los registros.",
+    "signInWithGoogle": "Iniciar sesión con Google",
+    "signInFailed": "No se pudo iniciar sesión"
+  },
+  "records": {
+    "title": "Registros",
+    "requestFeature": "Solicitar una función",
+    "loading": "Cargando registros…",
+    "loadError": "No se pudieron cargar los registros: {{message}}",
+    "status": {
+      "all": "todos",
+      "active": "activo",
+      "pending": "pendiente",
+      "archived": "archivado"
+    },
+    "form": {
+      "ariaLabel": "Nuevo registro",
+      "heading": "Añadir un registro",
+      "nameLabel": "Nuevo nombre",
+      "namePlaceholder": "Nombre",
+      "statusLabel": "Nuevo estado",
+      "amountLabel": "Nuevo importe",
+      "amountPlaceholder": "Importe",
+      "notesLabel": "Nuevas notas",
+      "notesPlaceholder": "Notas",
+      "submit": "Añadir"
+    },
+    "table": {
+      "filterByName": "Filtrar por nombre",
+      "filterByStatus": "Filtrar por estado",
+      "name": "Nombre",
+      "status": "Estado",
+      "amount": "Importe",
+      "notes": "Notas",
+      "updated": "Actualizado",
+      "actions": "Acciones",
+      "empty": "Todavía no hay registros.",
+      "noMatches": "Ningún registro coincide.",
+      "clearFilters": "Borrar filtros"
+    },
+    "row": {
+      "name": "Nombre",
+      "status": "Estado",
+      "amount": "Importe",
+      "notes": "Notas",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "save": "Guardar",
+      "cancel": "Cancelar"
+    }
+  },
+  "featureRequest": {
+    "title": "Solicitar una función",
+    "backToRecords": "Volver a los registros",
+    "loadingSession": "Cargando la sesión…",
+    "loadError": "No se pudo cargar esta solicitud: {{message}}",
+    "modelLegend": "Modelo",
+    "displayOnly": "{{name}} (solo visualización)",
+    "gates": {
+      "heading": "Criterios de entrada",
+      "pass": "Aprobado",
+      "fail": "Rechazado",
+      "notEvaluated": "Todavía sin evaluar"
+    },
+    "approve": "Aprobar el plan",
+    "approveFailed": "No se pudo registrar el plan — no se creó nada. Inténtalo de nuevo.",
+    "usage": {
+      "heading": "Uso de IA",
+      "requests": "Solicitudes",
+      "tokens": "Tokens",
+      "notLoaded": "El uso aún no se ha cargado."
+    },
+    "emptyTranscript": "Describe la función que te gustaría. El product owner y el arquitecto responderán aquí.",
+    "conversation": "Conversación",
+    "notDelivered": "no entregado —",
+    "retry": "reintentar",
+    "thinking": "product-owner está pensando…",
+    "quotaHeading": "Se te acabó la cuota de IA",
+    "quotaBody": "Esta conversación ha agotado la asignación de IA disponible por ahora. No se perdió nada — tu solicitud está guardada y podrás retomarla cuando se restablezca la cuota.",
+    "messageLabel": "Mensaje",
+    "send": "Enviar",
+    "composerHint": "El equipo lee y responde — esto puede tardar un minuto."
+  },
+  "myRequests": {
+    "heading": "Mis solicitudes",
+    "loading": "Cargando tus solicitudes…",
+    "error": "No se pudieron cargar tus solicitudes anteriores.",
+    "empty": "Todavía no hay solicitudes.",
+    "noMessages": "(todavía no hay mensajes)"
+  },
+  "watchBuild": {
+    "heading": "Progreso de la construcción",
+    "viewInLinear": "Ver en Linear",
+    "planningCost": "Coste de planificación",
+    "calls_one": "{{count}} llamada",
+    "calls_other": "{{count}} llamadas",
+    "complete": "Construcción completa — todos los tickets están listos.",
+    "building": "Plan aprobado — el equipo está construyendo esta función.",
+    "stale": "Vista en vivo desactualizada — reintentando.",
+    "loading": "Cargando el progreso de la construcción…",
+    "noTickets": "Todavía no se han registrado tickets.",
+    "stages": "Etapas de la construcción",
+    "stage": "Etapa {{number}}",
+    "blockedBy": "bloqueado por {{blockers}}",
+    "state": {
+      "implementing": "implementando",
+      "review": "en revisión",
+      "done": "listo",
+      "bounced": "devuelto",
+      "queued": "en cola"
+    }
+  },
+  "activity": {
+    "paneLabel": "Actividad en vivo",
+    "heading": "Actividad",
+    "loading": "Cargando la actividad…",
+    "empty": "Todavía no hay actividad.",
+    "eventsLabel": "Eventos de actividad",
+    "showComment": "Mostrar el comentario",
+    "hideComment": "Ocultar el comentario"
+  }
+}

@@ -95,6 +95,23 @@ body {
   font-size: 0.9375rem;
 }
 
+/* DAN-95: the language selector in the header. The label sits inline with its
+   select so the control reads as one item in the header's action row, and the
+   select is a touch shorter than a body control so it does not dominate the
+   chrome. */
+.language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-muted);
+  font-size: 0.9375rem;
+}
+
+.language-switcher__select {
+  height: calc(var(--control-height) - 6px);
+  font-size: 0.9375rem;
+}
+
 /* -- Body layout ------------------------------------------------------------- */
 
 main {

@@ -6,6 +6,7 @@ import {
   featureRequestCost,
   featureRequestProgress,
 } from './api.js'
+import { useTranslation } from './i18n.js'
 
 // The watch-it-build DAG view (DAN-55): once a feature request is approved,
 // FeatureRequestView hands off to this component, which polls
@@ -61,36 +62,41 @@ export const POLL_INTERVAL_MS = 5000
 // dimmed BACKLOG style is backed by the visible label "queued" so the state
 // never lives in opacity alone.
 function StateMarker({ state }) {
+  const { t } = useTranslation()
   switch (state) {
     case 'IN_PROGRESS':
       return (
         <span role="status" className="dag-node__state dag-node__state--implementing">
           <span className="spinner spinner--implementing" aria-hidden="true" />
-          implementing
+          {t('watchBuild.state.implementing')}
         </span>
       )
     case 'IN_REVIEW':
       return (
         <span role="status" className="dag-node__state dag-node__state--review">
           <span className="spinner spinner--review" aria-hidden="true" />
-          under review
+          {t('watchBuild.state.review')}
         </span>
       )
     case 'DONE':
       return (
         <span className="dag-node__state dag-node__state--done">
-          <span aria-hidden="true">✓</span> done
+          <span aria-hidden="true">✓</span> {t('watchBuild.state.done')}
         </span>
       )
     case 'BOUNCED':
       return (
         <span className="dag-node__state dag-node__state--bounced">
-          <span aria-hidden="true">⚠</span> sent back
+          <span aria-hidden="true">⚠</span> {t('watchBuild.state.bounced')}
         </span>
       )
     default:
       // BACKLOG (and anything unrecognized degrades to queued rather than blank).
-      return <span className="dag-node__state dag-node__state--queued">queued</span>
+      return (
+        <span className="dag-node__state dag-node__state--queued">
+          {t('watchBuild.state.queued')}
+        </span>
+      )
   }
 }
 
@@ -151,6 +157,7 @@ export default function WatchBuild({
   linearProjectUrl = null,
   title = null,
 }) {
+  const { t } = useTranslation()
   // A blank/whitespace-only title counts as absent, so the header never gains
   // an empty slot (DAN-91).
   const shownTitle =
@@ -232,9 +239,9 @@ export default function WatchBuild({
   }
 
   return (
-    <section className="watch-build" aria-label="Build progress">
+    <section className="watch-build" aria-label={t('watchBuild.heading')}>
       <header className="watch-build__header">
-        <h2>Build progress</h2>
+        <h2>{t('watchBuild.heading')}</h2>
         {shownTitle && (
           <span className="watch-build__title">{shownTitle}</span>
         )}
@@ -245,36 +252,36 @@ export default function WatchBuild({
             target="_blank"
             rel="noopener noreferrer"
           >
-            View in Linear
+            {t('watchBuild.viewInLinear')}
           </a>
         )}
         {cost && (
           <p className="watch-build__cost">
-            Planning cost{' '}
+            {t('watchBuild.planningCost')}{' '}
             <span className="watch-build__cost-figure">
               ${cost.costUsd.toFixed(4)}
             </span>{' '}
-            · {cost.calls} {cost.calls === 1 ? 'call' : 'calls'}
+            · {t('watchBuild.calls', { count: cost.calls })}
           </p>
         )}
       </header>
       <p role="status" className="watch-build__status">
-        {finished
-          ? 'Build complete — every ticket is done.'
-          : 'Plan approved — the team is building this feature.'}
-        {stale && ' Live view stale — retrying.'}
+        {finished ? t('watchBuild.complete') : t('watchBuild.building')}
+        {stale && ` ${t('watchBuild.stale')}`}
       </p>
       <div className="watch-build__body">
         <div className="watch-build__dag">
           {tickets === null ? (
-            <p className="empty-state">Loading build progress…</p>
+            <p className="empty-state">{t('watchBuild.loading')}</p>
           ) : tickets.length === 0 ? (
-            <p className="empty-state">No tickets filed yet.</p>
+            <p className="empty-state">{t('watchBuild.noTickets')}</p>
           ) : (
-            <ol className="dag" aria-label="Build stages">
+            <ol className="dag" aria-label={t('watchBuild.stages')}>
               {layers.map((layer, i) => (
                 <li key={i} className="dag__layer">
-                  <h3 className="dag__layer-name">Stage {i + 1}</h3>
+                  <h3 className="dag__layer-name">
+                    {t('watchBuild.stage', { number: i + 1 })}
+                  </h3>
                   <ul className="dag__nodes">
                     {layer.map((ticket) => {
                       const blockers = unresolvedBlockers(ticket, tickets)
@@ -302,7 +309,9 @@ export default function WatchBuild({
                           )}
                           {blockers.length > 0 && (
                             <p className="dag-node__blocked">
-                              blocked by {blockers.join(', ')}
+                              {t('watchBuild.blockedBy', {
+                                blockers: blockers.join(', '),
+                              })}
                             </p>
                           )}
                         </li>

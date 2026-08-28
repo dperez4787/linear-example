@@ -1,6 +1,8 @@
 import { useState } from 'react'
 
 import { useAuth } from './AuthContext.jsx'
+import { useTranslation } from './i18n.js'
+import LanguageSwitcher from './LanguageSwitcher.jsx'
 
 // The auth boundary. It wraps the records UI (App) so that record data is only
 // ever mounted for a signed-in user: when there is no user, `children` (the
@@ -11,9 +13,10 @@ import { useAuth } from './AuthContext.jsx'
 export default function AuthGate({ children }) {
   const { user, initializing, signIn, signOut } = useAuth()
   const [signInError, setSignInError] = useState(null)
+  const { t } = useTranslation()
 
   if (initializing) {
-    return <p>Loading…</p>
+    return <p>{t('common.loading')}</p>
   }
 
   if (!user) {
@@ -25,7 +28,7 @@ export default function AuthGate({ children }) {
         // A user closing the Google popup rejects with auth/popup-closed-by-user;
         // surface anything else so a real misconfiguration isn't silent.
         if (err?.code !== 'auth/popup-closed-by-user') {
-          setSignInError(err?.message ?? 'Sign-in failed')
+          setSignInError(err?.message ?? t('auth.signInFailed'))
         }
       }
     }
@@ -36,17 +39,18 @@ export default function AuthGate({ children }) {
           <div className="container app-header__inner">
             <span className="app-title">linear-example</span>
             <div className="app-header__actions">
+              <LanguageSwitcher />
               <a className="app-link" href="/blog">
-                Go To Danny's Blog
+                {t('nav.blog')}
               </a>
             </div>
           </div>
         </header>
         <main className="container">
-          <h1>Records</h1>
-          <p>Sign in to view and manage records.</p>
+          <h1>{t('records.title')}</h1>
+          <p>{t('auth.signInPrompt')}</p>
           <button className="btn btn--primary" type="button" onClick={handleSignIn}>
-            Sign in with Google
+            {t('auth.signInWithGoogle')}
           </button>
           {signInError && <p role="alert">{signInError}</p>}
         </main>
@@ -65,13 +69,14 @@ export default function AuthGate({ children }) {
           <span className="app-title">linear-example</span>
           <div className="app-header__actions">
             <span className="app-header__user">
-              {user.displayName ?? user.email ?? 'Signed in'}
+              {user.displayName ?? user.email ?? t('nav.signedIn')}
             </span>
+            <LanguageSwitcher />
             <a className="app-link" href="/blog">
-              Go To Danny's Blog
+              {t('nav.blog')}
             </a>
             <button className="btn" type="button" onClick={() => signOut()}>
-              Sign out
+              {t('nav.signOut')}
             </button>
           </div>
         </div>
