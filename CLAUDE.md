@@ -161,6 +161,40 @@ CI differences from local sessions (the workflow prompt tells agents this too):
   GitHub forbids self-approval, so there is no formal review in the remote flow.
 - Secrets: `ANTHROPIC_API_KEY` (billing) and `LINEAR_API_KEY`. The workflow only runs
   from `main`, so changes to it ship like any other PR.
+- `AI_GATEWAY_CI_KEY` is **reserved and not yet used** — see below. CI still bills
+  directly to `ANTHROPIC_API_KEY`, so the loop runs whether or not that secret exists.
+
+### CI cost attribution through the ai-gateway (DAN-86) — blocked
+
+The intent is that every token the remote developer/tester legs spend lands on the
+ai-gateway ledger — the same meter that enforces quotas — attributed per feature and
+per ticket, so build cost is separable from app cost without a second self-reported
+meter. It is **not switched on**: `claude-code-action` sends `stream: true` on its
+main inference call and offers no way to turn that off, and the DAN-85 passthrough
+rejects `stream: true` with a 400 that the CLI does not retry non-streamed. Pointing
+CI at the gateway today would break both agent legs on their first model call, so
+`.github/workflows/linear-agents.yml` is deliberately left unrouted. Unblocking it is
+DAN-85's job (the passthrough needs streaming support); the measurements and the
+already-verified wiring are recorded in that workflow's header.
+
+Two things are needed from the user before the follow-up can ship, neither of which
+an agent can do:
+
+1. **Seed a `ci-builder` persona in the gateway with a quota of its own.** CI spend
+   should throttle independently of app traffic — a runaway build must not exhaust
+   the quota the application is running on, and vice versa.
+2. **Store that persona's virtual key as the `AI_GATEWAY_CI_KEY` repo secret.** It
+   travels as an `x-gateway-key` header, never in a log; the attribution headers are
+   built separately by `.github/scripts/gateway-attribution.mjs` precisely so that
+   nothing key-shaped passes through a script that prints to stdout.
+
+**Fallback policy: fail closed.** If the gateway is unreachable or returns 429
+quota_exhausted, the build stops rather than retrying against the direct API key. A
+silent fallback would make the quota advisory and would under-report spend exactly
+when the budget is blown — an untrustworthy cost number is worse than a stopped
+build. The accepted cost is that a gateway outage halts the autonomous loop until it
+returns; tickets simply park in their current status, the same as any other CI
+outage.
 
 Everything else — draft-PR gate, tester-lifts-the-draft, user merges — is unchanged.
 
