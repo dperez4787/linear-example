@@ -1,12 +1,28 @@
 # Remote developer/tester agents driven by Linear ticket status.
 #
-# Every 5 minutes the scan job polls Linear (a single GraphQL request — no Claude
-# tokens are spent unless a ticket is actually waiting):
+# The whole loop is autonomous (DAN-98); the ONLY human gate left is merging the PR:
 #
-#   status "Ready for Dev"                      → develop job: implements the ticket,
-#                                                 opens a draft PR, moves it to In Review
+#   status "Ready for Dev"                      → develop job: claims the ticket
+#                                                 (→ In Progress), implements it, opens a
+#                                                 draft PR, then THE WORKFLOW moves the
+#                                                 ticket to In Review (no human action)
 #   status "In Review" without `agent-tested`   → test job: verifies acceptance criteria,
 #                                                 comments the verdict, lifts the draft on pass
+#   human merges the PR                         → the only manual step in the chain
+#
+# Every 5 minutes the scan job polls Linear (a single GraphQL request — no Claude
+# tokens are spent unless a ticket is actually waiting). Before looking for tickets
+# to hand to agents, the scan runs two loop-closing passes (DAN-98, see
+# .github/scripts/linear-loop-scan.mjs — both touch ONLY prompt:*-labeled tickets):
+#
+#   reconciliation — In Progress + GitHub PR attachment + no `agent-tested` means a
+#     completed dev leg whose In Review handoff was missed → move to In Review.
+#     (The dev leg opens the PR as its LAST act, so PR-present = dev finished; an
+#     active develop run's ticket has no PR yet and is left alone.)
+#   dependent promotion — a backlog/unstarted ticket whose "blocked by" issues are
+#     ALL resolved (state TYPE `completed` or `canceled` — a canceled blocker will
+#     never finish, so it must not strand the chain) → move to Ready for Dev, which
+#     the relay/scan then dispatches. Any still-open blocker → untouched.
 #
 # The claim is the status change: develop moves the ticket to In Progress before Claude
 # starts, so a ticket is never picked up twice. To re-run either leg, drag the ticket
@@ -57,6 +73,23 @@ jobs:
       develop: ${{ steps.scan.outputs.develop }}
       test: ${{ steps.scan.outputs.test }}
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # DAN-98: reconciliation (missed In Review handoffs) + dependent promotion
+      # (unblocked chains → Ready for Dev). Runs BEFORE the find step so a ticket
+      # healed or promoted here is picked up by THIS run's develop/test legs; the
+      # relay dispatch fired by the same transition converges on the claim (the
+      # status change), so no double pickup. Logic + guards documented in the
+      # script header; unit-tested with node --test '.github/scripts/*.test.mjs'.
+      - name: Reconcile completed dev work and promote unblocked dependents
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: node .github/scripts/linear-loop-scan.mjs
+
       - name: Find tickets waiting on an agent
         id: scan
         env:
@@ -176,8 +209,10 @@ jobs:
               (`gh pr create --draft`) whose body links the Linear issue and states
               what was verified.
             - The ticket is already in "In Progress"; leave the Linear status alone —
-              the workflow moved it and the human moves it to "In Review" after
-              reviewing the draft PR, which hands it to the tester agent.
+              the workflow moved it there and, once your draft PR exists, a later
+              workflow step moves the ticket to "In Review" itself, which hands it
+              to the tester agent. No human touches the status; the only human gate
+              in the whole chain is merging the PR.
 
             CI environment notes — these OVERRIDE the corresponding CLAUDE.md sections:
             - Do NOT run `source ~/.zshenv`; node, npm, git, and gh are already on PATH.
@@ -190,6 +225,50 @@ jobs:
             ticket cannot be implemented (unclear criteria, unsettled design), comment
             the blocker on the Linear issue, move the issue back to "Todo", and stop
             without opening a PR.
+
+      # DAN-98: the In Review handoff belongs to the workflow, not to prompts or
+      # humans. If the draft PR exists, dev work is done (opening it is the dev
+      # leg's last act) — hand the ticket to the tester. The one legitimate no-PR
+      # outcome is the agent bouncing an unimplementable ticket back to "Todo";
+      # anything else without a PR is a stranded run and must fail loudly.
+      - name: Verify draft PR exists
+        if: steps.claim.outputs.skip != 'true'
+        id: verify_pr
+        run: |
+          set -euo pipefail
+          PR_URL=$(gh pr view "${{ matrix.issue.branchName }}" \
+            --repo "${{ github.repository }}" --json url -q .url 2>/dev/null || true)
+          if [ -n "$PR_URL" ]; then
+            echo "Draft PR for ${{ matrix.issue.identifier }}: $PR_URL"
+            echo "handoff=yes" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "handoff=no" >> "$GITHUB_OUTPUT"
+          STATE=$(curl -sS --fail https://api.linear.app/graphql \
+            -H "Authorization: $LINEAR_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg id "${{ matrix.issue.id }}" \
+              '{query: "query($id: String!) { issue(id: $id) { state { id name } } }", variables: {id: $id}}')")
+          echo "$STATE" | jq -e '.data' > /dev/null  # fail loudly on GraphQL errors
+          STATE_ID=$(echo "$STATE" | jq -r '.data.issue.state.id')
+          STATE_NAME=$(echo "$STATE" | jq -r '.data.issue.state.name')
+          if [ "$STATE_ID" = "$STATE_IN_PROGRESS" ]; then
+            echo "::error::No PR for ${{ matrix.issue.identifier }} and the ticket is still In Progress — the develop leg stranded it."
+            exit 1
+          fi
+          echo "No PR, but ${{ matrix.issue.identifier }} was moved to \"$STATE_NAME\" by the agent (bounced); skipping handoff."
+
+      - name: Move ticket to In Review
+        if: steps.claim.outputs.skip != 'true' && steps.verify_pr.outputs.handoff == 'yes'
+        run: |
+          set -euo pipefail
+          curl -sS --fail https://api.linear.app/graphql \
+            -H "Authorization: $LINEAR_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg id "${{ matrix.issue.id }}" --arg state "$STATE_IN_REVIEW" \
+              '{query: "mutation($id: String!, $state: String!) { issueUpdate(id: $id, input: { stateId: $state }) { success } }", variables: {id: $id, state: $state}}')" \
+            | jq -e '.data.issueUpdate.success' > /dev/null
+          echo "${{ matrix.issue.identifier }} → In Review (handed to the tester agent)"
 
   test:
     needs: scan
