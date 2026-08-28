@@ -210,9 +210,12 @@ export const schema = buildSchema(`
   }
 
   # DAN-80: what one feature-request session has cost, proxied live from the
-  # AI gateway's usage ledger (GET /v1/usage?group_by=prompt_id) and filtered
-  # to the session. Non-null all the way down — a session the gateway has no
-  # row for costs zeros, never null and never an error.
+  # AI gateway's usage ledger (GET /v1/usage?group_by=prompt_id&window=all)
+  # and filtered to the session. Non-null all the way down — a session the
+  # gateway has no row for costs zeros, never null and never an error.
+  # DAN-107: the window is "all", the whole ledger. Cost-per-feature is a
+  # lifetime total; under the gateway's "day" default a session planned
+  # yesterday reported zeros.
   type FeatureCost {
     calls: Int!
     tokensIn: Int!

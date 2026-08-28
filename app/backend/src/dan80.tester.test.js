@@ -343,7 +343,7 @@ test('featureRequestCost serves exactly the matching row — decoys and the null
   assert.equal(recorded.length, 0, 'a usage READ records nothing to the ledger')
 })
 
-test('captured transport: GET ${AI_GATEWAY_URL}/v1/usage?group_by=prompt_id, headers exactly x-gateway-key off Cloud Run', async () => {
+test('captured transport: GET ${AI_GATEWAY_URL}/v1/usage?group_by=prompt_id&window=all, headers exactly x-gateway-key off Cloud Run', async () => {
   const id = await seedSession()
   const { gateway, calls } = capturedGateway({ body: liveUsageBody(id) })
 
@@ -351,8 +351,8 @@ test('captured transport: GET ${AI_GATEWAY_URL}/v1/usage?group_by=prompt_id, hea
 
   assert.equal(calls.length, 1)
   const { url, init } = calls[0]
-  assert.equal(url, `${GATEWAY_URL}/v1/usage?group_by=prompt_id`)
-  assert.ok(url.endsWith('/v1/usage?group_by=prompt_id'))
+  assert.equal(url, `${GATEWAY_URL}/v1/usage?group_by=prompt_id&window=all`)
+  assert.ok(url.endsWith('/v1/usage?group_by=prompt_id&window=all'))
   assert.equal(init.method, undefined, 'a plain GET: no method override')
   assert.equal(init.body, undefined, 'no body on the usage read')
   assert.deepEqual(
