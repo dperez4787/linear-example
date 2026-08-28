@@ -317,3 +317,47 @@ test('T39 CLI error output does not leak comment bodies or token-like strings', 
   assert.equal(r.status, 1)
   assert.ok(!`${r.stdout}${r.stderr}`.includes('ghp_SECRETSECRETSECRET1234'))
 })
+
+// ================= RE-VERIFICATION BLOCK (tester, 7e6ee79) =================
+// Probes of the fixed PASS_VERDICT regex (/Tester verdict\s*[—:–-]+\s*PASS\s*$/)
+// beyond both suites. Assertions encode the tester's RULINGS on the judgment
+// cases, so a future regex change that flips one of them fails loudly here.
+
+test('R01 trailing punctuation after PASS ("PASS!") -> no', () => {
+  assert.equal(isPassVerdict('## Tester verdict — PASS!'), false)
+})
+
+test('R02 repeated/mixed separators ("—— PASS", "—: PASS") -> yes (ruled safe: separator chars carry no negation)', () => {
+  assert.equal(isPassVerdict('## Tester verdict —— PASS'), true)
+  assert.equal(isPassVerdict('## Tester verdict —: PASS'), true)
+})
+
+test('R03 trailing whitespace variants (tab, CRLF, NBSP) -> yes per spec', () => {
+  assert.equal(isPassVerdict('## Tester verdict — PASS \t'), true)
+  assert.equal(isPassVerdict('## Tester verdict — PASS\r\n\r\nCRLF body'), true)
+  assert.equal(isPassVerdict('## Tester verdict — PASS '), true)
+})
+
+test('R04 case variants ("TESTER VERDICT — PASS") -> no (ruled conservative-correct: the real tester posts exact case; a mismatch fails toward no-merge)', () => {
+  assert.equal(isPassVerdict('TESTER VERDICT — PASS'), false)
+  assert.equal(isPassVerdict('## Tester Verdict — PASS'), false)
+})
+
+test('R05 text BEFORE the marker on the verdict line -> yes (ruled acceptable: bot-only authorship + draft-lift second signal; pre-marker text cannot sit between marker and PASS)', () => {
+  // Residual, documented: a pre-marker negation ("not a Tester verdict — PASS")
+  // also matches. Triggering it requires the trusted tester bot itself to
+  // compose that sentence AND lift the draft — same trust level as posting a
+  // wrong verdict outright. Not reachable by outside commenters.
+  assert.equal(isPassVerdict('Re: Tester verdict — PASS'), true)
+  assert.equal(isPassVerdict('this is not a Tester verdict — PASS'), true)
+})
+
+test('R06 bare PASS on the last line of a multi-line comment -> no (marker line rules)', () => {
+  assert.equal(isPassVerdict('## Tester verdict\nall good\nPASS'), false)
+  assert.equal(isPassVerdict('no marker anywhere\nPASS'), false)
+})
+
+test('R07 zero-width/unicode chars between separator and PASS -> no; double PASS -> no', () => {
+  assert.equal(isPassVerdict('## Tester verdict — ⁠PASS'), false)
+  assert.equal(isPassVerdict('## Tester verdict — PASS PASS'), false)
+})
