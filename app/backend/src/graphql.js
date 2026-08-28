@@ -20,6 +20,7 @@ import {
 import { ValidationError } from './schema.js'
 import { QuotaExhaustedError } from './aiGateway.js'
 import { getUsage } from './aiUsage.js'
+import { getLanguagePreference, setLanguagePreference } from './userPrefs.js'
 import {
   startFeatureRequest,
   listFeatureRequests,
@@ -228,6 +229,15 @@ export const schema = buildSchema(`
     featureRequestProgress(promptId: ID!): [TicketProgress!]!
     featureRequestActivity(promptId: ID!): [ActivityEvent!]!
     featureRequestCost(promptId: ID!): FeatureCost!
+    # DAN-96: the CALLER's stored UI language, or null when they have never
+    # chosen one. Takes no argument on purpose — the uid comes from the
+    # verified token, so there is no shape of this query that reads someone
+    # else's preference. Nullable because "not chosen yet" is the normal
+    # first-load state: the frontend (DAN-97) falls back to its own default.
+    # A String, not an enum, for the same reason Record.status is — userPrefs.js
+    # is the single enforcement point and an enum would be a second copy of the
+    # allowed list that can drift out of sync with it.
+    languagePreference: String
   }
 
   type Mutation {
@@ -237,6 +247,11 @@ export const schema = buildSchema(`
     startFeatureRequest(input: StartFeatureRequestInput!): FeatureRequest!
     sendFeatureRequestMessage(id: ID!, content: String!): FeatureRequest!
     approveFeatureRequestPlan(id: ID!): FeatureRequest!
+    # DAN-96: upsert the caller's UI language and echo back what was stored.
+    # Returns the stored String! rather than a wrapper payload type, the same
+    # call deleteRecord makes — there is nothing else to report. Like the
+    # query, it takes no uid: a caller can only ever write their own row.
+    setLanguagePreference(language: String!): String!
   }
 `)
 
@@ -414,6 +429,18 @@ export const rootValue = {
   // createHandler's context fn in index.js), never from an argument, so a user
   // can only ever read their own ledger.
   myAiUsage: resolver(async (_args, context) => getUsage(context.uid)),
+  // DAN-96: language preference. Same rule as myAiUsage — the uid comes from
+  // the GraphQL context (threaded from the verified token by the auth gate,
+  // see index.js) and never from an argument, which is what makes "a caller
+  // can only ever read/write their own row" structural rather than a check
+  // someone has to remember. resolver() (not contextResolver) because these
+  // are records-style resolvers with no NotFoundError of their own: the
+  // ValidationError userPrefs.js throws for a bad language goes through the
+  // one mapError to BAD_USER_INPUT with extensions.field = 'language'.
+  languagePreference: resolver(async (_args, context) => getLanguagePreference(context.uid)),
+  setLanguagePreference: resolver(async ({ language }, context) =>
+    setLanguagePreference(context.uid, language),
+  ),
   record: resolver(async ({ id }) => toWire(await getRecord(id))),
   createRecord: resolver(async ({ input }) => toWire(await createRecord(input))),
   updateRecord: resolver(async ({ id, input }) => toWire(await updateRecord(id, input))),
