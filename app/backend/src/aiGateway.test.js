@@ -470,6 +470,48 @@ test('usage() GETs ${AI_GATEWAY_URL}/v1/usage?group_by=prompt_id with x-gateway-
   assert.deepEqual(result, usageFixture, 'the parsed gateway response is returned as-is')
 })
 
+// --- DAN-107: `window` is a caller-supplied option, not a client constant ---
+//
+// The gateway defaults an omitted window to `day`. That default is right for a
+// quota meter and wrong for a lifetime cost total, so the window travels from
+// the call site. Two facts are pinned here: passing one puts it on the wire
+// next to group_by, and omitting one sends NOTHING (the test above pins the
+// omitted-window URL exactly, so the pre-DAN-107 wire shape cannot drift).
+
+test('usage() puts a supplied window on the wire alongside group_by', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY })
+  const fetch = stubFetch({ body: usageFixture })
+  const gateway = createAiGateway({ fetch, recordUsage: stubRecordUsage() })
+
+  const result = await gateway.usage({ groupBy: 'prompt_id', window: 'all' })
+
+  assert.equal(fetch.calls.length, 1, 'exactly one request')
+  const { url, init } = fetch.calls[0]
+  assert.equal(url, `${GATEWAY_URL}/v1/usage?group_by=prompt_id&window=all`)
+  assert.equal(init.method, undefined, 'still a plain GET — the window changes the query, nothing else')
+  assert.equal(init.body, undefined)
+  assert.deepEqual(Object.keys(init.headers), ['x-gateway-key'], 'auth is untouched by the window')
+  assert.equal(init.headers['x-gateway-key'], GATEWAY_KEY)
+  assert.deepEqual(result, usageFixture)
+})
+
+test('usage() carries whatever window the caller names — the client hardcodes none', async (t) => {
+  withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY })
+  for (const window of ['all', 'day', '2026-08-27T00:00:00-07:00']) {
+    const fetch = stubFetch({ body: usageFixture })
+    const gateway = createAiGateway({ fetch, recordUsage: stubRecordUsage() })
+
+    await gateway.usage({ groupBy: 'prompt_id', window })
+
+    // Parsed, not string-compared: a `since=`-style ISO window carries
+    // characters that must survive percent-encoding intact.
+    const sent = new URL(fetch.calls[0].url)
+    assert.equal(sent.pathname, '/v1/usage')
+    assert.equal(sent.searchParams.get('group_by'), 'prompt_id')
+    assert.equal(sent.searchParams.get('window'), window, `window=${window} reaches the wire verbatim`)
+  }
+})
+
 test('on Cloud Run: usage() fetches an id token for the gateway ORIGIN and sends it as Authorization, with x-gateway-key', async (t) => {
   withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY, kService: 'linear-example-backend' })
   const fetch = stubCloudTransport({ gateway: { status: 200, body: usageFixture } })
@@ -528,16 +570,21 @@ test('missing AI_GATEWAY_URL/KEY: usage() throws GatewayError without ever calli
   assert.equal(fetch.calls.length, 0, 'no request is attempted without configuration')
 })
 
-test('a non-2xx usage response throws GatewayError (429 included — a usage read has no quota mapping)', async (t) => {
+// DAN-107 adds 400 to this loop: a gateway that has not yet taken DAN-106
+// rejects `window=all` with a 400, and that must be an ordinary non-2xx —
+// the SAME GatewayError a 503 has always produced, with no new error class
+// and no special case anywhere in the client.
+test('a non-2xx usage response throws GatewayError (400 and 429 included — a usage read has no quota mapping)', async (t) => {
   withEnv(t, { url: GATEWAY_URL, key: GATEWAY_KEY })
-  for (const status of [429, 503]) {
+  for (const status of [400, 429, 503]) {
     const gateway = createAiGateway({
       fetch: stubFetch({ status, body: { error: { message: 'nope' } } }),
       recordUsage: stubRecordUsage(),
     })
-    await assert.rejects(gateway.usage({ groupBy: 'prompt_id' }), GatewayError)
-    await assert.rejects(gateway.usage({ groupBy: 'prompt_id' }), (err) => {
+    await assert.rejects(gateway.usage({ groupBy: 'prompt_id', window: 'all' }), GatewayError)
+    await assert.rejects(gateway.usage({ groupBy: 'prompt_id', window: 'all' }), (err) => {
       assert.ok(!(err instanceof QuotaExhaustedError), `a ${status} usage read is a GatewayError, not quota`)
+      assert.equal(err.constructor, GatewayError, `a ${status} usage read introduces no new error class`)
       return true
     })
   }

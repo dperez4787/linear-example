@@ -1067,9 +1067,23 @@ function toFeatureCost(row) {
   }
 }
 
+// The window every per-ticket cost read asks the gateway for (DAN-107).
+// "What has this feature cost?" is a LIFETIME question: a session planned
+// yesterday has spent what it has spent, and that number does not reset at
+// UTC midnight. The gateway's default window is `day`, which is why a session
+// older than today reported "$0.0000 · 0 calls" — its ledger rows were simply
+// outside the window that was asked for. `all` is the entire ledger with no
+// lower bound (gateway DAN-106). Quota enforcement is unaffected: it computes
+// its own day window server-side and never consults this read.
+//
+// It is a named constant, and it travels as an OPTION on usage() rather than
+// living inside the client, so the next per-ticket cost read is written the
+// same way instead of quietly inheriting a window nobody chose.
+const COST_WINDOW = 'all'
+
 // What this session has cost, read live from the AI gateway's usage ledger
-// through the injected client. GET /v1/usage?group_by=prompt_id returns
-// (per ai-gateway/src/usage.js):
+// through the injected client. GET /v1/usage?group_by=prompt_id&window=all
+// returns (per ai-gateway/src/usage.js):
 //   { persona, window, group_by: "prompt_id",
 //     rows: [{ group: <promptId-or-null>, calls, tokensIn, tokensOut, costUsd }],
 //     total: { calls, tokensIn, tokensOut, costUsd } }
@@ -1079,6 +1093,12 @@ function toFeatureCost(row) {
 // module and never touches the gateway. A gateway failure propagates
 // (GatewayError → INTERNAL, logged server-side, nothing leaked); an absent
 // row is zeros, not an error.
+//
+// Rollout note (DAN-107): a gateway that has not yet taken DAN-106 rejects
+// `window=all` with a 400. That is deliberately NOT special-cased — a 400 is
+// a non-2xx like any other, so it becomes the same GatewayError → INTERNAL
+// this function has always produced for a gateway that says no. The request
+// view sees the failure mode it already handles, never a new error class.
 export async function featureRequestCost(uid, id, aiGateway) {
   const _id = toObjectId(id)
   const doc = await collection().findOne({ _id, uid })
@@ -1086,7 +1106,7 @@ export async function featureRequestCost(uid, id, aiGateway) {
     throw new NotFoundError('feature request not found')
   }
 
-  const body = await aiGateway.usage({ groupBy: 'prompt_id' })
+  const body = await aiGateway.usage({ groupBy: 'prompt_id', window: COST_WINDOW })
   const rows = Array.isArray(body?.rows) ? body.rows : []
   return toFeatureCost(rows.find((row) => row?.group === id))
 }

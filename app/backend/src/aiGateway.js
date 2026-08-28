@@ -175,12 +175,26 @@ export function createAiGateway({
   // config, network, non-2xx) is a GatewayError → the established INTERNAL
   // mapping; the parsed response body is returned as-is and the caller owns
   // filtering/presentation. Reads record nothing against the usage ledger.
-  async function usage({ groupBy }) {
+  //
+  // DAN-107: `window` is the ledger window the gateway aggregates over, and it
+  // belongs to the CALLER, because only the caller knows what question it is
+  // asking. The gateway's own default is `day` (rows since today's UTC
+  // midnight) — right for a quota meter, wrong for "what has this feature cost
+  // in total", which is a lifetime question and passes `window: 'all'`
+  // (DAN-106 on the gateway side). Omitted here means the parameter is not
+  // sent at all, so the gateway's `day` default stands and the wire shape of
+  // every pre-DAN-107 caller is byte-for-byte unchanged. Any future per-ticket
+  // cost read asks for its own window the same way, at the call site, rather
+  // than inheriting one hardcoded in here.
+  async function usage({ groupBy, window }) {
     const { url, headers } = await gatewayAuth()
+
+    const query = new URLSearchParams({ group_by: groupBy })
+    if (window !== undefined) query.set('window', window)
 
     let res
     try {
-      res = await fetchImpl(`${url}/v1/usage?group_by=${encodeURIComponent(groupBy)}`, { headers })
+      res = await fetchImpl(`${url}/v1/usage?${query}`, { headers })
     } catch (err) {
       // Network-level failure. The message is for the server-side log only.
       throw new GatewayError(`AI gateway usage request failed: ${err.message}`)
