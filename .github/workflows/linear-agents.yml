@@ -55,6 +55,71 @@
 # Secrets required: ANTHROPIC_API_KEY (Claude API billing), LINEAR_API_KEY.
 # Subscription billing instead: replace `anthropic_api_key` with
 # `claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}` (from `claude setup-token`).
+#
+# AI_GATEWAY_CI_KEY — RESERVED, NOT YET USED. See the DAN-86 block below. Both
+# agent legs still bill directly to ANTHROPIC_API_KEY; nothing here reads the
+# gateway key yet, so the secret does not need to exist for this workflow to run.
+#
+# ---- DAN-86: routing CI agents through the ai-gateway ledger — BLOCKED ----
+#
+# GOAL (unchanged, deferred): send both agent legs' tokens through the DAN-85
+# passthrough (`POST <gateway>/anthropic/v1/messages`) so every CI token lands on
+# the same meter that enforces quotas, attributed per feature AND per ticket.
+# This replaces the canceled self-reported write-back (DAN-101/102) — one meter,
+# not two.
+#
+# WHY IT IS NOT WIRED UP: claude-code-action sends `stream: true` on its main
+# inference call and cannot be told not to. The DAN-85 passthrough rejects
+# `stream: true` with 400 invalid_request, so pointing ANTHROPIC_BASE_URL at the
+# gateway today breaks BOTH legs on their first model call. Measured against
+# claude-cli 2.1.247 by pointing ANTHROPIC_BASE_URL at a local capture server:
+#
+#   * `POST /v1/messages?beta=true` carries `"stream": true` on the assistant
+#     turn. (Some background calls are non-streaming; the one that matters is not.)
+#   * A 400 in the DAN-85 error shape does NOT trigger a non-streaming retry.
+#     The CLI aborts the whole run with `API Error: 400`. There is a
+#     CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK env var, but no switch that
+#     forces non-streaming, and the fallback it names did not engage here.
+#
+# A broken agent pipeline is far worse than delayed cost attribution, so this
+# workflow is deliberately left FUNCTIONALLY UNCHANGED. Unblocking is DAN-85's:
+# the passthrough must support streaming (accept `stream: true`, relay the SSE
+# body through, and meter from the terminal `message_delta` usage).
+#
+# WHAT WAS ALREADY VERIFIED, so the follow-up is wiring and not discovery:
+#   * ANTHROPIC_BASE_URL and ANTHROPIC_CUSTOM_HEADERS are both forwarded by
+#     claude-code-action (action.yml passes them from the `env.` context) and
+#     honored by the CLI. Set them in this workflow's job-level `env:`, NOT as
+#     `with:` inputs — the action has no input for either.
+#   * A base URL WITH a path suffix is preserved: `<gateway>/anthropic` produces
+#     `POST <gateway>/anthropic/v1/messages?beta=true`. The gateway must tolerate
+#     the `?beta=true` query string, and a `HEAD <base>/api/hello` connectivity
+#     preflight whose 404 is non-fatal (confirmed).
+#   * ANTHROPIC_CUSTOM_HEADERS is forwarded VERBATIM as newline-separated
+#     `Name: value` lines — so the x-gateway-* attribution headers work as-is.
+#     .github/scripts/gateway-attribution.mjs builds that block (unit-tested,
+#     called by nothing yet).
+#   * AUTH: ANTHROPIC_API_KEY becomes an `x-api-key` header, NOT Bearer, and the
+#     action passes NO ANTHROPIC_AUTH_TOKEN through. So the virtual key travels
+#     as `x-gateway-key` inside ANTHROPIC_CUSTOM_HEADERS (a form DAN-85 accepts),
+#     concatenated straight from ${{ secrets.AI_GATEWAY_CI_KEY }} so GitHub masks
+#     it; ANTHROPIC_API_KEY still has to be set to something non-empty or the
+#     action's own env validation fails before Claude starts.
+#
+# FALLBACK POLICY when the gateway is unreachable or returns 429 quota_exhausted:
+# FAIL CLOSED. The build stops; it does NOT retry against the direct
+# ANTHROPIC_API_KEY. Reasoning: the point of DAN-86 is that the ledger is the
+# whole truth about spend, and a silent fallback would make the quota advisory —
+# the runs that fall back are exactly the runs that blew the budget, so the
+# ledger would under-report precisely when it matters most, and a "quota
+# exhausted" number nobody can trust is worse than a stopped build. The tradeoff
+# is real and accepted: a gateway outage halts the autonomous loop, and tickets
+# park in their current status until it returns (the same degraded state as any
+# other CI outage — nothing is lost, pickup is just delayed). Fail-closed is
+# specified for prompt-labeled feature builds; it is applied to ALL builds here
+# because a second code path is a second thing to get wrong for a fallback that
+# should never fire.
+# --------------------------------------------------------------------------
 
 name: Linear agents
 
